@@ -41,9 +41,6 @@
     "lib/types/**/*.d.ts"
   ],
   "license": "MIT",
-  "dependencies": {
-    "@rheplicant/dsh-rheplicant-ui-kit": "workspace:^"
-  },
   "peerDependencies": {
     "@deepseek-ai/dsh-client-runtime": "workspace:^",
     "@deepseek-ai/dsh-client-ui-conversation": "workspace:^",
@@ -58,6 +55,7 @@
     "@deepseek-ai/dsh-session": "workspace:^",
     "@deepseek-ai/cordis": "workspace:^",
     "react": "^18.2.0",
-    "@types/react": "~18.3.1"
+    "@types/react": "~18.3.1",
+    "@rheplicant/dsh-rheplicant-ui-kit": "workspace:^"
   }
 }
