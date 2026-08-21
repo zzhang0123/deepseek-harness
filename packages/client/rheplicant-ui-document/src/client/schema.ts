@@ -1,0 +1,205 @@
+/** Static projection of the config-document grammar (generated from rheplicant.config.schema.json_schema). */
+export interface ConfigSection { readonly name: string; readonly required: boolean }
+export interface ConfigSchema {
+  readonly schemaVersion: string
+  readonly sections: readonly ConfigSection[]
+  readonly exits: readonly string[]
+  readonly operators: readonly string[]
+  readonly transforms: readonly string[]
+  readonly catalogs: { readonly acceptedUnits: readonly string[]; readonly resourceKinds: readonly string[]; readonly fileFormats: readonly string[]; readonly shapeSymbols: readonly string[] }
+}
+
+export const SCHEMA: ConfigSchema = {
+  "schemaVersion": "1",
+  "sections": [
+    {
+      "name": "schema_version",
+      "required": false
+    },
+    {
+      "name": "defaults",
+      "required": false
+    },
+    {
+      "name": "plugins",
+      "required": false
+    },
+    {
+      "name": "runtime",
+      "required": true
+    },
+    {
+      "name": "observation",
+      "required": true
+    },
+    {
+      "name": "resources",
+      "required": false
+    },
+    {
+      "name": "model",
+      "required": true
+    },
+    {
+      "name": "variants",
+      "required": false
+    },
+    {
+      "name": "inference",
+      "required": false
+    },
+    {
+      "name": "runs",
+      "required": true
+    },
+    {
+      "name": "outputs",
+      "required": false
+    },
+    {
+      "name": "campaign",
+      "required": false
+    }
+  ],
+  "exits": [
+    "forward",
+    "fisher",
+    "optimize",
+    "plan.estimate",
+    "plan.sample",
+    "conjugate.wiener",
+    "conjugate.gcr",
+    "conjugate.gls",
+    "condition",
+    "identifiability",
+    "score_directions",
+    "gradient",
+    "mmodes",
+    "predict",
+    "nuts",
+    "npe",
+    "compare",
+    "benchmark"
+  ],
+  "operators": [
+    "arange",
+    "as",
+    "axis",
+    "basis_fit",
+    "basis_matrix",
+    "channel_spacing",
+    "column",
+    "dtype",
+    "file",
+    "from",
+    "from_grid",
+    "from_switch_order",
+    "full",
+    "horizon_fraction",
+    "interpolate_onto",
+    "linspace",
+    "list",
+    "modulo",
+    "normal",
+    "normalize",
+    "offset",
+    "ones",
+    "part",
+    "python",
+    "ref",
+    "sample_cadence",
+    "scale",
+    "stack",
+    "uniform",
+    "unit",
+    "unit_mean_free",
+    "value",
+    "zeros"
+  ],
+  "transforms": [
+    "adc",
+    "additive_noise_emi",
+    "antenna_loss",
+    "apply_cal",
+    "basis_expand",
+    "basis_fit",
+    "basis_matrix",
+    "basis_temperature",
+    "beam_analysis",
+    "beam_spill",
+    "channel_spacing",
+    "cw_centre",
+    "cw_level",
+    "exp_log",
+    "file",
+    "filters_averaging",
+    "foreground",
+    "gain",
+    "global_signal",
+    "ground_pickup",
+    "horizon_fraction",
+    "interpolate_onto",
+    "ionosphere",
+    "matmul",
+    "modifier_affine",
+    "noise_wave",
+    "normal",
+    "normalize",
+    "part_angle",
+    "part_same",
+    "python",
+    "radiometer_fraction",
+    "ref",
+    "sample_cadence",
+    "sky_projection",
+    "sky_space",
+    "stack",
+    "transform_affine",
+    "uniform",
+    "uniform_sky",
+    "unit_mean_free"
+  ],
+  "catalogs": {
+    "acceptedUnits": [
+      "Hz",
+      "s",
+      "unix_s",
+      "K",
+      "deg",
+      "m",
+      "ohm",
+      "dimensionless",
+      "count",
+      "samples",
+      "bits",
+      "channels",
+      "cycles",
+      "adc_count"
+    ],
+    "resourceKinds": [
+      "arrays",
+      "bases",
+      "beams",
+      "projectors",
+      "s_params",
+      "sky_models"
+    ],
+    "fileFormats": [
+      "csv",
+      "eqx_leaves",
+      "npy",
+      "npz",
+      "rhino_hdf5",
+      "touchstone",
+      "txt"
+    ],
+    "shapeSymbols": [
+      "n_time",
+      "n_freq",
+      "n_source",
+      "n_pix",
+      "n_alm",
+      "n_load"
+    ]
+  }
+}
