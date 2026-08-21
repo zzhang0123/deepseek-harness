@@ -23,9 +23,11 @@
     "@rheplicant/dsh-rheplicant": "workspace:^"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "workspace:^"
+    "@deepseek-ai/cordis": "workspace:^",
+    "@deepseek-ai/dsh-jobs": "workspace:^"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "workspace:^"
+    "@deepseek-ai/cordis": "workspace:^",
+    "@deepseek-ai/dsh-jobs": "workspace:^"
   }
 }

@@ -10,8 +10,16 @@ import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { JsonValue } from '@deepseek-ai/dsh-tools'
+import type {} from '@deepseek-ai/dsh-jobs'
 import type {} from '@rheplicant/dsh-rheplicant'
 import type { RunOutcome, Transport } from '@rheplicant/dsh-rheplicant'
+
+declare module '@deepseek-ai/dsh-jobs' {
+  interface JobKindMap {
+    /** A rheplicant compute run dispatched to a background job. */
+    rheplicant: 'rheplicant'
+  }
+}
 
 /** Cordis plugin name used by loader diagnostics. */
 export const name = 'tool-rheplicant-run'
@@ -38,7 +46,8 @@ export function apply(ctx: Context, config: Config): void {
       'an ordered list of runs (forward, fisher, plan.estimate, plan.sample, nuts, ' +
       'conjugate.*, identifiability, predict, ...). Results carry diagnostics ' +
       '(r_hat, identifiability rank, joint chi-squared) that must be read alongside ' +
-      'the numbers.',
+      'the numbers. Long runs (nuts, npe, large gcr) may take minutes: pass ' +
+      'run_in_background: true and poll the returned job id with job_output.',
     parameters: {
       document: {
         type: 'object',
@@ -55,14 +64,51 @@ export function apply(ctx: Context, config: Config): void {
         items: { type: 'string' },
         description: 'Optional subset of run names to report, in declaration order.',
       },
+      run_in_background: {
+        type: 'boolean',
+        description: 'Dispatch the run to a background job and return its job id (poll with job_output).',
+      },
     },
     output: {
       schema: { type: 'object', additionalProperties: true },
-      render: (_args, value) => [{ type: 'text', text: formatRunOutcome(value as unknown as RunOutcome) }],
+      render: (_args, value) => {
+        const projected = value as unknown as Record<string, JsonValue>
+        if (typeof projected.jobId === 'string') {
+          return [{ type: 'text', text: `Background run started: ${projected.jobId} — read its output with job_output.` }]
+        }
+        return [{ type: 'text', text: formatRunOutcome(value as unknown as RunOutcome) }]
+      },
     },
     async execute(args, exec) {
       // P0 TODO: validate the string against the Transport union instead of casting.
       const transport = (args.transport ?? config.defaultTransport) as Transport
+      if (args.run_in_background === true) {
+        const jobs = ctx.get('jobs')
+        if (jobs === undefined) {
+          throw new Error('background jobs are unavailable — mount @deepseek-ai/dsh-jobs and @deepseek-ai/dsh-tool-jobs')
+        }
+        const id = jobs.start({
+          kind: 'rheplicant',
+          label: `rheplicant run (${transport})`,
+          ...(exec.agent === undefined ? {} : { owner: exec.agent }),
+          run: () => {
+            const controller = new AbortController()
+            const run = ctx.rheplicant.run(args.document, {
+              transport,
+              runs: args.runs,
+              signal: controller.signal,
+            })
+            return {
+              cancel: (reason) => { controller.abort(reason ?? 'killed') },
+              done: run.then((outcome) => {
+                exec.agent?.session.append('rheplicant/run', { document: args.document, outcome, transport }, { ignorable: true })
+                return { status: 'completed' as const, output: formatRunOutcome(outcome) }
+              }),
+            }
+          },
+        })
+        return { jobId: id } as unknown as Record<string, JsonValue>
+      }
       const outcome = await ctx.rheplicant.run(args.document, {
         transport,
         runs: args.runs,

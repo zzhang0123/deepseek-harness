@@ -1,0 +1,17 @@
+.emptyState {
+  text-align: center;
+  padding: 1.5rem;
+  border: 1px dashed var(--dsw-alias-border-l1);
+  border-radius: 0.5rem;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.message {
+  margin: 0;
+  font-size: 0.8125rem;
+}
+
+.hint {
+  margin: 0.25rem 0 0;
+  font-size: 0.75rem;
+}

@@ -9,14 +9,18 @@
 
 import { Service } from '@deepseek-ai/cordis'
 import type { Context } from '@deepseek-ai/cordis'
+import z from '@deepseek-ai/schemastery'
+import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
 import type {
   ComputeDocument,
+  ComputeEndpoints,
   ComputeOpts,
   ComputeProvider,
   GatesReport,
   RunOpts,
   RunOutcome,
   SchemaDocument,
+  SignalPathGraph,
   Transport,
   ValidationReport,
 } from './types.ts'
@@ -26,9 +30,11 @@ export { ComputeError } from './types.ts'
 export type {
   CheckCost,
   ComputeDocument,
+  ComputeEndpoints,
   ComputeOpts,
   ComputeProvider,
   GatesReport,
+  GateFinding,
   RunCost,
   RunDiagnostics,
   RunEntry,
@@ -36,6 +42,7 @@ export type {
   RunOutcome,
   RunProduct,
   SchemaDocument,
+  SignalPathGraph,
   Transport,
   ValidationError,
   ValidationReport,
@@ -47,12 +54,39 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
+/**
+ * Endpoint configuration for the network transports, editable at runtime through
+ * the `ui-compute` settings card (the seam's settings channel — no client→host
+ * RPC). Providers read it through {@link ComputeRuntime.getEndpoints}.
+ */
+const EndpointsSchema: z<ComputeEndpoints> = z.object({
+  ssh: z.object({
+    host: z.string(),
+    command: z.string(),
+  }),
+  http: z.object({
+    baseUrl: z.string(),
+  }),
+})
+
 /** The compute access service, registered as `ctx.rheplicant` (one per context). */
 export class ComputeRuntime extends Service {
   private providers = new Map<Transport, ComputeProvider>()
+  private endpointsSource: () => ComputeEndpoints = () => ({})
 
   constructor(ctx: Context) {
     super(ctx, 'rheplicant')
+    // The endpoint settings channel: the SD owns the endpoint vocabulary, the
+    // browser reads/writes it through the harness's settings surface.
+    installSettingsSection(ctx, settingsNamespace('rheplicant-endpoints'), EndpointsSchema, {}, {
+      setSource: (current) => { this.endpointsSource = current },
+      onChange: () => {},
+    })
+  }
+
+  /** The resolved endpoint configuration (empty when no settings service is mounted). */
+  getEndpoints(): ComputeEndpoints {
+    return this.endpointsSource()
   }
 
   /**
@@ -98,6 +132,10 @@ export class ComputeRuntime extends Service {
 
   schema(opts: ComputeOpts): Promise<SchemaDocument> {
     return this.provider(opts.transport).schema(opts)
+  }
+
+  graph(document: ComputeDocument, opts: ComputeOpts): Promise<SignalPathGraph | null> {
+    return this.provider(opts.transport).graph(document, opts)
   }
 
   private provider(transport: Transport): ComputeProvider {

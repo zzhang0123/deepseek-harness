@@ -1,12 +1,30 @@
 {
   "extends": "../../../tsconfig.base.client.json",
-  "compilerOptions": { "rootDir": "src", "outDir": "lib/types" },
-  "include": ["src"],
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types"
+  },
+  "include": [
+    "src"
+  ],
   "references": [
-    { "path": "../../../vendor/cordis" },
-    { "path": "../runtime" },
-    { "path": "../ui-slots" },
-    { "path": "../rheplicant-ui-console" },
-    { "path": "../../runtime-diagnostics/invariants" }
+    {
+      "path": "../../../vendor/cordis"
+    },
+    {
+      "path": "../runtime"
+    },
+    {
+      "path": "../ui-slots"
+    },
+    {
+      "path": "../../rheplicant/ui-kit"
+    },
+    {
+      "path": "../rheplicant-ui-console"
+    },
+    {
+      "path": "../../runtime-diagnostics/invariants"
+    }
   ]
 }

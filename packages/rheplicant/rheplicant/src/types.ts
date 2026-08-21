@@ -40,11 +40,15 @@ export interface CheckCost {
   readonly cost: string
 }
 
-/** One run the document declares, and what it needs. */
+/**
+ * One run the document declares. Dependency between runs is never a `needs:`
+ * list here — a run's inputs are expressed by its own `reuse:` key (which can
+ * only look backward, into an earlier run's product) plus `runs:`'s
+ * declaration order, which is the schedule (philosophy doc §7.1).
+ */
 export interface RunCost {
   readonly name: string
   readonly kind: string
-  readonly needs?: readonly string[]
 }
 
 export interface GatesReport {
@@ -53,7 +57,18 @@ export interface GatesReport {
   readonly warnings: readonly string[]
 }
 
-/** The kind-specific result of one run, discriminated by product shape. */
+/**
+ * The kind-specific result of one run, discriminated by product shape.
+ *
+ * `values`/`samples`/`fields` entries are ordinarily the full projected
+ * value, but the compute service enforces a per-array element budget on the
+ * durable `rheplicant/run` session event (`_BUDGET_MAX_ELEMENTS` in
+ * `server.py`): any one entry whose underlying array exceeds that budget is
+ * replaced by a summary of shape `{ truncated: true, nElements, shape, mean?,
+ * std?, q05?, q50?, q95? }` (the four quantile/moment fields are only present
+ * for a numeric dtype). A consumer reading `values`/`samples`/`fields` must
+ * check for `truncated` before treating an entry as the raw array.
+ */
 export type RunProduct =
   | { readonly kind: 'estimate'; readonly values: Record<string, unknown> }
   | {
@@ -72,7 +87,19 @@ export interface RunDiagnostics {
   readonly rank?: number
   readonly nullity?: number
   readonly chi2?: number | readonly number[]
-  readonly notes: readonly string[]
+  /** Effective sample size (NUTS). Scalar, or per-latent when folded flat. */
+  readonly n_eff?: number | Record<string, number>
+  /** Number of divergent transitions (NUTS). */
+  readonly divergences?: number
+  /** Conditioning number κ (the `condition` exit). */
+  readonly kappa?: number | readonly number[]
+  readonly delta?: number
+  readonly iterations?: number
+  readonly weakest_identified?: unknown
+  readonly singular_values?: number | readonly number[]
+  /** Per-latent r_hat/n_eff when the sampler reports more than one latent. */
+  readonly mcmc?: Record<string, unknown>
+  readonly notes?: readonly string[]
 }
 
 export interface RunEntry {
@@ -81,12 +108,44 @@ export interface RunEntry {
   readonly status: 'ok' | 'failed'
   readonly product?: RunProduct
   readonly diagnostics?: RunDiagnostics
+  /** Viz-ready chain summary: per-latent downsampled draws (sampler kinds). */
+  readonly chains?: Record<string, number[]>
+  /** Viz-ready m-mode power spectrum (magnitude), for `mmodes` runs. */
+  readonly spectrum?: number[][]
   readonly error?: ComputeError
+}
+
+/** The lit/dim signal-path rendering for a document's `model:` section. */
+export interface SignalPathGraph {
+  /** Canonical graph template name, e.g. `single-antenna`. */
+  readonly graph: string
+  /** Node ids the document's operators light up. */
+  readonly lit: readonly string[]
+  /** Junction/selector nodes traversed as identity. */
+  readonly skipped: readonly string[]
+  /** Self-contained `<svg>` (dark theme), for direct embedding. */
+  readonly svg?: string
+  /** Mermaid source, for a client-side renderer. */
+  readonly mermaid?: string
+}
+
+/** One post-flight gate verdict (linearity / identifiability / prior_sensitivity / …). */
+export interface GateFinding {
+  /** Schema check id, e.g. `C12` (linearity), `C13` (identifiability). */
+  readonly check: string
+  readonly severity: 'refuse' | 'warn' | 'report' | 'skip'
+  /** JSON path into the document the finding names. */
+  readonly where: string
+  readonly message: string
 }
 
 export interface RunOutcome {
   readonly runs: readonly RunEntry[]
   readonly tookMs?: number
+  /** Present when the document declares a `model:`; the lit/dim graph. */
+  readonly graph?: SignalPathGraph
+  /** Post-flight gate verdicts, read off rheplicant's own report ledger. */
+  readonly gates?: readonly GateFinding[]
 }
 
 /** The config grammar as one object: schema plus the exit/operator/transform catalogs. */
@@ -114,6 +173,8 @@ export interface ComputeProvider {
   gates(document: ComputeDocument, opts: ComputeOpts): Promise<GatesReport>
   run(document: ComputeDocument, opts: RunOpts): Promise<RunOutcome>
   schema(opts: ComputeOpts): Promise<SchemaDocument>
+  /** The lit/dim signal-path rendering for a document's `model:` section. */
+  graph(document: ComputeDocument, opts: ComputeOpts): Promise<SignalPathGraph | null>
 }
 
 /**
@@ -132,6 +193,15 @@ export interface RheplicantRunEventData {
   readonly outcome: RunOutcome
   /** The transport that executed it. */
   readonly transport: Transport
+}
+
+/**
+ * Endpoint configuration for the network transports, editable at runtime through
+ * the `ui-compute` settings card (the seam's settings channel).
+ */
+export interface ComputeEndpoints {
+  readonly ssh?: { readonly host?: string; readonly command?: string }
+  readonly http?: { readonly baseUrl?: string }
 }
 
 declare module '@deepseek-ai/dsh-session/types' {

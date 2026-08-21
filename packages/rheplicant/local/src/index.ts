@@ -19,6 +19,7 @@ import type {
   RunOpts,
   RunOutcome,
   SchemaDocument,
+  SignalPathGraph,
   ValidationReport,
 } from '@rheplicant/dsh-rheplicant'
 
@@ -70,6 +71,11 @@ class LocalComputeProvider implements ComputeProvider {
 
   schema(opts: ComputeOpts): Promise<SchemaDocument> {
     return this.request<SchemaDocument>('schema', {}, opts)
+  }
+
+  graph(document: ComputeDocument, opts: ComputeOpts): Promise<SignalPathGraph | null> {
+    return this.request<{ graph: SignalPathGraph | null }>('graph', { document }, opts)
+      .then((result) => result.graph)
   }
 
   private request<T>(method: string, params: unknown, opts: ComputeOpts): Promise<T> {

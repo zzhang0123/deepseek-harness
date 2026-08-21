@@ -1,7 +1,8 @@
 /** Keyed renderer for the `rheplicant-analysis` Chat node: one row per run, each with its diagnostics panel. */
 import { memo } from 'react'
 import type { ChatNodeViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import type { GateFinding, RunDiagnostics, SignalPathGraph } from './analysis-definition.ts'
+import type { GateFinding, RunDiagnostics, SignalPathGraph } from '@rheplicant/dsh-rheplicant'
+import { formatDiagnostic } from '@rheplicant/dsh-rheplicant-ui-kit/client'
 
 /** Post-flight gate verdicts, one row per finding. */
 const Gates = memo(function Gates({ gates }: { gates: readonly GateFinding[] }) {
@@ -28,7 +29,7 @@ const SignalPath = memo(function SignalPath({ graph }: { graph: SignalPathGraph 
       {graph.svg !== undefined ? (
         <div
           data-signal-path-svg
-          style={{ maxHeight: '26rem', overflow: 'auto', background: '#07131f', borderRadius: 8 }}
+          style={{ maxHeight: '26rem', overflow: 'auto', background: 'var(--dsw-alias-bg-base)', borderRadius: 8 }}
           dangerouslySetInnerHTML={{ __html: graph.svg }}
         />
       ) : null}
@@ -46,12 +47,15 @@ const SignalPath = memo(function SignalPath({ graph }: { graph: SignalPathGraph 
  * package's own notes — as structured data, separate from the model's prose, so
  * the authoritative numbers never hide inside a generated explanation.
  */
+/** Format a scalar-or-per-sweep diagnostic (`typeof` narrows where Array.isArray cannot on readonly arrays). */
+function formatScalarOrList(key: string, value: number | readonly number[]): string {
+  return typeof value === 'number'
+    ? formatDiagnostic(key, value)
+    : value.map(entry => formatDiagnostic(key, entry)).join(', ')
+}
+
 const Diagnostics = memo(function Diagnostics({ diagnostics }: { diagnostics: RunDiagnostics }) {
-  const chi2 = diagnostics.chi2 === undefined
-    ? undefined
-    : Array.isArray(diagnostics.chi2)
-      ? diagnostics.chi2.join(', ')
-      : String(diagnostics.chi2)
+  const chi2 = diagnostics.chi2 === undefined ? undefined : formatScalarOrList('chi2', diagnostics.chi2)
   return (
     <dl data-run-diagnostics>
       {diagnostics.converged !== undefined ? (
@@ -63,19 +67,19 @@ const Diagnostics = memo(function Diagnostics({ diagnostics }: { diagnostics: Ru
       {diagnostics.rhat !== undefined ? (
         <>
           <dt>r_hat</dt>
-          <dd data-diag-rhat>{diagnostics.rhat}</dd>
+          <dd data-diag-rhat>{formatDiagnostic('rhat', diagnostics.rhat)}</dd>
         </>
       ) : null}
       {diagnostics.rank !== undefined ? (
         <>
           <dt>Rank</dt>
-          <dd data-diag-rank>{diagnostics.rank}</dd>
+          <dd data-diag-rank>{formatDiagnostic('rank', diagnostics.rank)}</dd>
         </>
       ) : null}
       {diagnostics.nullity !== undefined ? (
         <>
           <dt>Nullity</dt>
-          <dd data-diag-nullity>{diagnostics.nullity}</dd>
+          <dd data-diag-nullity>{formatDiagnostic('nullity', diagnostics.nullity)}</dd>
         </>
       ) : null}
       {chi2 !== undefined ? (
@@ -88,34 +92,34 @@ const Diagnostics = memo(function Diagnostics({ diagnostics }: { diagnostics: Ru
         <>
           <dt>n_eff</dt>
           <dd data-diag-n-eff>
-            {typeof diagnostics.n_eff === 'number' ? diagnostics.n_eff : JSON.stringify(diagnostics.n_eff)}
+            {typeof diagnostics.n_eff === 'number'
+              ? formatDiagnostic('n_eff', diagnostics.n_eff)
+              : Object.entries(diagnostics.n_eff).map(([latent, value]) => `${latent}: ${formatDiagnostic('n_eff', value)}`).join(', ')}
           </dd>
         </>
       ) : null}
       {diagnostics.divergences !== undefined ? (
         <>
           <dt>Divergences</dt>
-          <dd data-diag-divergences>{diagnostics.divergences}</dd>
+          <dd data-diag-divergences>{formatDiagnostic('divergences', diagnostics.divergences)}</dd>
         </>
       ) : null}
       {diagnostics.kappa !== undefined ? (
         <>
           <dt>κ</dt>
-          <dd data-diag-kappa>
-            {Array.isArray(diagnostics.kappa) ? diagnostics.kappa.join(', ') : diagnostics.kappa}
-          </dd>
+          <dd data-diag-kappa>{formatScalarOrList('kappa', diagnostics.kappa)}</dd>
         </>
       ) : null}
       {diagnostics.delta !== undefined ? (
         <>
           <dt>Δ</dt>
-          <dd data-diag-delta>{diagnostics.delta}</dd>
+          <dd data-diag-delta>{formatDiagnostic('delta', diagnostics.delta)}</dd>
         </>
       ) : null}
       {diagnostics.iterations !== undefined ? (
         <>
           <dt>Iterations</dt>
-          <dd data-diag-iterations>{diagnostics.iterations}</dd>
+          <dd data-diag-iterations>{formatDiagnostic('iterations', diagnostics.iterations)}</dd>
         </>
       ) : null}
       {(diagnostics.notes ?? []).length > 0 ? (

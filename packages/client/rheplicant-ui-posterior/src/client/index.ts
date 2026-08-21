@@ -2,7 +2,7 @@
  * Browser plugin for the posterior panel. Injects into the `console.panel` slot
  * declared by ui-console — the separate-viz-plugin contract: this package reads
  * nothing but the log, and does not re-run compute.
- * @module @deepseek-ai/dsh-client-rheplicant-ui-posterior/client
+ * @module @rheplicant/dsh-rheplicant-ui-posterior/client
  */
 
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'

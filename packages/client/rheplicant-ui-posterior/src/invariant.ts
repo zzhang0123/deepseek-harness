@@ -1,10 +1,10 @@
-/** Package-owned invariant companion for the rheplicant ui-posterior plugin. */
+/** Package-owned invariant companion for `@rheplicant/dsh-rheplicant-ui-posterior`. */
 /* jscpd:ignore-start */
 import type { Context } from '@deepseek-ai/cordis'
 import type { InvariantInstaller } from '@deepseek-ai/dsh-invariants'
 
-const PACKAGE_NAME = '@deepseek-ai/dsh-client-rheplicant-ui-posterior'
-export const name = 'client-rheplicant-ui-posterior-invariant'
+const PACKAGE_NAME = '@rheplicant/dsh-rheplicant-ui-posterior'
+export const name = 'rheplicant-ui-posterior-invariant'
 export const inject = ['invariants']
 const install: InvariantInstaller = () => {}
 export const apply = (ctx: Context): Promise<() => void> =>

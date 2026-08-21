@@ -3,7 +3,7 @@
  * conversation.view tab and DECLARES a child slot `console.panel` (a list grid)
  * that other plugins — posterior, spectrum, … — inject into. This is the
  * self-extensible slot mechanism: no DSH change, the slot is claimed here.
- * @module @deepseek-ai/dsh-client-rheplicant-ui-console/client
+ * @module @rheplicant/dsh-rheplicant-ui-console/client
  */
 
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'

@@ -1,22 +1,28 @@
 /** Posterior panel: corner plot of the folded analysis run's per-latent chains. */
 import { memo } from 'react'
 import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
+import {
+  type AnalysisRun,
+  EmptyState,
+  Panel,
+  type PanelStatus,
+  SERIES,
+  StatRow,
+  TOKEN,
+  formatDiagnostic,
+  selectAnalysisRuns,
+} from '@rheplicant/dsh-rheplicant-ui-kit/client'
 
 interface PosteriorPanelProps {
   useSession: <T>(selector: (snapshot: ConversationSnapshot) => T) => T
 }
 
-/** One analysis run's posterior material, as projected from the `rheplicant/run` outcome. */
-interface PosteriorRun {
-  readonly name: string
-  readonly kind: string
-  readonly chains?: Record<string, number[]>
-}
+/** An analysis run that has the chain draws this panel needs to draw a corner plot. */
+type PosteriorRun = AnalysisRun & { readonly chains: Record<string, number[]> }
 
 const BINS = 20
 const CELL = 96
 const PAD = 8
-const AMBER = '#F2A93B'
 
 /** Bin a draw sequence into a ~20-bin 1D histogram. */
 function histogram(values: number[]): number[] {
@@ -31,6 +37,21 @@ function histogram(values: number[]): number[] {
   return counts
 }
 
+/**
+ * One latent's plot color: the lit accent alone for a single latent, a
+ * rotating series color once there's more than one to tell apart. The modulo
+ * keeps the index in bounds, but `noUncheckedIndexedAccess` cannot see that,
+ * so `?? TOKEN.lit` documents the same "known in bounds" fact array-index
+ * lookups elsewhere in this workspace express with an explicit guard.
+ */
+function latentColor(index: number, count: number): string {
+  return count > 1 ? (SERIES[index % SERIES.length] ?? TOKEN.lit) : TOKEN.lit
+}
+
+function hasChains(run: AnalysisRun): run is PosteriorRun {
+  return run.chains !== undefined
+}
+
 /** Corner plot: diagonal 1D histograms, upper triangle 2D scatter. */
 const Corner = memo(function Corner({ chains }: { chains: Record<string, number[]> }) {
   const entries = Object.entries(chains)
@@ -43,11 +64,12 @@ const Corner = memo(function Corner({ chains }: { chains: Record<string, number[
         const counts = histogram(values)
         const maxCount = Math.max(...counts) || 1
         const barWidth = CELL / BINS
+        const color = latentColor(i, n)
         return (
           <g key={`hist-${latent}`} transform={`translate(${PAD + i * CELL}, ${PAD + i * CELL})`}>
             {counts.map((count, b) => {
               const h = (count / maxCount) * CELL
-              return <rect key={b} x={b * barWidth} y={CELL - h} width={Math.max(1, barWidth - 1)} height={h} fill={AMBER} data-corner-hist />
+              return <rect key={b} x={b * barWidth} y={CELL - h} width={Math.max(1, barWidth - 1)} height={h} fill={color} data-corner-hist />
             })}
           </g>
         )
@@ -60,6 +82,7 @@ const Corner = memo(function Corner({ chains }: { chains: Record<string, number[
         const yMax = Math.max(...ys)
         const xRange = xMax - xMin || 1
         const yRange = yMax - yMin || 1
+        const color = latentColor(i, n)
         return (
           <g key={`scatter-${li}-${lj}`} transform={`translate(${PAD + j * CELL}, ${PAD + i * CELL})`}>
             {xs.map((x, k) => (
@@ -68,7 +91,7 @@ const Corner = memo(function Corner({ chains }: { chains: Record<string, number[
                 cx={((x - xMin) / xRange) * CELL}
                 cy={CELL - (((ys[k] ?? 0) - yMin) / yRange) * CELL}
                 r={1.2}
-                fill={AMBER}
+                fill={color}
                 data-corner-scatter
               />
             ))}
@@ -79,20 +102,45 @@ const Corner = memo(function Corner({ chains }: { chains: Record<string, number[
   )
 })
 
+/** One run's rhat / n_eff diagnostics, folded into StatRow chips. */
+const RunDiagnosticStats = memo(function RunDiagnosticStats({ run }: { run: PosteriorRun }) {
+  const diagnostics = run.diagnostics
+  if (diagnostics === undefined) return null
+  const nEff = diagnostics.n_eff
+  return (
+    <>
+      {diagnostics.rhat !== undefined ? (
+        <StatRow statKey="rhat" label="rhat" value={formatDiagnostic('rhat', diagnostics.rhat)} />
+      ) : null}
+      {typeof nEff === 'number' ? (
+        <StatRow statKey="n_eff" label="n_eff" value={formatDiagnostic('n_eff', nEff)} />
+      ) : null}
+      {typeof nEff === 'object' && nEff !== null
+        ? Object.entries(nEff).map(([latent, value]) => (
+            <StatRow key={latent} statKey={`n_eff-${latent}`} label={`n_eff (${latent})`} value={formatDiagnostic('n_eff', value)} />
+          ))
+        : null}
+    </>
+  )
+})
+
 export const PosteriorPanel = memo(function PosteriorPanel({ useSession }: PosteriorPanelProps) {
-  const runs = useSession(snapshot => snapshot.chat.nodes.values()
-    .filter(node => node.kind === 'rheplicant-analysis')
-    .flatMap(node => (node.data as { runs: readonly PosteriorRun[] }).runs))
+  const runs = useSession(selectAnalysisRuns).filter(hasChains)
+  const status: PanelStatus = runs.length === 0 ? 'idle' : runs.some(run => run.status === 'failed') ? 'error' : 'ok'
 
   return (
-    <section data-rheplicant-posterior style={{ padding: 12, border: '1px solid var(--dsw-alias-border-l1)', borderRadius: 8 }}>
-      <h3>Posterior</h3>
-      {runs.map(run => run.chains === undefined ? null : (
-        <div key={run.name} data-posterior-run data-run-name={run.name}>
-          <div><strong>{run.name}</strong> <span>({run.kind})</span></div>
-          <Corner chains={run.chains} />
-        </div>
-      ))}
-    </section>
+    <Panel id="posterior" title="Posterior" status={status}>
+      {runs.length === 0 ? (
+        <EmptyState message="No draws yet" hint="Ask the agent for a nuts or plan.sample run" />
+      ) : (
+        runs.map(run => (
+          <div key={run.name} data-posterior-run data-run-name={run.name}>
+            <div><strong>{run.name}</strong> <span>({run.kind})</span></div>
+            <RunDiagnosticStats run={run} />
+            <Corner chains={run.chains} />
+          </div>
+        ))
+      )}
+    </Panel>
   )
 })

@@ -2,7 +2,7 @@
  * Browser plugin for the spectrum panel. Injects into the `console.panel` slot
  * declared by ui-console — the separate-viz-plugin contract: this package reads
  * nothing but the log, and does not re-run compute.
- * @module @deepseek-ai/dsh-client-rheplicant-ui-spectrum/client
+ * @module @rheplicant/dsh-rheplicant-ui-spectrum/client
  */
 
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'

@@ -1,0 +1,46 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.6875rem;
+  line-height: 1.4;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.error {
+  background: var(--dsw-rh-state-error-bg);
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.warn {
+  background: var(--dsw-rh-state-warn-bg);
+  color: var(--dsw-alias-state-warn-primary);
+}
+
+.report {
+  background: var(--dsw-rh-node-transform-bg);
+  color: var(--dsw-rh-node-transform);
+}
+
+.ok {
+  background: var(--dsw-rh-state-ok-bg);
+  color: var(--dsw-alias-state-success-primary);
+}
+
+.skip {
+  background: var(--dsw-rh-stale-bg);
+  color: var(--dsw-rh-stale-text);
+}
+
+.dashed {
+  border-style: dashed;
+  border-color: var(--dsw-rh-stale-text);
+}
+
+.off {
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  border-color: var(--dsw-alias-border-l1);
+}

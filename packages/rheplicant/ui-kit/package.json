@@ -1,0 +1,27 @@
+{
+  "name": "@rheplicant/dsh-rheplicant-ui-kit",
+  "description": "Shared panel chrome, chart kit, and formatting for the rheplicant console plugins (inlined per bundle, never a module-table row).",
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./src/client/index.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.css",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "react": "^18.2.0"
+  },
+  "devDependencies": {
+    "react": "^18.2.0",
+    "@types/react": "~18.3.1"
+  }
+}

@@ -1,0 +1,13 @@
+/* The console shell: full-bleed base surface behind the panel grid. */
+.view {
+  background: var(--dsw-alias-bg-base);
+  min-height: 100%;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 0.75rem;
+  padding: 0.75rem;
+  align-items: start;
+}

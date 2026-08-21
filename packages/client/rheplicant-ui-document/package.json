@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-client-rheplicant-ui-document",
-  "description": "Config-document reference view for dsh web",
+  "description": "Config-document form editor for dsh web (renders from the static schema)",
   "version": "0.1.0-rc.8",
   "type": "module",
   "main": "lib/index.js",

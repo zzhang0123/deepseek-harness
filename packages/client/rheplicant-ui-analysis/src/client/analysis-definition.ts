@@ -1,10 +1,10 @@
 /**
  * The `rheplicant-analysis` Conversation Node: folds one durable `rheplicant/run`
  * event into a keyed Chat node carrying the run list, its statuses, and each
- * run's diagnostics. The local types below mirror the JSON projection of
- * `@rheplicant/dsh-rheplicant`'s RunOutcome (that package lives in a separate
- * repository); the wire is the same.
- * @module @deepseek-ai/dsh-client-rheplicant-ui-analysis/client
+ * run's diagnostics (r_hat, identifiability rank, joint χ²) — projected here so
+ * the renderer can surface them separately from the model's prose. The
+ * definition owns identity, matching, and the durable state fold.
+ * @module @rheplicant/dsh-rheplicant-ui-analysis/client
  */
 
 import type {
@@ -12,72 +12,9 @@ import type {
   ConversationNodeDefinition,
 } from '@deepseek-ai/dsh-client-runtime/client'
 import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
+import type { GateFinding, RunDiagnostics, RunOutcome, SignalPathGraph } from '@rheplicant/dsh-rheplicant'
 
-/** Quality signals the agent must read; mirrored from the wire contract's RunDiagnostics. */
-export interface RunDiagnostics {
-  readonly converged?: boolean
-  readonly rhat?: number
-  readonly rank?: number
-  readonly nullity?: number
-  readonly chi2?: number | readonly number[]
-  readonly n_eff?: number | Record<string, number>
-  readonly divergences?: number
-  readonly kappa?: number | readonly number[]
-  readonly delta?: number
-  readonly iterations?: number
-  readonly weakest_identified?: unknown
-  readonly singular_values?: number | readonly number[]
-  readonly mcmc?: Record<string, unknown>
-  readonly notes: readonly string[]
-}
-
-/** The lit/dim signal-path rendering for a document's `model:` section. */
-export interface SignalPathGraph {
-  readonly graph: string
-  readonly lit: readonly string[]
-  readonly skipped: readonly string[]
-  readonly svg?: string
-  readonly mermaid?: string
-}
-
-/** One post-flight gate verdict (linearity / identifiability / prior_sensitivity / …). */
-export interface GateFinding {
-  readonly check: string
-  readonly severity: 'refuse' | 'warn' | 'report' | 'skip'
-  readonly where: string
-  readonly message: string
-}
-
-interface RunOutcome {
-  readonly runs: readonly {
-    readonly name: string
-    readonly kind: string
-    readonly status: 'ok' | 'failed'
-    readonly diagnostics?: RunDiagnostics
-    readonly chains?: Record<string, number[]>
-    readonly spectrum?: number[][]
-  }[]
-  readonly tookMs?: number
-  readonly graph?: SignalPathGraph
-  readonly gates?: readonly GateFinding[]
-}
-
-interface RheplicantRunEventData {
-  readonly document: Record<string, unknown>
-  readonly outcome: RunOutcome
-  readonly transport: string
-}
-
-declare module '@deepseek-ai/dsh-session/types' {
-  interface SessionEventMap {
-    /**
-     * Records one executed analysis: the document, its transport, and its outcome.
-     * @param data - the document, transport, and run outcome.
-     */
-    'rheplicant/run': RheplicantRunEventData
-  }
-}
-
+/** Final keyed Chat payload for one analysis run. */
 export interface AnalysisRunChatData {
   readonly runs: readonly {
     readonly name: string
@@ -102,6 +39,7 @@ interface AnalysisState {
   readonly outcome?: RunOutcome
 }
 
+/** Fold one durable `rheplicant/run` event into a keyed Chat node. */
 export const analysisRunDefinition: ConversationNodeDefinition<AnalysisState> = {
   kind: 'rheplicant-analysis',
   target: 'chat',
@@ -121,7 +59,7 @@ export const analysisRunDefinition: ConversationNodeDefinition<AnalysisState> = 
     const outcome = context.state.outcome
     if (outcome === undefined) return null
     const data: AnalysisRunChatData = {
-      runs: outcome.runs.map(run => ({
+      runs: outcome.runs.map((run) => ({
         name: run.name,
         kind: run.kind,
         status: run.status,
