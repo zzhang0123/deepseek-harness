@@ -98,7 +98,16 @@
     "tests/composer-tab-geometry.e2e.ts",
     "tests/complex-history.perf.ts",
     "tests/pwsh-terminal.e2e.ts",
-    "tests/workflow-run.e2e.ts"
+    "tests/workflow-run.e2e.ts",
+    "tests/_serve-console.e2e.ts",
+    "tests/rheplicant-analysis.e2e.ts",
+    "tests/rheplicant-presets-mount.e2e.ts",
+    "tests/rheplicant-tools-mount.e2e.ts",
+    "tests/rheplicant-ui-brand-load.e2e.ts",
+    "tests/rheplicant-ui-compute-load.e2e.ts",
+    "tests/rheplicant-ui-console-load.e2e.ts",
+    "tests/rheplicant-ui-document-load.e2e.ts",
+    "tests/rheplicant-ui-theme-load.e2e.ts"
   ],
   "references": [
     {
