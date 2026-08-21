@@ -95,7 +95,8 @@ describe('web e2e: rheplicant analysis node renders from the log', () => {
     expect(await simDiag.locator('[data-diag-nullity]').innerText()).toContain('0')
     expect(await simDiag.locator('[data-diag-chi2]').innerText()).toContain('12.4')
     expect(await simDiag.locator('[data-diag-notes]').innerText()).toContain('seed=42')
-    expect(await simDiag.locator('[data-diag-n-eff]').innerText()).toContain('1200')
+    // formatDiagnostic renders n_eff as a thousands-separated integer.
+    expect(await simDiag.locator('[data-diag-n-eff]').innerText()).toContain('1,200')
     expect(await simDiag.locator('[data-diag-divergences]').innerText()).toContain('0')
     expect(await simDiag.locator('[data-diag-kappa]').innerText()).toContain('40')
     expect(await post.locator('[data-run-diagnostics]').count()).toBe(0)

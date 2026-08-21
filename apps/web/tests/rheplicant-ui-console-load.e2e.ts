@@ -68,15 +68,26 @@ describe('web e2e: rheplicant console view renders its panel grid', () => {
     await page.getByRole('tab', { name: 'Console', exact: true }).click()
 
     // The console grid renders, and the posterior panel occupies its slot.
+    // The panel-chrome DOM (Panel/StatRow/Badge/EmptyState from ui-kit) is
+    // shared by every console.panel occupant: `[data-panel="<id>"]` is the
+    // shell, `[data-panel-title]` its heading text.
     const consoleView = page.locator('[data-rheplicant-console]')
     await consoleView.waitFor({ timeout: 15_000 })
     expect(await consoleView.count()).toBe(1)
     await consoleView.locator('[data-console-grid]').waitFor({ timeout: 5_000 })
 
-    const posterior = page.locator('[data-rheplicant-posterior]')
+    const posterior = page.locator('[data-panel="posterior"]')
     await posterior.waitFor({ timeout: 10_000 })
     expect(await posterior.count()).toBe(1)
-    expect(await posterior.innerText()).toContain('Posterior')
+    expect(await posterior.locator('[data-panel-title]').innerText()).toBe('Posterior')
+
+    // The Panel shell's CSS Module background (`var(--dsw-alias-bg-layer-1)`)
+    // must actually be injected — a computed, non-transparent color proves the
+    // bundled panel.module.css reached the page, not just the DOM markup.
+    const posteriorBg = await posterior.evaluate(el => getComputedStyle(el).backgroundColor)
+    expect(posteriorBg).not.toBe('rgba(0, 0, 0, 0)')
+    expect(posteriorBg).not.toBe('transparent')
+    expect(posteriorBg).toMatch(/^rgba?\(/)
 
     // The posterior folds the seeded rheplicant/run into a corner plot, and the
     // spectrum/identifiability panels render their own runs from the same log.
@@ -88,15 +99,25 @@ describe('web e2e: rheplicant console view renders its panel grid', () => {
     expect(await run.locator('[data-corner-hist]').count()).toBeGreaterThan(0)
     expect(await run.locator('[data-corner-scatter]').count()).toBeGreaterThan(0)
 
-    const spectrum = page.locator('[data-spectrum]')
+    // The run's diagnostics fold into shared StatRow chips (`[data-stat="<key>"]`).
+    const rhatStat = run.locator('[data-stat="rhat"]')
+    await rhatStat.waitFor({ timeout: 5_000 })
+    expect(await rhatStat.locator('[data-stat-value]').innerText()).toContain('1.002')
+    const nEffStat = run.locator('[data-stat="n_eff"]')
+    await nEffStat.waitFor({ timeout: 5_000 })
+    expect(await nEffStat.locator('[data-stat-value]').innerText()).toContain('1,327')
+
+    const spectrum = page.locator('[data-panel="spectrum"]')
     await spectrum.waitFor({ timeout: 10_000 })
     expect(await spectrum.count()).toBe(1)
+    expect(await spectrum.locator('[data-panel-title]').innerText()).toBe('Spectrum')
     await spectrum.locator('[data-spectrum-cell]').first().waitFor({ timeout: 5_000 })
     expect(await spectrum.locator('[data-spectrum-cell]').count()).toBeGreaterThan(0)
 
-    const identifiability = page.locator('[data-identifiability]')
+    const identifiability = page.locator('[data-panel="identifiability"]')
     await identifiability.waitFor({ timeout: 10_000 })
     expect(await identifiability.count()).toBe(1)
+    expect(await identifiability.locator('[data-panel-title]').innerText()).toBe('Identifiability')
     await identifiability.locator('[data-singular-value]').first().waitFor({ timeout: 5_000 })
     expect(await identifiability.locator('[data-singular-value]').count()).toBeGreaterThan(0)
   }, 60_000)
