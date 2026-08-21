@@ -1727,4 +1727,15 @@ describe('todo/write event', () => {
     expect(replayed.events.slice(0, original.seq)).toEqual(original.events)
     expect(replayed.firstLiveSeq).toBe(original.seq)
   })
+
+  it('marks an appended event ignorable through the envelope intent', () => {
+    const session = Session.create(SessionId('ignorable-intent'))
+    const event = session.append('turn/end', { turn: 1, reason: { kind: 'completed' } }, { ignorable: true })
+    expect(event.ignorable).toBe(true)
+    // The live log and a seeded replay both preserve the marker, so a
+    // downstream (out-of-repo) event survives the persistence read path.
+    expect(session.events.at(-1)?.ignorable).toBe(true)
+    const replayed = Session.create(SessionId('ignorable-intent-replay'), [...session.events])
+    expect(replayed.events.findLast(e => e.type === 'turn/end')?.ignorable).toBe(true)
+  })
 })
