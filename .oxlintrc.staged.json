@@ -13,6 +13,8 @@
     "**/.node-next-types-*/**",
     "website/.generated/**",
     "vendor/**",
+    "packages/rheplicant/*/src/**",
+    "packages/client/rheplicant-ui-*/src/**",
     "native/**",
     "**/*.js",
     "**/*.mjs",
