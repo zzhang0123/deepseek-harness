@@ -81,7 +81,11 @@
     "commander": "^15.0.0",
     "@deepseek-ai/cordis": "workspace:^",
     "js-yaml": "^4.2.0",
-    "node-addon-require-builtin": "^0.1.4"
+    "node-addon-require-builtin": "^0.1.4",
+    "@rheplicant/dsh-rheplicant": "workspace:^",
+    "@rheplicant/dsh-rheplicant-transport": "workspace:^",
+    "@rheplicant/dsh-rheplicant-local": "workspace:^",
+    "@rheplicant/dsh-rheplicant-tool-run": "workspace:^"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-agent": "workspace:^",

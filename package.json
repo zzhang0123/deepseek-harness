@@ -182,6 +182,10 @@
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
     "vite-tsconfig-paths": "^6.1.1",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.8",
+    "@rheplicant/dsh-rheplicant-transport": "workspace:^",
+    "@rheplicant/dsh-rheplicant-local": "workspace:^",
+    "@rheplicant/dsh-rheplicant-tool-run": "workspace:^",
+    "@rheplicant/dsh-rheplicant": "workspace:^"
   }
 }

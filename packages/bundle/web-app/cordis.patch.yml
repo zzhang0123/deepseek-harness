@@ -210,8 +210,23 @@
       name: '@deepseek-ai/dsh-client-ui-conversation'
 
     # Official occupants for the generic sidebar and conversation brand slots.
-    - id: ui-brand-official
-      name: '@deepseek-ai/dsh-client-ui-brand-official'
+    - id: ui-brand-rheplicant
+      name: '@deepseek-ai/dsh-client-rheplicant-ui-brand'
+
+    # Rheplicant dark theme (registers a `rheplicant` token set as default).
+    - id: client-rheplicant-ui-theme
+      name: '@deepseek-ai/dsh-client-rheplicant-ui-theme'
+
+    # Rheplicant console (conversation.view tab declaring the console.panel
+    # grid slot) and the posterior panel (injected into that slot).
+    - id: client-rheplicant-ui-console
+      name: '@deepseek-ai/dsh-client-rheplicant-ui-console'
+    - id: client-rheplicant-ui-posterior
+      name: '@deepseek-ai/dsh-client-rheplicant-ui-posterior'
+    - id: client-rheplicant-ui-spectrum
+      name: '@deepseek-ai/dsh-client-rheplicant-ui-spectrum'
+    - id: client-rheplicant-ui-identifiability
+      name: '@deepseek-ai/dsh-client-rheplicant-ui-identifiability'
 
     - id: ui-attachment
       name: '@deepseek-ai/dsh-client-ui-attachment'
@@ -227,6 +242,16 @@
     # existing generic workflow tool row.
     - id: ui-workflow-run
       name: '@deepseek-ai/dsh-client-ui-workflow-run'
+
+    # Render-smoke node for rheplicant analysis runs.
+    - id: client-rheplicant-ui-analysis
+      name: '@deepseek-ai/dsh-client-rheplicant-ui-analysis'
+
+    # Rheplicant compute settings card.
+    - id: client-rheplicant-ui-compute
+      name: '@deepseek-ai/dsh-client-rheplicant-ui-compute'
+    - id: client-rheplicant-ui-document
+      name: '@deepseek-ai/dsh-client-rheplicant-ui-document'
 
     # Turn tail: the produced-files row under each closing assistant message.
     # Remove this entry to turn the surface off; the tail hole renders empty.

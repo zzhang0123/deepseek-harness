@@ -21,6 +21,18 @@ importers:
       '@deepseek-ai/dsh-tool-session-query':
         specifier: workspace:^
         version: link:packages/session-query/tool-session-query
+      '@rheplicant/dsh-rheplicant':
+        specifier: workspace:^
+        version: link:packages/rheplicant/rheplicant
+      '@rheplicant/dsh-rheplicant-local':
+        specifier: workspace:^
+        version: link:packages/rheplicant/local
+      '@rheplicant/dsh-rheplicant-tool-run':
+        specifier: workspace:^
+        version: link:packages/rheplicant/tool-run
+      '@rheplicant/dsh-rheplicant-transport':
+        specifier: workspace:^
+        version: link:packages/rheplicant/transport
       '@stylistic/eslint-plugin':
         specifier: ^5.10.0
         version: 5.10.0(eslint@10.5.0(jiti@2.7.0))
@@ -303,6 +315,18 @@ importers:
       '@deepseek-ai/dsh-workflow-worker-thread':
         specifier: workspace:^
         version: link:../../packages/workflow/workflow-worker-thread
+      '@rheplicant/dsh-rheplicant':
+        specifier: workspace:^
+        version: link:../../packages/rheplicant/rheplicant
+      '@rheplicant/dsh-rheplicant-local':
+        specifier: workspace:^
+        version: link:../../packages/rheplicant/local
+      '@rheplicant/dsh-rheplicant-tool-run':
+        specifier: workspace:^
+        version: link:../../packages/rheplicant/tool-run
+      '@rheplicant/dsh-rheplicant-transport':
+        specifier: workspace:^
+        version: link:../../packages/rheplicant/transport
       commander:
         specifier: ^15.0.0
         version: 15.0.0
@@ -1296,6 +1320,33 @@ importers:
       '@deepseek-ai/dsh-client-modules':
         specifier: workspace:^
         version: link:../../client/modules
+      '@deepseek-ai/dsh-client-rheplicant-ui-analysis':
+        specifier: workspace:^
+        version: link:../../client/rheplicant-ui-analysis
+      '@deepseek-ai/dsh-client-rheplicant-ui-brand':
+        specifier: workspace:^
+        version: link:../../client/rheplicant-ui-brand
+      '@deepseek-ai/dsh-client-rheplicant-ui-compute':
+        specifier: workspace:^
+        version: link:../../client/rheplicant-ui-compute
+      '@deepseek-ai/dsh-client-rheplicant-ui-console':
+        specifier: workspace:^
+        version: link:../../client/rheplicant-ui-console
+      '@deepseek-ai/dsh-client-rheplicant-ui-document':
+        specifier: workspace:^
+        version: link:../../client/rheplicant-ui-document
+      '@deepseek-ai/dsh-client-rheplicant-ui-identifiability':
+        specifier: workspace:^
+        version: link:../../client/rheplicant-ui-identifiability
+      '@deepseek-ai/dsh-client-rheplicant-ui-posterior':
+        specifier: workspace:^
+        version: link:../../client/rheplicant-ui-posterior
+      '@deepseek-ai/dsh-client-rheplicant-ui-spectrum':
+        specifier: workspace:^
+        version: link:../../client/rheplicant-ui-spectrum
+      '@deepseek-ai/dsh-client-rheplicant-ui-theme':
+        specifier: workspace:^
+        version: link:../../client/rheplicant-ui-theme
       '@deepseek-ai/dsh-client-runtime':
         specifier: workspace:^
         version: link:../../client/runtime
@@ -1305,9 +1356,6 @@ importers:
       '@deepseek-ai/dsh-client-ui-attachment':
         specifier: workspace:^
         version: link:../../client/ui-attachment
-      '@deepseek-ai/dsh-client-ui-brand-official':
-        specifier: workspace:^
-        version: link:../../client/ui-brand-official
       '@deepseek-ai/dsh-client-ui-commands':
         specifier: workspace:^
         version: link:../../client/ui-commands
@@ -1615,6 +1663,216 @@ importers:
       '@deepseek-ai/dsh-host-webserver':
         specifier: workspace:^
         version: link:../../host/webserver
+      '@deepseek-ai/dsh-invariants':
+        specifier: workspace:^
+        version: link:../../runtime-diagnostics/invariants
+
+  packages/client/rheplicant-ui-analysis:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-client-runtime':
+        specifier: workspace:^
+        version: link:../runtime
+      '@deepseek-ai/dsh-client-ui-conversation':
+        specifier: workspace:^
+        version: link:../ui-conversation
+      '@deepseek-ai/dsh-invariants':
+        specifier: workspace:^
+        version: link:../../runtime-diagnostics/invariants
+      '@deepseek-ai/dsh-session':
+        specifier: workspace:^
+        version: link:../../core/session
+      '@types/react':
+        specifier: ~18.3.1
+        version: 18.3.31
+      react:
+        specifier: ^18.2.0
+        version: 18.3.1
+
+  packages/client/rheplicant-ui-brand:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-client-runtime':
+        specifier: workspace:^
+        version: link:../runtime
+      '@deepseek-ai/dsh-client-ui-conversation':
+        specifier: workspace:^
+        version: link:../ui-conversation
+      '@deepseek-ai/dsh-client-ui-sidebar':
+        specifier: workspace:^
+        version: link:../ui-sidebar
+      '@deepseek-ai/dsh-invariants':
+        specifier: workspace:^
+        version: link:../../runtime-diagnostics/invariants
+      '@types/react':
+        specifier: ~18.3.1
+        version: 18.3.31
+      react:
+        specifier: ^18.2.0
+        version: 18.3.1
+
+  packages/client/rheplicant-ui-compute:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-client-runtime':
+        specifier: workspace:^
+        version: link:../runtime
+      '@deepseek-ai/dsh-client-ui-settings':
+        specifier: workspace:^
+        version: link:../ui-settings
+      '@deepseek-ai/dsh-invariants':
+        specifier: workspace:^
+        version: link:../../runtime-diagnostics/invariants
+      '@types/react':
+        specifier: ~18.3.1
+        version: 18.3.31
+      react:
+        specifier: ^18.2.0
+        version: 18.3.1
+
+  packages/client/rheplicant-ui-console:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-client-runtime':
+        specifier: workspace:^
+        version: link:../runtime
+      '@deepseek-ai/dsh-client-ui-conversation':
+        specifier: workspace:^
+        version: link:../ui-conversation
+      '@deepseek-ai/dsh-client-ui-slots':
+        specifier: workspace:^
+        version: link:../ui-slots
+      '@deepseek-ai/dsh-invariants':
+        specifier: workspace:^
+        version: link:../../runtime-diagnostics/invariants
+      '@types/react':
+        specifier: ~18.3.1
+        version: 18.3.31
+      react:
+        specifier: ^18.2.0
+        version: 18.3.1
+
+  packages/client/rheplicant-ui-document:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-client-runtime':
+        specifier: workspace:^
+        version: link:../runtime
+      '@deepseek-ai/dsh-client-ui-conversation':
+        specifier: workspace:^
+        version: link:../ui-conversation
+      '@deepseek-ai/dsh-invariants':
+        specifier: workspace:^
+        version: link:../../runtime-diagnostics/invariants
+      '@types/react':
+        specifier: ~18.3.1
+        version: 18.3.31
+      react:
+        specifier: ^18.2.0
+        version: 18.3.1
+
+  packages/client/rheplicant-ui-identifiability:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-client-rheplicant-ui-analysis':
+        specifier: workspace:^
+        version: link:../rheplicant-ui-analysis
+      '@deepseek-ai/dsh-client-runtime':
+        specifier: workspace:^
+        version: link:../runtime
+      '@deepseek-ai/dsh-client-ui-conversation':
+        specifier: workspace:^
+        version: link:../ui-conversation
+      '@deepseek-ai/dsh-client-ui-slots':
+        specifier: workspace:^
+        version: link:../ui-slots
+      '@deepseek-ai/dsh-invariants':
+        specifier: workspace:^
+        version: link:../../runtime-diagnostics/invariants
+      '@types/react':
+        specifier: ~18.3.1
+        version: 18.3.31
+      react:
+        specifier: ^18.2.0
+        version: 18.3.1
+
+  packages/client/rheplicant-ui-posterior:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-client-rheplicant-ui-analysis':
+        specifier: workspace:^
+        version: link:../rheplicant-ui-analysis
+      '@deepseek-ai/dsh-client-runtime':
+        specifier: workspace:^
+        version: link:../runtime
+      '@deepseek-ai/dsh-client-ui-conversation':
+        specifier: workspace:^
+        version: link:../ui-conversation
+      '@deepseek-ai/dsh-client-ui-slots':
+        specifier: workspace:^
+        version: link:../ui-slots
+      '@deepseek-ai/dsh-invariants':
+        specifier: workspace:^
+        version: link:../../runtime-diagnostics/invariants
+      '@types/react':
+        specifier: ~18.3.1
+        version: 18.3.31
+      react:
+        specifier: ^18.2.0
+        version: 18.3.1
+
+  packages/client/rheplicant-ui-spectrum:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-client-rheplicant-ui-analysis':
+        specifier: workspace:^
+        version: link:../rheplicant-ui-analysis
+      '@deepseek-ai/dsh-client-runtime':
+        specifier: workspace:^
+        version: link:../runtime
+      '@deepseek-ai/dsh-client-ui-conversation':
+        specifier: workspace:^
+        version: link:../ui-conversation
+      '@deepseek-ai/dsh-client-ui-slots':
+        specifier: workspace:^
+        version: link:../ui-slots
+      '@deepseek-ai/dsh-invariants':
+        specifier: workspace:^
+        version: link:../../runtime-diagnostics/invariants
+      '@types/react':
+        specifier: ~18.3.1
+        version: 18.3.31
+      react:
+        specifier: ^18.2.0
+        version: 18.3.1
+
+  packages/client/rheplicant-ui-theme:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-client-runtime':
+        specifier: workspace:^
+        version: link:../runtime
+      '@deepseek-ai/dsh-client-ui-theme':
+        specifier: workspace:^
+        version: link:../ui-theme
       '@deepseek-ai/dsh-invariants':
         specifier: workspace:^
         version: link:../../runtime-diagnostics/invariants
@@ -5888,6 +6146,60 @@ importers:
       '@deepseek-ai/dsh-system-prompt':
         specifier: workspace:^
         version: link:../../core/system-prompt
+
+  packages/rheplicant/local:
+    dependencies:
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
+      '@rheplicant/dsh-rheplicant':
+        specifier: workspace:^
+        version: link:../rheplicant
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+
+  packages/rheplicant/rheplicant:
+    dependencies:
+      '@deepseek-ai/dsh-llm':
+        specifier: workspace:^
+        version: link:../../llm/llm
+      '@deepseek-ai/dsh-session':
+        specifier: workspace:^
+        version: link:../../core/session
+      '@deepseek-ai/dsh-settings':
+        specifier: workspace:^
+        version: link:../../settings/settings
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+
+  packages/rheplicant/tool-run:
+    dependencies:
+      '@deepseek-ai/dsh-tools':
+        specifier: workspace:^
+        version: link:../../core/tools
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
+      '@rheplicant/dsh-rheplicant':
+        specifier: workspace:^
+        version: link:../rheplicant
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+
+  packages/rheplicant/transport:
+    dependencies:
+      '@rheplicant/dsh-rheplicant':
+        specifier: workspace:^
+        version: link:../rheplicant
 
   packages/runtime-diagnostics/invariants:
     dependencies:
