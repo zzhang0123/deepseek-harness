@@ -1,0 +1,23 @@
+{
+  "name": "@rheplicant/dsh-rheplicant-transport",
+  "description": "Shared newline-delimited JSON-RPC-over-stdio transport for the local and ssh compute providers",
+  "version": "0.0.0",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json",
+    "./invariant": {
+      "types": "./lib/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    }
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@rheplicant/dsh-rheplicant": "workspace:^"
+  }
+}
