@@ -6,6 +6,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/dsh-settings'
+import type {} from '@deepseek-ai/dsh-tools'
 import { ComputeRuntime } from '@rheplicant/dsh-rheplicant'
 import * as rheplicantLocal from '@rheplicant/dsh-rheplicant-local'
 import * as toolRun from '@rheplicant/dsh-rheplicant-tool-run'
@@ -28,7 +29,7 @@ describe('web e2e: rheplicant host tools mount on the web profile', () => {
     await scaffold.ctx.plugin(toolRun, { defaultTransport: 'local' })
 
     const rheplicant = scaffold.ctx.get('rheplicant')
-    expect(rheplicant).toBeDefined()
+    if (rheplicant === undefined) throw new Error('rheplicant service did not register')
     expect(rheplicant.listTransports()).toEqual(['local'])
     expect(scaffold.ctx.tools.get('rheplicant_run')).toBeDefined()
 
