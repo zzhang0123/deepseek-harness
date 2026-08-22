@@ -18,9 +18,11 @@ function trimTrailingZeros(digits: string): string {
  * Format a plain number for display: scientific notation with 3 significant
  * digits outside `[1e-3, 1e4)` (e.g. `2.6e+16`), otherwise up to 4
  * significant digits with trailing zeros trimmed (e.g. `3.142`, `2.5`, `100`).
+ * `null` is the wire's spelling of a non-finite value and renders the same
+ * `—` a NaN would.
  */
-export function formatNumber(x: number): string {
-  if (!Number.isFinite(x)) return NOT_FINITE
+export function formatNumber(x: number | null): string {
+  if (x === null || !Number.isFinite(x)) return NOT_FINITE
   if (x === 0) return '0'
   const abs = Math.abs(x)
   if (abs >= 1e4 || abs < 1e-3) {
@@ -38,9 +40,10 @@ const INTEGER_KEYS = new Set(['n_eff', 'rank', 'nullity', 'divergences', 'iterat
  * convention: `rhat` to 3 decimal places, the count-like fields as
  * thousands-separated integers, everything else (`chi2`, `kappa`, `delta`,
  * and any key this kit doesn't recognize yet) through {@link formatNumber}.
+ * `null` (the wire's non-finite spelling) renders `—`, like a NaN.
  */
-export function formatDiagnostic(key: string, x: number): string {
-  if (!Number.isFinite(x)) return NOT_FINITE
+export function formatDiagnostic(key: string, x: number | null): string {
+  if (x === null || !Number.isFinite(x)) return NOT_FINITE
   if (THREE_DECIMAL_KEYS.has(key)) return x.toFixed(3)
   if (INTEGER_KEYS.has(key)) return Math.round(x).toLocaleString('en-US')
   return formatNumber(x)

@@ -68,6 +68,12 @@ export interface GatesReport {
  * std?, q05?, q50?, q95? }` (the four quantile/moment fields are only present
  * for a numeric dtype). A consumer reading `values`/`samples`/`fields` must
  * check for `truncated` before treating an entry as the raw array.
+ *
+ * Non-finite floats never reach the wire: the service maps NaN/±Infinity to
+ * JSON `null` at its one serialization boundary (`_wire_safe` in
+ * `server.py`), RFC 8259 having no tokens for them. So any number anywhere
+ * in a payload — an array element, a `mean` in a truncated summary, an
+ * `rhat` — may arrive as `null`, meaning "this value was not finite".
  */
 export type RunProduct =
   | { readonly kind: 'estimate'; readonly values: Record<string, unknown> }
@@ -80,23 +86,30 @@ export type RunProduct =
     }
   | { readonly kind: 'report'; readonly fields: Record<string, unknown> }
 
-/** Quality signals the agent must read, not only the numbers. */
+/**
+ * Quality signals the agent must read, not only the numbers.
+ *
+ * Every float-valued signal may be `null`: a non-finite value (an rhat of a
+ * zero-variance chain is NaN, a delta can be ±Inf) is mapped to JSON `null`
+ * at the wire boundary. The integer counts (`rank`, `nullity`,
+ * `divergences`, `iterations`) cannot be non-finite and stay plain numbers.
+ */
 export interface RunDiagnostics {
   readonly converged?: boolean
-  readonly rhat?: number
+  readonly rhat?: number | null
   readonly rank?: number
   readonly nullity?: number
-  readonly chi2?: number | readonly number[]
+  readonly chi2?: number | null | readonly (number | null)[]
   /** Effective sample size (NUTS). Scalar, or per-latent when folded flat. */
-  readonly n_eff?: number | Record<string, number>
+  readonly n_eff?: number | null | Record<string, number | null>
   /** Number of divergent transitions (NUTS). */
   readonly divergences?: number
   /** Conditioning number κ (the `condition` exit). */
-  readonly kappa?: number | readonly number[]
-  readonly delta?: number
+  readonly kappa?: number | null | readonly (number | null)[]
+  readonly delta?: number | null
   readonly iterations?: number
   readonly weakest_identified?: unknown
-  readonly singular_values?: number | readonly number[]
+  readonly singular_values?: number | null | readonly (number | null)[]
   /** Per-latent r_hat/n_eff when the sampler reports more than one latent. */
   readonly mcmc?: Record<string, unknown>
   readonly notes?: readonly string[]
@@ -108,10 +121,24 @@ export interface RunEntry {
   readonly status: 'ok' | 'failed'
   readonly product?: RunProduct
   readonly diagnostics?: RunDiagnostics
-  /** Viz-ready chain summary: per-latent downsampled draws (sampler kinds). */
-  readonly chains?: Record<string, number[]>
-  /** Viz-ready m-mode power spectrum (magnitude), for `mmodes` runs. */
-  readonly spectrum?: number[][]
+  /**
+   * Viz-ready chain summary: downsampled draw traces (sampler kinds), one
+   * flat `{key: number[]}` map. A scalar latent is keyed by its bare name
+   * (`g`); a non-scalar latent fans out into several keys under a fixed
+   * grammar the compute service owns (`_chain_traces` in `server.py`):
+   * per-component traces keyed by the latent's own index (`g[2]`, `g[0,3]`)
+   * when the latent has at most `_CHAIN_MAX_COMPONENTS` (8) elements, and
+   * three per-draw summary traces across components (`g.mean`, `g.q05`,
+   * `g.q95`) when it is wider. Every key renders as one series; a consumer
+   * grouping by latent should split on the first `[` or `.`. On the
+   * (pathological) collision of a generated key with another latent's key,
+   * the later writer is disambiguated with a `#2`, `#3`, … suffix — no
+   * trace is ever silently dropped. A `null` element is a draw whose value
+   * was not finite.
+   */
+  readonly chains?: Record<string, (number | null)[]>
+  /** Viz-ready m-mode power spectrum (magnitude), for `mmodes` runs; a `null` cell was not finite. */
+  readonly spectrum?: (number | null)[][]
   readonly error?: ComputeError
 }
 

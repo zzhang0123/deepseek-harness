@@ -11,17 +11,21 @@
 
 const ANALYSIS_NODE_KIND = 'rheplicant-analysis'
 
-/** Structural mirror of the wire `RunDiagnostics` — permissive, not authoritative. */
+/**
+ * Structural mirror of the wire `RunDiagnostics` — permissive, not
+ * authoritative. Float-valued fields may be `null`: the wire spells a
+ * non-finite value (NaN/±Inf) as JSON null.
+ */
 export interface AnalysisRunDiagnostics {
   readonly converged?: boolean
-  readonly rhat?: number
+  readonly rhat?: number | null
   readonly rank?: number
   readonly nullity?: number
-  readonly chi2?: number | readonly number[]
-  readonly n_eff?: number | Record<string, number>
+  readonly chi2?: number | null | readonly (number | null)[]
+  readonly n_eff?: number | null | Record<string, number | null>
   readonly divergences?: number
-  readonly kappa?: number | readonly number[]
-  readonly delta?: number
+  readonly kappa?: number | null | readonly (number | null)[]
+  readonly delta?: number | null
   readonly iterations?: number
   readonly notes?: readonly string[]
   readonly [key: string]: unknown
@@ -39,10 +43,16 @@ export interface AnalysisRun {
   readonly kind: string
   readonly status?: 'ok' | 'failed'
   readonly diagnostics?: AnalysisRunDiagnostics
-  /** Viz-ready per-latent downsampled draws (sampler kinds). */
-  readonly chains?: Record<string, number[]>
-  /** Viz-ready m-mode power spectrum (magnitude), for `mmodes` runs. */
-  readonly spectrum?: number[][]
+  /**
+   * Viz-ready downsampled draw traces (sampler kinds). One series per key; a
+   * non-scalar latent fans out into component keys (`g[2]`, `g[0,3]`) or,
+   * for map-scale latents, summary keys (`g.mean`, `g.q05`, `g.q95`) — the
+   * grammar is owned by the wire `RunEntry.chains` contract. A `null`
+   * element is a draw whose value was not finite.
+   */
+  readonly chains?: Record<string, (number | null)[]>
+  /** Viz-ready m-mode power spectrum (magnitude), for `mmodes` runs; a `null` cell was not finite. */
+  readonly spectrum?: (number | null)[][]
   readonly product?: AnalysisRunProduct
 }
 
