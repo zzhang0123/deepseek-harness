@@ -15,6 +15,9 @@ import {
   groupChains,
   mcmcRows,
   selectAnalysisRuns,
+  runsToRender,
+  executionEmptyReason,
+  type ConsoleExecutionView,
 } from '@rheplicant/dsh-rheplicant-ui-kit/client'
 import styles from './posterior.module.css'
 
@@ -25,6 +28,8 @@ interface ChainsPanelProps {
   useSession: <T>(selector: (snapshot: ConversationSnapshot) => T) => T
   /** Console layout state (owner prop — see ui-console's ConsoleView doc comment). Absent when not rendered through the console shell: renders un-collapsed, always visible. */
   layout?: ConsolePanelLayoutView
+  /** The execution the console is showing (owner prop). Absent outside the console shell. */
+  execution?: ConsoleExecutionView
 }
 
 /** An analysis run that has the chain draws this panel needs to draw traces. */
@@ -119,8 +124,11 @@ const RunChainGroups = memo(function RunChainGroups({ chains }: { chains: Record
   )
 })
 
-export const ChainsPanel = memo(function ChainsPanel({ useSession, layout }: ChainsPanelProps) {
-  const runs = useSession(selectAnalysisRuns).filter(hasChains)
+export const ChainsPanel = memo(function ChainsPanel({ useSession, layout, execution }: ChainsPanelProps) {
+  // Prefer the execution the console selected, read off its published
+  // tree; fall back to this session's log when there is none (outside
+  // the console shell, or an older harness with no project route).
+  const runs = runsToRender(execution, useSession(selectAnalysisRuns)).filter(hasChains)
   if (layout?.hidden.has(PANEL_ID) === true) return null
   const status: PanelStatus = runs.length === 0 ? 'idle' : runs.some(run => run.status === 'failed') ? 'error' : 'ok'
 
@@ -135,7 +143,10 @@ export const ChainsPanel = memo(function ChainsPanel({ useSession, layout }: Cha
       })}
     >
       {runs.length === 0 ? (
-        <EmptyState message="No chain draws yet" hint="Ask the agent for a nuts or plan.sample run" />
+        <EmptyState
+          message={executionEmptyReason(execution) ?? 'No chain draws yet'}
+          hint={executionEmptyReason(execution) === undefined ? 'Ask the agent for a nuts or plan.sample run' : undefined}
+        />
       ) : (
         runs.map(run => (
           <div key={runCardKey(run)} data-chains-run data-run-name={run.name}>

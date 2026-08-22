@@ -68,8 +68,18 @@ const loopRunDefinition: ConversationNodeDefinition<LoopRunContribution> = {
     if (match.event.type !== 'rheplicant/run') {
       throw new Error('rheplicant-loop-run start requires rheplicant/run')
     }
-    const { document, transport, outcome } = match.event.data
-    return { kind: 'run', seq: match.event.seq, document, transport, outcome }
+    const { document, transport, outcome, executionId, taskPath } = match.event.data
+    return {
+      kind: 'run',
+      seq: match.event.seq,
+      document,
+      transport,
+      outcome,
+      // Optional on the wire: events written before execution identity landed
+      // carry neither, and a run of an inline document never carries a path.
+      ...(typeof executionId === 'string' ? { executionId } : {}),
+      ...(typeof taskPath === 'string' ? { taskPath } : {}),
+    }
   },
   update: context => context.state,
   buildViewNode: context => context.state === undefined ? null : loopNode(context, context.state),

@@ -14,6 +14,9 @@ import {
   Panel,
   type PanelStatus,
   selectAnalysisRuns,
+  runsToRender,
+  executionEmptyReason,
+  type ConsoleExecutionView,
 } from '@rheplicant/dsh-rheplicant-ui-kit/client'
 
 /** This panel's own `console.panel` id — the key it reads/writes in `layout`. */
@@ -23,6 +26,8 @@ interface SpectrumPanelProps {
   useSession: <T>(selector: (snapshot: ConversationSnapshot) => T) => T
   /** Console layout state (owner prop — see ui-console's ConsoleView doc comment). Absent when not rendered through the console shell (e.g. a unit test): renders un-collapsed, always visible. */
   layout?: ConsolePanelLayoutView
+  /** The execution the console is showing (owner prop). Absent outside the console shell. */
+  execution?: ConsoleExecutionView
 }
 
 /** An analysis run that has the spectrum grid this panel needs to draw a heatmap. */
@@ -32,8 +37,11 @@ function hasSpectrum(run: AnalysisRun): run is SpectrumRun {
   return run.spectrum !== undefined
 }
 
-export const SpectrumPanel = memo(function SpectrumPanel({ useSession, layout }: SpectrumPanelProps) {
-  const runs = useSession(selectAnalysisRuns).filter(hasSpectrum)
+export const SpectrumPanel = memo(function SpectrumPanel({ useSession, layout, execution }: SpectrumPanelProps) {
+  // Prefer the execution the console selected, read off its published
+  // tree; fall back to this session's log when there is none (outside
+  // the console shell, or an older harness with no project route).
+  const runs = runsToRender(execution, useSession(selectAnalysisRuns)).filter(hasSpectrum)
   if (layout?.hidden.has(PANEL_ID) === true) return null
   const status: PanelStatus = runs.length === 0 ? 'idle' : runs.some(run => run.status === 'failed') ? 'error' : 'ok'
 
@@ -48,7 +56,10 @@ export const SpectrumPanel = memo(function SpectrumPanel({ useSession, layout }:
       })}
     >
       {runs.length === 0 ? (
-        <EmptyState message="No spectrum runs yet" hint="Ask the agent for an mmodes run" />
+        <EmptyState
+          message={executionEmptyReason(execution) ?? 'No spectrum runs yet'}
+          hint={executionEmptyReason(execution) === undefined ? 'Ask the agent for an mmodes run' : undefined}
+        />
       ) : (
         runs.map(run => (
           <div key={run.name} data-spectrum-run data-run-name={run.name}>

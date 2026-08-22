@@ -38,6 +38,8 @@ export type {
   ExecutionIdentity,
   GatesReport,
   GateFinding,
+  ProjectExecutionRow,
+  ProjectExecutionsBody,
   RunCost,
   RunDiagnostics,
   RunEntry,
@@ -143,6 +145,11 @@ export class ComputeRuntime extends Service {
   /** {@inheritDoc ComputeRuntime.validate} */
   run(input: ComputeInput, opts: RunOpts): Promise<RunOutcome> {
     return this.provider(opts.transport).run(input, opts)
+  }
+
+  /** Project one published execution tree; see {@link ComputeProvider.readExecution}. */
+  readExecution(resultsPath: string, opts: RunOpts): Promise<RunOutcome> {
+    return this.provider(opts.transport).readExecution(resultsPath, opts)
   }
 
   schema(opts: ComputeOpts): Promise<SchemaDocument> {

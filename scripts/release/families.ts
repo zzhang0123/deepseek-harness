@@ -319,7 +319,11 @@ export abstract class ReleaseFamily {
 /** Release packages and apps: one shared version across the whole family. */
 class DshFamily extends ReleaseFamily {
   readonly id = 'dsh'
-  readonly patterns = ['packages/!(experimental)/*/package.json', 'apps/*/package.json'] as const
+  // `rheplicant` is excluded alongside `experimental`: it is a THIRD-PARTY
+  // family (`@rheplicant/*`, released from the rheplicant-agent repo) mirrored
+  // into this tree only so the client-bundle toolchain can build it. Including
+  // it trips this family's own "@deepseek-ai only" invariant.
+  readonly patterns = ['packages/!(experimental|rheplicant)/*/package.json', 'apps/*/package.json'] as const
   readonly tagPrefix = 'dsh-v'
 
   /** Require current artifacts from a complete official client build. */

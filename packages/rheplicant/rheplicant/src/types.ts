@@ -39,6 +39,16 @@ export interface ComputeInput {
   readonly document?: ComputeDocument | undefined
   /** A task file's exact bytes as UTF-8 text, parsed only by the service. */
   readonly documentText?: string | undefined
+  /**
+   * The task file's absolute, canonical path — the one `readTaskFile` cleared.
+   *
+   * Publication needs it for two things the bytes cannot supply: the document's
+   * `base_dir`, which its own `resources:` file references resolve against, and
+   * the source path recorded in `provenance.json`. Absent for the inline form,
+   * which has no file, and therefore cannot publish (`docs/project-model.md`
+   * §4.3).
+   */
+  readonly taskPath?: string | undefined
 }
 
 /** One refusal or warning about one place in the document. */
@@ -243,6 +253,13 @@ export interface RunOutcome {
   readonly graph?: SignalPathGraph
   /** Post-flight gate verdicts, read off rheplicant's own report ledger. */
   readonly gates?: readonly GateFinding[]
+  /**
+   * Where the execution's tree actually landed. Present only for a published
+   * run, and NOT necessarily the `outputsDir` that was asked for: a refused or
+   * errored execution is published under a sibling directory carrying a
+   * `.refused-`/`.error-` suffix, and this is the one that exists.
+   */
+  readonly resultsPath?: string
   /** The parsed document, echoed back when the call sent `documentText`. See {@link ValidationReport.document}. */
   readonly document?: ComputeDocument
 }
@@ -264,6 +281,17 @@ export interface ComputeOpts {
 export interface RunOpts extends ComputeOpts {
   /** Optional subset of run names, in declaration order. */
   readonly runs?: readonly string[]
+  /**
+   * The absolute directory THIS execution publishes into — one per execution,
+   * so two runs of one task can coexist (`docs/project-model.md` §4.4).
+   *
+   * It is an invocation parameter all the way down: the service passes it to
+   * rheplicant's `outputs_dir=`, and the task document is never patched, so
+   * `config.input.yaml` and `taskDigest` still describe exactly the bytes the
+   * user wrote. Omit it and the run stays in memory, which is what an inline
+   * scratch document does.
+   */
+  readonly outputsDir?: string
 }
 
 /** One compute backend, registered under one or more transport names. */
@@ -271,6 +299,15 @@ export interface ComputeProvider {
   validate(input: ComputeInput, opts: ComputeOpts): Promise<ValidationReport>
   gates(input: ComputeInput, opts: ComputeOpts): Promise<GatesReport>
   run(input: ComputeInput, opts: RunOpts): Promise<RunOutcome>
+  /**
+   * Project one PUBLISHED execution tree, without running anything.
+   *
+   * The read half of the seam: what lets a panel render an execution some
+   * other session produced, and what lets the durable event stop carrying
+   * arrays. The caller confines `resultsPath` to a project's own `results/`
+   * tree before asking (`executions.ts`).
+   */
+  readExecution(resultsPath: string, opts: RunOpts): Promise<RunOutcome>
   schema(opts: ComputeOpts): Promise<SchemaDocument>
   /** The lit/dim signal-path rendering for a document's `model:` section. */
   graph(document: ComputeDocument, opts: ComputeOpts): Promise<SignalPathGraph | null>
@@ -377,4 +414,39 @@ declare module '@deepseek-ai/dsh-session/types' {
      */
     'rheplicant/gates': RheplicantGatesEventData
   }
+}
+
+/**
+ * One execution as the browser sees it: no absolute path, no identity triple.
+ *
+ * The wire shape of `GET /rheplicant/project/executions`. It lives here, in
+ * the seam's contract module, rather than beside the route handler, because
+ * the handler imports `node:http` and the console must be able to name this
+ * type without dragging node types into the browser graph.
+ */
+export interface ProjectExecutionRow {
+  readonly executionId: string
+  readonly task: string
+  /** How the execution ended, read off its published directory name. */
+  readonly status: 'ok' | 'refused' | 'error'
+  /** Project-relative, e.g. `results/tasks/fit/<id>/` — what the header shows. */
+  readonly path: string
+  /** The session that produced it, when our sidecar recorded one. */
+  readonly sessionId?: string
+  readonly transport?: string
+  readonly startedAt?: string
+  readonly finishedAt?: string
+}
+
+/** The listing response body. */
+export interface ProjectExecutionsBody {
+  /**
+   * The project's own name — the workspace directory's basename.
+   *
+   * Sent once on the body rather than repeated per row, because it is a
+   * property of the project and not of any execution in it. A NAME, never the
+   * path: the browser has no use for the host's directory layout.
+   */
+  readonly project: string
+  readonly executions: readonly ProjectExecutionRow[]
 }

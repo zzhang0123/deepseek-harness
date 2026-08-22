@@ -18,6 +18,22 @@
       "types": "./lib/task.d.ts",
       "default": "./lib/task.js"
     },
+    "./project": {
+      "types": "./lib/project.d.ts",
+      "default": "./lib/project.js"
+    },
+    "./project-runtime": {
+      "types": "./lib/project-runtime.d.ts",
+      "default": "./lib/project-runtime.js"
+    },
+    "./project-api": {
+      "types": "./lib/project-api.d.ts",
+      "default": "./lib/project-api.js"
+    },
+    "./executions": {
+      "types": "./lib/executions.d.ts",
+      "default": "./lib/executions.js"
+    },
     "./package.json": "./package.json",
     "./invariant": {
       "types": "./lib/invariant.d.ts",
@@ -29,7 +45,9 @@
     "@deepseek-ai/dsh-llm": "workspace:^",
     "@deepseek-ai/dsh-session": "workspace:^",
     "@deepseek-ai/schemastery": "workspace:^",
-    "@deepseek-ai/dsh-settings": "workspace:^"
+    "@deepseek-ai/dsh-settings": "workspace:^",
+    "@deepseek-ai/dsh-host-webserver": "workspace:^",
+    "@deepseek-ai/dsh-workspace": "workspace:^"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:^"

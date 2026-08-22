@@ -70,7 +70,11 @@ class LocalComputeProvider implements ComputeProvider {
   }
 
   run(input: ComputeInput, opts: RunOpts): Promise<RunOutcome> {
-    return this.request<RunOutcome>('run', { ...input, runs: opts.runs }, opts)
+    return this.request<RunOutcome>('run', { ...input, runs: opts.runs, outputsDir: opts.outputsDir }, opts)
+  }
+
+  readExecution(resultsPath: string, opts: RunOpts): Promise<RunOutcome> {
+    return this.request<RunOutcome>('execution.read', { resultsPath, runs: opts.runs }, opts)
   }
 
   schema(opts: ComputeOpts): Promise<SchemaDocument> {

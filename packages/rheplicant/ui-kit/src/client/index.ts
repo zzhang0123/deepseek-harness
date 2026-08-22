@@ -29,6 +29,9 @@ export { formatRunProvenance, shortExecutionId } from './format/provenance.ts'
 export type { RunProvenance } from './format/provenance.ts'
 
 export { selectAnalysisRuns } from './run/run-selectors.ts'
+
+export { runsToRender, executionEmptyReason } from './run/execution-view.ts'
+export type { ConsoleExecutionView, ExecutionViewProblem } from './run/execution-view.ts'
 export type { AnalysisRun, AnalysisRunDiagnostics, AnalysisRunProduct } from './run/run-selectors.ts'
 
 export {

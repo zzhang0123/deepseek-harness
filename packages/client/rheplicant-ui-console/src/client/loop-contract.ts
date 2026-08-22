@@ -38,6 +38,10 @@ export interface LoopRunContribution {
   readonly document: ComputeDocument
   readonly transport: Transport
   readonly outcome: RunOutcome
+  /** Minted host-side; absent on events that predate execution identity. */
+  readonly executionId?: string
+  /** The task file as the model named it; absent for an inline document. */
+  readonly taskPath?: string
 }
 
 /** One independently assembled contribution to the loop projection. */
@@ -76,14 +80,42 @@ export interface LoopRunEntry {
 }
 
 /**
+ * One execution this session produced, as the header and picker read it.
+ *
+ * Scalars only, and every one of them already on the run event — this is a
+ * projection of the log, not a second copy of the results. The authoritative
+ * list of a PROJECT's executions is a directory read through
+ * `ctx.rheplicantProject` (`docs/project-model.md` §5.1); this list is
+ * deliberately narrower, and the header says so, because a session's log can
+ * only ever describe what that session did.
+ */
+export interface LoopExecutionRef {
+  readonly executionId: string
+  /** Absolute path of the published tree, when the run published one. */
+  readonly resultsPath?: string
+  /** The task file as the model named it; absent for an inline document. */
+  readonly taskPath?: string
+  readonly transport: Transport
+  /** `failed` when any run in the execution failed. */
+  readonly status: 'ok' | 'failed'
+  readonly seq: number
+}
+
+/**
  * One session's workflow-loop state: the latest fact of each of the three
  * kinds. Later events of a type replace earlier ones — the loop iterates —
- * so this is never a list, only ever "what's current".
+ * so those are never lists, only ever "what's current".
+ *
+ * `executions` is the exception, and deliberately so: the loop rail wants the
+ * current state, while the console header wants to let someone look back at an
+ * earlier execution without leaving the conversation.
  */
 export interface LoopSnapshot {
   readonly validate?: LoopValidateEntry
   readonly gates?: LoopGatesEntry
   readonly run?: LoopRunEntry
+  /** Every execution this session produced, oldest first. */
+  readonly executions: readonly LoopExecutionRef[]
   /** The greatest `seq` across every fact folded in, or -1 when none has landed yet. */
   readonly latestSeq: number
 }

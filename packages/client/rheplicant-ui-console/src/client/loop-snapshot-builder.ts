@@ -14,11 +14,29 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConversationViewBuilder, ConversationViewDefinition } from '@deepseek-ai/dsh-client-runtime/client'
 import type {
-  LoopConversationViewNode, LoopGatesEntry, LoopRunEntry, LoopSnapshot, LoopValidateEntry,
+  LoopConversationViewNode, LoopExecutionRef, LoopGatesEntry, LoopRunContribution, LoopRunEntry,
+  LoopSnapshot, LoopValidateEntry,
 } from './loop-contract.ts'
 
+/**
+ * One run contribution projected to what the header and picker need: scalars
+ * already on the event, and nothing else.
+ */
+function executionRef(data: LoopRunContribution): LoopExecutionRef {
+  return {
+    executionId: data.executionId as string,
+    ...(data.outcome.resultsPath === undefined ? {} : { resultsPath: data.outcome.resultsPath }),
+    ...(data.taskPath === undefined ? {} : { taskPath: data.taskPath }),
+    transport: data.transport,
+    // One failed run makes the execution failed: a card that says "ok" while a
+    // run inside it errored is the exact wrongness this console exists to kill.
+    status: data.outcome.runs.some(entry => entry.status === 'failed') ? 'failed' : 'ok',
+    seq: data.seq,
+  }
+}
+
 /** Stable empty target used until a Session has assembled any loop records. */
-export const EMPTY_LOOP_SNAPSHOT: LoopSnapshot = { latestSeq: -1 }
+export const EMPTY_LOOP_SNAPSHOT: LoopSnapshot = { executions: [], latestSeq: -1 }
 
 /** Per-Session incremental builder folding validate/gates/run contributions into one loop state. */
 export class LoopSnapshotBuilder implements ConversationViewBuilder<LoopConversationViewNode, LoopSnapshot> {
@@ -60,6 +78,7 @@ export class LoopSnapshotBuilder implements ConversationViewBuilder<LoopConversa
     let validate: LoopValidateEntry | undefined
     let gates: LoopGatesEntry | undefined
     let run: LoopRunEntry | undefined
+    const executions: LoopExecutionRef[] = []
     let latestSeq = -1
     for (const contribution of this.contributions) {
       const data = contribution.data
@@ -70,6 +89,10 @@ export class LoopSnapshotBuilder implements ConversationViewBuilder<LoopConversa
         gates = { report: data.report, document: data.document, transport: data.transport, seq: data.seq }
       } else {
         run = { outcome: data.outcome, document: data.document, transport: data.transport, seq: data.seq }
+        // The walk is ascending, so pushing here yields oldest-first with no
+        // second sort. An event without an id predates execution identity and
+        // has nothing to select BY, so it contributes to `run` but not here.
+        if (data.executionId !== undefined) executions.push(executionRef(data))
       }
     }
     if (validate === undefined && gates === undefined && run === undefined) return this.empty
@@ -77,6 +100,7 @@ export class LoopSnapshotBuilder implements ConversationViewBuilder<LoopConversa
       ...(validate === undefined ? {} : { validate }),
       ...(gates === undefined ? {} : { gates }),
       ...(run === undefined ? {} : { run }),
+      executions,
       latestSeq,
     }
   }

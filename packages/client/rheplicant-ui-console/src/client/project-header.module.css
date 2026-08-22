@@ -1,0 +1,65 @@
+/* The project header: which execution the panels below are showing. */
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 0.75rem;
+  padding: 0.75rem 0.75rem 0;
+  color: var(--dsw-alias-text-secondary);
+  font-size: 0.8125rem;
+}
+
+.field {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  white-space: nowrap;
+}
+
+.label {
+  color: var(--dsw-alias-text-tertiary);
+}
+
+.value {
+  color: var(--dsw-alias-text-primary);
+  font-weight: 500;
+}
+
+.mono {
+  font-family: var(--dsw-alias-font-mono, ui-monospace, monospace);
+}
+
+/* The published path gets its own line: it is long, and it is the one thing
+   here a user copies. */
+.path {
+  flex-basis: 100%;
+  color: var(--dsw-alias-text-tertiary);
+  font-family: var(--dsw-alias-font-mono, ui-monospace, monospace);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.picker {
+  background: var(--dsw-alias-bg-elevated);
+  color: var(--dsw-alias-text-primary);
+  border: 1px solid var(--dsw-alias-border-subtle);
+  border-radius: 0.25rem;
+  padding: 0.15rem 0.35rem;
+  font: inherit;
+  font-family: var(--dsw-alias-font-mono, ui-monospace, monospace);
+  font-size: 0.75rem;
+  max-width: 22rem;
+}
+
+/* The rule behind the default selection, stated so it is never mysterious. */
+.rule {
+  flex-basis: 100%;
+  color: var(--dsw-alias-text-tertiary);
+  font-size: 0.6875rem;
+}
+
+.empty {
+  padding: 0.75rem 0.75rem 0;
+  color: var(--dsw-alias-text-tertiary);
+  font-size: 0.8125rem;
+}

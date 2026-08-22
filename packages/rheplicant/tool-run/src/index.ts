@@ -14,6 +14,7 @@ import type {} from '@deepseek-ai/dsh-jobs'
 import type {} from '@rheplicant/dsh-rheplicant'
 import type { ComputeDocument, RunOutcome, Transport } from '@rheplicant/dsh-rheplicant'
 import { mintExecutionId, resolveTaskInput } from '@rheplicant/dsh-rheplicant/task'
+import { ensureResultsIgnored, executionDirectory, taskSegment, writeSidecar } from '@rheplicant/dsh-rheplicant/project'
 
 declare module '@deepseek-ai/dsh-jobs' {
   interface JobKindMap {
@@ -93,7 +94,13 @@ export function apply(ctx: Context, config: Config): void {
             text: `Background run started: ${projected.jobId} (execution ${executionId}) — read its output with job_output.`,
           }]
         }
-        return [{ type: 'text', text: formatRunOutcome(value as unknown as RunOutcome, executionId) }]
+        const notice = typeof projected.gitignoreWritten === 'string'
+          ? `\nAdded a managed \`results/\` block to ${projected.gitignoreWritten}.`
+          : ''
+        return [{
+          type: 'text',
+          text: formatRunOutcome(value as unknown as RunOutcome, executionId) + notice,
+        }]
       },
     },
     async execute(args, exec) {
@@ -114,6 +121,32 @@ export function apply(ctx: Context, config: Config): void {
         taskDigest: resolved.taskDigest,
         ...(resolved.taskPath === undefined ? {} : { taskPath: resolved.taskPath }),
       }
+      // P2 (`docs/project-model.md` §4.4, §5): a task run publishes into its
+      // own directory under the project. An inline document has no task file
+      // and so no place in `results/`; it stays in memory, as scratch work.
+      const workspace = exec.agent?.session.header.cwd
+      const publishTo = workspace !== undefined && resolved.resolvedTaskPath !== undefined
+        ? executionDirectory(workspace, resolved.resolvedTaskPath, executionId)
+        : undefined
+      // Before the first tree of this session lands, not after it (§9.1). It
+      // returns a path only the first time, so the notice is announced once.
+      const ignoreWritten = publishTo !== undefined && workspace !== undefined
+        ? ensureResultsIgnored(workspace)
+        : undefined
+      const startedAt = new Date().toISOString()
+      const record = (outcome: RunOutcome): void => {
+        if (publishTo === undefined || resolved.resolvedTaskPath === undefined) return
+        writeSidecar(outcome.resultsPath ?? publishTo, {
+          executionId,
+          task: taskSegment(workspace as string, resolved.resolvedTaskPath),
+          taskPath: resolved.resolvedTaskPath,
+          taskDigest: resolved.taskDigest,
+          transport,
+          startedAt,
+          finishedAt: new Date().toISOString(),
+          ...(exec.agent === undefined ? {} : { sessionId: exec.agent.session.header.id }),
+        })
+      }
       if (args.run_in_background === true) {
         const jobs = ctx.get('jobs')
         if (jobs === undefined) {
@@ -129,13 +162,15 @@ export function apply(ctx: Context, config: Config): void {
               transport,
               runs: args.runs,
               signal: controller.signal,
+              ...(publishTo === undefined ? {} : { outputsDir: publishTo }),
             })
             return {
               cancel: (reason) => { controller.abort(reason ?? 'killed') },
               done: run.then((outcome) => {
+                record(outcome)
                 exec.agent?.session.append('rheplicant/run', {
                   document: eventDocument(resolved.input.document, outcome),
-                  outcome,
+                  outcome: receipt(outcome),
                   transport,
                   ...identity,
                 }, { ignorable: true })
@@ -150,7 +185,9 @@ export function apply(ctx: Context, config: Config): void {
         transport,
         runs: args.runs,
         signal: exec.signal,
+        ...(publishTo === undefined ? {} : { outputsDir: publishTo }),
       })
+      record(outcome)
       // Model-visible means logged: record the durable event the ui-analysis node
       // matches, so the transcript reconstructs the run from the log. A call
       // without an owning agent (e.g. Code Mode) has no transcript to anchor.
@@ -158,16 +195,45 @@ export function apply(ctx: Context, config: Config): void {
       // reader may skip without corrupting the model conversation.
       exec.agent?.session.append('rheplicant/run', {
         document: eventDocument(resolved.input.document, outcome),
-        outcome,
+        outcome: receipt(outcome),
         transport,
         ...identity,
       }, { ignorable: true })
       // The seam returns the rich RunOutcome; the tool's canonical JSON value is
       // its projection. Describe the output schema precisely (and drop this cast)
       // once the RunOutcome field set is final.
-      return { ...outcome, ...identity } as unknown as Record<string, JsonValue>
+      return {
+        ...outcome,
+        ...identity,
+        ...(ignoreWritten === undefined ? {} : { gitignoreWritten: ignoreWritten }),
+      } as unknown as Record<string, JsonValue>
     },
   }))
+}
+
+/**
+ * The outcome as the durable event records it: a receipt, not a copy of the
+ * results (`docs/project-model.md` §5).
+ *
+ * A PUBLISHED execution has a folder that holds its arrays, so carrying them
+ * on the event too makes a second, LOSSY copy of data that already has an
+ * authoritative one — the 4096-element payload budget exists because of
+ * exactly that. Names, kinds, statuses, scalar diagnostics, gates and the
+ * signal path stay, so the transcript still reads on its own.
+ *
+ * An UNPUBLISHED run is the deliberate exception. Inline scratch work has no
+ * folder to be the record, so its event IS the record and keeps everything;
+ * stripping it would delete the only copy.
+ *
+ * @param outcome - what the seam returned.
+ * @returns the outcome to log.
+ */
+export function receipt(outcome: RunOutcome): RunOutcome {
+  if (outcome.resultsPath === undefined) return outcome
+  return {
+    ...outcome,
+    runs: outcome.runs.map(({ product: _product, chains: _chains, spectrum: _spectrum, ...rest }) => rest),
+  }
 }
 
 /**

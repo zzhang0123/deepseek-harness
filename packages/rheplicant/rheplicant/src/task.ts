@@ -227,7 +227,10 @@ export function resolveTaskInput(
   }
   const file = readTaskFile(args.task as string, cwd, tool)
   return {
-    input: { documentText: file.text },
+    // The CANONICAL path travels with the bytes: publication resolves the
+    // document's own `resources:` references against its directory, and
+    // records the path in provenance. See `ComputeInput.taskPath`.
+    input: { documentText: file.text, taskPath: file.resolvedPath },
     taskDigest: file.digest,
     taskPath: file.path,
     resolvedTaskPath: file.resolvedPath,

@@ -16,6 +16,9 @@ import {
   StatRow,
   formatDiagnostic,
   selectAnalysisRuns,
+  runsToRender,
+  executionEmptyReason,
+  type ConsoleExecutionView,
 } from '@rheplicant/dsh-rheplicant-ui-kit/client'
 
 /** This panel's own `console.panel` id — the key it reads/writes in `layout`. */
@@ -25,6 +28,8 @@ interface IdentifiabilityPanelProps {
   useSession: <T>(selector: (snapshot: ConversationSnapshot) => T) => T
   /** Console layout state (owner prop — see ui-console's ConsoleView doc comment). Absent when not rendered through the console shell (e.g. a unit test): renders un-collapsed, always visible. */
   layout?: ConsolePanelLayoutView
+  /** The execution the console is showing (owner prop). Absent outside the console shell. */
+  execution?: ConsoleExecutionView
 }
 
 /**
@@ -68,8 +73,11 @@ function asWeakestIdentified(value: unknown): number | null | undefined {
   return typeof value === 'number' ? value : undefined
 }
 
-export const IdentifiabilityPanel = memo(function IdentifiabilityPanel({ useSession, layout }: IdentifiabilityPanelProps) {
-  const runs = useSession(selectAnalysisRuns).filter(run => runSingularValues(run) !== undefined)
+export const IdentifiabilityPanel = memo(function IdentifiabilityPanel({ useSession, layout, execution }: IdentifiabilityPanelProps) {
+  // Prefer the execution the console selected, read off its published
+  // tree; fall back to this session's log when there is none (outside
+  // the console shell, or an older harness with no project route).
+  const runs = runsToRender(execution, useSession(selectAnalysisRuns)).filter(run => runSingularValues(run) !== undefined)
   if (layout?.hidden.has(PANEL_ID) === true) return null
   const status: PanelStatus = runs.length === 0 ? 'idle' : runs.some(run => run.status === 'failed') ? 'error' : 'ok'
 
@@ -84,7 +92,10 @@ export const IdentifiabilityPanel = memo(function IdentifiabilityPanel({ useSess
       })}
     >
       {runs.length === 0 ? (
-        <EmptyState message="No identifiability runs yet" hint="Ask the agent for a condition run" />
+        <EmptyState
+          message={executionEmptyReason(execution) ?? 'No identifiability runs yet'}
+          hint={executionEmptyReason(execution) === undefined ? 'Ask the agent for a condition run' : undefined}
+        />
       ) : (
         runs.map(run => {
           const diagnostics = run.diagnostics

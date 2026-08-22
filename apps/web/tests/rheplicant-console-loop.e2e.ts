@@ -63,7 +63,7 @@ const SEED_FIXTURE = [
   '{"type":"step/start","seq":2,"time":1784974200827,"data":{"turn":1,"step":1}}',
   `{"type":"rheplicant/validate","seq":3,"time":1784974200828,"ignorable":true,"data":{"document":${JSON.stringify(DOCUMENT)},"transport":"local","report":{"valid":false,"errors":[{"path":"inference.parameters.g","code":"UNKNOWN_LATENT","message":"inference.parameters.g names a latent the model does not declare."}],"warnings":[]}}}`,
   `{"type":"rheplicant/gates","seq":4,"time":1784974200829,"ignorable":true,"data":{"document":${JSON.stringify(DOCUMENT)},"transport":"local","report":{"checks":[{"check":"linearity","mode":"refuse","id":"C12","state":"refuse","record":true,"reason":null,"where":"inference.checks.linearity","rtol":null},{"check":"identifiability","mode":"skip","id":"C13","state":"skip","record":false,"reason":${JSON.stringify(IDENTIFIABILITY_SKIP_REASON)},"where":"inference.checks.identifiability","rtol":0.01},{"check":"prior_sensitivity","mode":"skip","id":"C19","state":"off","record":false,"reason":null,"where":"inference.checks.prior_sensitivity","rtol":null}],"runs":[],"warnings":[]}}}`,
-  `{"type":"rheplicant/run","seq":5,"time":1784974200830,"ignorable":true,"data":{"document":${JSON.stringify(DOCUMENT)},"transport":"local","outcome":{"runs":[{"name":"fit","kind":"nuts","status":"failed","diagnostics":{"rhat":1.4,"divergences":3,"converged":false},"error":{"code":"RUN_FAILED","message":"nuts sampler diverged."}}],"tookMs":842,"graph":{"graph":"single-antenna","lit":["sky"],"skipped":[],"svg":"<svg xmlns=\\"http://www.w3.org/2000/svg\\" width=\\"20\\" height=\\"20\\" role=\\"img\\"></svg>"},"gates":[{"check":"C12","severity":"refuse","where":"inference.checks.linearity","message":"Linearity departure exceeds tolerance for operator NoiseWave."}]}}}`,
+  `{"type":"rheplicant/run","seq":5,"time":1784974200830,"ignorable":true,"data":{"document":${JSON.stringify(DOCUMENT)},"transport":"local","executionId":"20260822T134501Z-3f9ac2b1-k7m2xq","taskDigest":"3f9ac2b1","taskPath":"tasks/global-signal-fit.yaml","outcome":{"resultsPath":"/home/z/rhino-2026/results/tasks/global-signal-fit/20260822T134501Z-3f9ac2b1-k7m2xq","runs":[{"name":"fit","kind":"nuts","status":"failed","diagnostics":{"rhat":1.4,"divergences":3,"converged":false},"error":{"code":"RUN_FAILED","message":"nuts sampler diverged."}}],"tookMs":842,"graph":{"graph":"single-antenna","lit":["sky"],"skipped":[],"svg":"<svg xmlns=\\"http://www.w3.org/2000/svg\\" width=\\"20\\" height=\\"20\\" role=\\"img\\"></svg>"},"gates":[{"check":"C12","severity":"refuse","where":"inference.checks.linearity","message":"Linearity departure exceeds tolerance for operator NoiseWave."}]}}}`,
   '{"type":"assistant/message","seq":6,"time":1784974200831,"data":{"turn":1,"step":1,"content":[{"type":"text","text":"The console view is ready."}],"provenance":{"provider":"deepseek-official","model":"deepseek-v4-flash"}},"surfaceOp":"append"}',
   '{"type":"step/end","seq":7,"time":1784974200832,"data":{"turn":1,"step":1}}',
   '{"type":"turn/end","seq":8,"time":1784974200833,"data":{"turn":1,"reason":{"kind":"completed"}}}',
@@ -261,6 +261,35 @@ describe('web e2e: rheplicant console workflow loop (LoopRail + Gates panel)', (
       // Every chip carries its own color swatch — the visual half of the fix.
       expect(await chip.locator('[data-legend-swatch]').count()).toBe(1)
     }
+  }, 30_000)
+
+  it('heads the console with the project, task and execution being shown', async () => {
+    // docs/project-model.md §6.1, in a real browser: the header derives every
+    // field from the run event's own published path, so a slot crash here (the
+    // failure mode a `conversation.view` entry has) would show as height 0
+    // rather than a wrong string.
+    const header = page.locator('[data-project-header]')
+    await header.waitFor({ timeout: 10_000 })
+    const text = await header.textContent()
+    expect(text).toContain('rhino-2026')
+    expect(text).toContain('tasks/global-signal-fit')
+
+    expect(await page.locator('[data-execution-freshness]').getAttribute('data-execution-freshness'))
+      .toBe('current')
+    expect(await page.locator('[data-execution-path]').textContent())
+      .toBe('results/tasks/global-signal-fit/20260822T134501Z-3f9ac2b1-k7m2xq/')
+
+    // This session's one run FAILED, and the header says so rather than
+    // letting the execution read as ok because it completed.
+    await page.locator('[data-execution-status="failed"]').waitFor({ timeout: 5_000 })
+
+    // One execution means nothing to pick between; the picker stays away.
+    expect(await page.locator('[data-execution-picker]').count()).toBe(0)
+
+    // The scope of the list is stated on screen, because it is a session's
+    // list and not the project's (§8.1).
+    expect(await page.locator('[data-header-rule]').textContent())
+      .toContain('not every execution in the project')
   }, 30_000)
 
   it('stayed clean', async () => {

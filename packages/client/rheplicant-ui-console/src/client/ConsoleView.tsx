@@ -45,6 +45,8 @@ import type { ConsolePanelLayoutView } from '@rheplicant/dsh-rheplicant-ui-kit/c
 import type { createConsoleLayoutStore } from './layout-store.ts'
 import { KNOWN_PANELS } from './known-panels.ts'
 import { LoopRail } from './LoopRail.tsx'
+import { ProjectHeader } from './ProjectHeader.tsx'
+import { useConsoleExecution } from './use-console-execution.ts'
 import { PanelsMenu } from './PanelsMenu.tsx'
 import styles from './console.module.css'
 
@@ -68,6 +70,9 @@ type ConsoleViewProps =
   & PropsStore<ReturnType<typeof createConsoleLayoutStore>>
 
 export const ConsoleView = memo(function ConsoleView({ useSession, renderSlot, useStore, actions }: ConsoleViewProps) {
+  // One owner for "which execution", shared by the header that names it and
+  // the panels that draw it (`docs/project-model.md` §6.1).
+  const execution = useConsoleExecution(useSession)
   const collapsed = useStore(s => s.collapsed)
   const hidden = useStore(s => s.hidden)
   const collapsedSet = useMemo(() => new Set(collapsed), [collapsed])
@@ -91,9 +96,13 @@ export const ConsoleView = memo(function ConsoleView({ useSession, renderSlot, u
       <div data-console-header className={styles.header}>
         <PanelsMenu panels={KNOWN_PANELS} hidden={hiddenSet} onToggleHidden={toggleHidden} onReset={actions.reset} />
       </div>
+      <ProjectHeader execution={execution} />
       <LoopRail useSession={useSession} />
       <div data-console-grid className={styles.grid}>
-        {renderSlot('console.panel', { layout })}
+        {/* The owner props object is identical for every occupant (see this
+            file's doc comment), which is the one channel that reaches them
+            all — so the selected execution rides it beside the layout. */}
+        {renderSlot('console.panel', { layout, execution: execution.executionView })}
       </div>
     </section>
   )
