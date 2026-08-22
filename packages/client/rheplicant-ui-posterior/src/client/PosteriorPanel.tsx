@@ -15,9 +15,12 @@ import {
   StatRow,
   TOKEN,
   formatDiagnostic,
+  formatRunProvenance,
   groupChains,
+  mcmcRows,
   selectAnalysisRuns,
 } from '@rheplicant/dsh-rheplicant-ui-kit/client'
+import styles from './posterior.module.css'
 
 /** This panel's own `console.panel` id — the key it reads/writes in `layout`. */
 const PANEL_ID = 'posterior'
@@ -73,7 +76,7 @@ const RunMarginals = memo(function RunMarginals({ groups }: { groups: readonly C
   )
 })
 
-/** One run's rhat / n_eff diagnostics, folded into StatRow chips. */
+/** One run's rhat / n_eff diagnostics, folded into StatRow chips, plus one wrapped pair of StatRows per `mcmc` latent (when the sampler reported per-latent diagnostics). */
 const RunDiagnosticStats = memo(function RunDiagnosticStats({ run }: { run: PosteriorRun }) {
   const diagnostics = run.diagnostics
   if (diagnostics === undefined) return null
@@ -93,9 +96,34 @@ const RunDiagnosticStats = memo(function RunDiagnosticStats({ run }: { run: Post
             <StatRow key={latent} statKey={`n_eff-${latent}`} label={`n_eff (${latent})`} value={formatDiagnostic('n_eff', value)} />
           ))
         : null}
+      {mcmcRows(diagnostics.mcmc).map(row => (
+        <div key={row.latent} data-mcmc-latent={row.latent}>
+          <StatRow
+            statKey={row.rhat.stat}
+            label={row.rhat.label}
+            value={row.rhat.value}
+            {...(row.rhat.verdict === undefined ? {} : { verdict: row.rhat.verdict })}
+          />
+          <StatRow statKey={row.nEff.stat} label={row.nEff.label} value={row.nEff.value} />
+        </div>
+      ))}
     </>
   )
 })
+
+/** One run's provenance caption: a quiet secondary-label line so two runs with an identical outcome (e.g. a rerun with the same seed) still read as distinct cards. */
+const RunProvenanceCaption = memo(function RunProvenanceCaption({ run }: { run: PosteriorRun }) {
+  const provenance = formatRunProvenance({ time: run.time, transport: run.transport, seq: run.seq })
+  if (provenance === undefined) return null
+  return (
+    <p className={styles.provenance} data-run-provenance={provenance} data-run-seq={run.seq}>{provenance}</p>
+  )
+})
+
+/** React key for one run card: `name` alone collides when two DIFFERENT runs (different events) happen to share a name — the common case for a rerun with the same seed, which is exactly the scenario this panel must tell apart, not merely fail to crash on. `seq` is unique per event; fall back to the bare name when it is somehow absent. */
+function runCardKey(run: PosteriorRun): string {
+  return run.seq === undefined ? run.name : `${run.name}-${run.seq}`
+}
 
 export const PosteriorPanel = memo(function PosteriorPanel({ useSession, layout }: PosteriorPanelProps) {
   const runs = useSession(selectAnalysisRuns).filter(hasChains)
@@ -118,8 +146,9 @@ export const PosteriorPanel = memo(function PosteriorPanel({ useSession, layout 
         runs.map(run => {
           const groups = groupChains(run.chains)
           return (
-            <div key={run.name} data-posterior-run data-run-name={run.name}>
+            <div key={runCardKey(run)} data-posterior-run data-run-name={run.name}>
               <div><strong>{run.name}</strong> <span>({run.kind})</span></div>
+              <RunProvenanceCaption run={run} />
               <RunDiagnosticStats run={run} />
               <RunMarginals groups={groups} />
               <details data-corner-details>

@@ -102,5 +102,13 @@ export function stdioRequest<T>(
     }, { once: true })
 
     child.stdin!.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n')
+    // The server's `main()` reads newline-delimited requests with
+    // `for line in sys.stdin:`, which keeps blocking on the next `read()`
+    // until stdin actually reaches EOF -- one JSON-RPC line does not imply
+    // EOF on its own. This is a one-shot client (one request per spawn), so
+    // there is never a second line to send; ending stdin here tells the
+    // server exactly that, instead of leaving it to `child.kill()` (SIGTERM)
+    // to interrupt the blocked read once `settle()`/`fail()` runs.
+    child.stdin!.end()
   })
 }

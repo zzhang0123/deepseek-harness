@@ -2,8 +2,9 @@
 import { memo } from 'react'
 import type { ChatNodeViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { GateFinding, RunDiagnostics } from '@rheplicant/dsh-rheplicant'
-import { formatDiagnostic } from '@rheplicant/dsh-rheplicant-ui-kit/client'
+import { Badge, formatDiagnostic, formatRunProvenance, mcmcRows } from '@rheplicant/dsh-rheplicant-ui-kit/client'
 import { SignalPath } from './SignalPath.tsx'
+import styles from './analysis-run-panel.module.css'
 
 /** Post-flight gate verdicts, one row per finding. */
 const Gates = memo(function Gates({ gates }: { gates: readonly GateFinding[] }) {
@@ -107,6 +108,52 @@ const Diagnostics = memo(function Diagnostics({ diagnostics }: { diagnostics: Ru
   )
 })
 
+/**
+ * Per-latent MCMC diagnostics (`RunDiagnostics.mcmc`), one labelled r_hat/n_eff
+ * pair per latent — kept separate from the `<dl data-run-diagnostics>` above
+ * (which owns the scalar fields) rather than interleaved into it, since a
+ * multi-latent NUTS run can report several of these. A bad r_hat (over the
+ * same threshold `ui-console`'s loop rail uses) carries a `warn` Badge next
+ * to its value — the dl/dt/dd idiom here has no StatRow-style verdict dot,
+ * so Badge is this panel's own equivalent of that same convention.
+ */
+const McmcDiagnostics = memo(function McmcDiagnostics({ mcmc }: { mcmc: unknown }) {
+  const rows = mcmcRows(mcmc)
+  if (rows.length === 0) return null
+  return (
+    <dl data-mcmc className={styles.mcmc}>
+      {rows.map(row => (
+        <div key={row.latent} data-mcmc-latent={row.latent} className={styles.mcmcLatent}>
+          <dt>{row.rhat.label}</dt>
+          <dd data-stat="rhat">
+            {row.rhat.value}
+            {row.rhat.verdict === 'warn' ? <Badge state="warn" /> : null}
+          </dd>
+          <dt>{row.nEff.label}</dt>
+          <dd data-stat="n-eff">{row.nEff.value}</dd>
+        </div>
+      ))}
+    </dl>
+  )
+})
+
+/**
+ * One run's provenance caption: a quiet secondary-label line so two runs
+ * with an identical outcome (e.g. a rerun with the same seed) still read as
+ * distinct cards, not one repeated. Takes the whole run entry (rather than
+ * destructured `time`/`transport`/`seq` props) so this component's own prop
+ * type is never built fresh from already-optional fields at the JSX call
+ * site — see `RunProvenance`'s (ui-kit) doc comment for why that matters
+ * under `exactOptionalPropertyTypes`.
+ */
+const RunProvenanceCaption = memo(function RunProvenanceCaption({ run }: { run: { time?: number; transport?: string; seq?: number } }) {
+  const provenance = formatRunProvenance({ time: run.time, transport: run.transport, seq: run.seq })
+  if (provenance === undefined) return null
+  return (
+    <p className={styles.provenance} data-run-provenance={provenance} data-run-seq={run.seq}>{provenance}</p>
+  )
+})
+
 /** Render one analysis run's step list with per-run status and diagnostics. */
 export const AnalysisRunPanel = memo(function AnalysisRunPanel({ node }: ChatNodeViewProps<'rheplicant-analysis'>) {
   const { runs, tookMs, graph, gates } = node.data
@@ -118,7 +165,9 @@ export const AnalysisRunPanel = memo(function AnalysisRunPanel({ node }: ChatNod
         {runs.map(run => (
           <li key={run.name} data-run-name={run.name} data-run-status={run.status}>
             <strong>{run.name}</strong> <span>({run.kind})</span> — {run.status}
+            <RunProvenanceCaption run={run} />
             {run.diagnostics !== undefined ? <Diagnostics diagnostics={run.diagnostics} /> : null}
+            {run.diagnostics?.mcmc !== undefined ? <McmcDiagnostics mcmc={run.diagnostics.mcmc} /> : null}
           </li>
         ))}
       </ul>

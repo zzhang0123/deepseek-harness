@@ -29,11 +29,21 @@
  *   settled, so the wire has no "in flight" signal for validate/gates/run to
  *   render against. The state exists for forward-compatibility with the
  *   enum's declared range, not because today's wire can reach it.
+ * - `diagnostics`' r_hat check reads BOTH the scalar `RunDiagnostics.rhat`
+ *   AND the per-latent `RunDiagnostics.mcmc` bag, at the ONE shared
+ *   threshold `ui-kit` owns (`RHAT_WARN_ABOVE`) — a multi-latent NUTS run
+ *   commonly reports r_hat/n_eff ONLY per-latent, with no scalar `rhat` at
+ *   all, so reading the scalar alone used to render a false `ok` for a run
+ *   whose worst latent was well over threshold. There is still only ONE warn
+ *   tier here, scalar or per-latent: a bad r_hat never escalates this stage
+ *   to `error` (only `divergences > 0` or `converged === false` do) — mixing
+ *   the two paths does not invent a new severity, it only widens which
+ *   fields participate in the existing one.
  * @module @rheplicant/dsh-rheplicant-ui-console/client/loop-selectors
  */
 
 import type { CheckCost, RunEntry } from '@rheplicant/dsh-rheplicant'
-import { formatDiagnostic, formatMs } from '@rheplicant/dsh-rheplicant-ui-kit/client'
+import { RHAT_WARN_ABOVE, formatDiagnostic, formatMs, mcmcLatents } from '@rheplicant/dsh-rheplicant-ui-kit/client'
 import type { LoopGatesEntry, LoopRunEntry, LoopSnapshot, LoopValidateEntry } from './loop-contract.ts'
 
 export type StageId = 'author' | 'validate' | 'gates' | 'run' | 'diagnostics'
@@ -191,12 +201,23 @@ export function runStage(snapshot: LoopSnapshot): StageInfo {
 
 type DiagVerdict = 'ok' | 'warn' | 'error'
 const DIAG_RANK: Record<DiagVerdict, number> = { ok: 0, warn: 1, error: 2 }
-const RHAT_WARN_ABOVE = 1.01
 
 interface DiagOffender {
   readonly name: string
   readonly metric: string
   readonly value?: number
+  /** Present only for an offender found under `mcmc` — names which latent, so the stage detail line can say e.g. `fit: rhat[centre]=1.420` rather than leave the reader to guess. */
+  readonly latent?: string
+}
+
+/** The worst (highest) numeric r_hat among a run's per-latent `mcmc` entries, with the latent it came from — `undefined` when `mcmc` is absent or reports no numeric r_hat at all. */
+function worstMcmcRhat(mcmc: unknown): { readonly latent: string; readonly rhat: number } | undefined {
+  let worst: { readonly latent: string; readonly rhat: number } | undefined
+  for (const { latent, rhat } of mcmcLatents(mcmc)) {
+    if (typeof rhat !== 'number') continue
+    if (worst === undefined || rhat > worst.rhat) worst = { latent, rhat }
+  }
+  return worst
 }
 
 function runDiagVerdict(entry: RunEntry): { readonly verdict: DiagVerdict; readonly offender?: DiagOffender } {
@@ -208,16 +229,31 @@ function runDiagVerdict(entry: RunEntry): { readonly verdict: DiagVerdict; reado
   if (diagnostics.converged === false) {
     return { verdict: 'error', offender: { name: entry.name, metric: 'converged' } }
   }
-  if (typeof diagnostics.rhat === 'number' && diagnostics.rhat > RHAT_WARN_ABOVE) {
-    return { verdict: 'warn', offender: { name: entry.name, metric: 'rhat', value: diagnostics.rhat } }
+  // Both the scalar `rhat` and the worst per-latent r_hat under `mcmc`
+  // participate at the SAME threshold — see the module doc comment's
+  // honesty notes. Neither is preferred over the other; whichever is worse
+  // (numerically higher) is the offender that names the stage's detail line,
+  // so a run reporting both a fine scalar rhat and a bad per-latent one
+  // still surfaces the bad latent, not the fine scalar.
+  const scalarRhat = typeof diagnostics.rhat === 'number' ? diagnostics.rhat : undefined
+  const worstLatent = worstMcmcRhat(diagnostics.mcmc)
+  const candidates: DiagOffender[] = []
+  if (scalarRhat !== undefined && scalarRhat > RHAT_WARN_ABOVE) {
+    candidates.push({ name: entry.name, metric: 'rhat', value: scalarRhat })
   }
-  return { verdict: 'ok' }
+  if (worstLatent !== undefined && worstLatent.rhat > RHAT_WARN_ABOVE) {
+    candidates.push({ name: entry.name, metric: 'rhat', value: worstLatent.rhat, latent: worstLatent.latent })
+  }
+  if (candidates.length === 0) return { verdict: 'ok' }
+  const offender = candidates.reduce((worst, candidate) => ((candidate.value ?? -Infinity) > (worst.value ?? -Infinity) ? candidate : worst))
+  return { verdict: 'warn', offender }
 }
 
 function formatOffender(offender: DiagOffender): string {
   if (offender.metric === 'converged') return `${offender.name}: converged=false`
   const value = offender.value
-  return `${offender.name}: ${offender.metric}=${value === undefined ? '—' : formatDiagnostic(offender.metric, value)}`
+  const metricLabel = offender.latent === undefined ? offender.metric : `${offender.metric}[${offender.latent}]`
+  return `${offender.name}: ${metricLabel}=${value === undefined ? '—' : formatDiagnostic(offender.metric, value)}`
 }
 
 export function diagnosticsStage(snapshot: LoopSnapshot): StageInfo {

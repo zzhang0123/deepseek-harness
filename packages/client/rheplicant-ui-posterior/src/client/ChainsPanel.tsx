@@ -11,9 +11,12 @@ import {
   StatRow,
   TracePlot,
   formatDiagnostic,
+  formatRunProvenance,
   groupChains,
+  mcmcRows,
   selectAnalysisRuns,
 } from '@rheplicant/dsh-rheplicant-ui-kit/client'
+import styles from './posterior.module.css'
 
 /** This panel's own `console.panel` id — the key it reads/writes in `layout`. */
 const PANEL_ID = 'chains'
@@ -31,7 +34,7 @@ function hasChains(run: AnalysisRun): run is ChainsRun {
   return run.chains !== undefined
 }
 
-/** One run's rhat / n_eff / divergences diagnostics, folded into StatRow chips. */
+/** One run's rhat / n_eff / divergences diagnostics, folded into StatRow chips, plus one wrapped pair of StatRows per `mcmc` latent (when the sampler reported per-latent diagnostics). */
 const RunDiagnosticStats = memo(function RunDiagnosticStats({ run }: { run: ChainsRun }) {
   const diagnostics = run.diagnostics
   if (diagnostics === undefined) return null
@@ -54,9 +57,34 @@ const RunDiagnosticStats = memo(function RunDiagnosticStats({ run }: { run: Chai
       {diagnostics.divergences !== undefined ? (
         <StatRow statKey="divergences" label="divergences" value={formatDiagnostic('divergences', diagnostics.divergences)} />
       ) : null}
+      {mcmcRows(diagnostics.mcmc).map(row => (
+        <div key={row.latent} data-mcmc-latent={row.latent}>
+          <StatRow
+            statKey={row.rhat.stat}
+            label={row.rhat.label}
+            value={row.rhat.value}
+            {...(row.rhat.verdict === undefined ? {} : { verdict: row.rhat.verdict })}
+          />
+          <StatRow statKey={row.nEff.stat} label={row.nEff.label} value={row.nEff.value} />
+        </div>
+      ))}
     </>
   )
 })
+
+/** One run's provenance caption: a quiet secondary-label line so two runs with an identical outcome (e.g. a rerun with the same seed) still read as distinct cards. */
+const RunProvenanceCaption = memo(function RunProvenanceCaption({ run }: { run: ChainsRun }) {
+  const provenance = formatRunProvenance({ time: run.time, transport: run.transport, seq: run.seq })
+  if (provenance === undefined) return null
+  return (
+    <p className={styles.provenance} data-run-provenance={provenance} data-run-seq={run.seq}>{provenance}</p>
+  )
+})
+
+/** React key for one run card — see `PosteriorPanel.tsx`'s `runCardKey` doc comment: `name` alone collides across two different runs (different events) that happen to share a name. */
+function runCardKey(run: ChainsRun): string {
+  return run.seq === undefined ? run.name : `${run.name}-${run.seq}`
+}
 
 /** One run's chain groups: a `TracePlot` per 'series' group (multi-series, legend, unit-less draw traces), a `BandChart` per 'band' group. */
 const RunChainGroups = memo(function RunChainGroups({ chains }: { chains: Record<string, (number | null)[]> }) {
@@ -96,8 +124,9 @@ export const ChainsPanel = memo(function ChainsPanel({ useSession, layout }: Cha
         <EmptyState message="No chain draws yet" hint="Ask the agent for a nuts or plan.sample run" />
       ) : (
         runs.map(run => (
-          <div key={run.name} data-chains-run data-run-name={run.name}>
+          <div key={runCardKey(run)} data-chains-run data-run-name={run.name}>
             <div><strong>{run.name}</strong> <span>({run.kind})</span></div>
+            <RunProvenanceCaption run={run} />
             <RunDiagnosticStats run={run} />
             <RunChainGroups chains={run.chains} />
           </div>

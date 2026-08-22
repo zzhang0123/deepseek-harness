@@ -1,0 +1,10 @@
+/* Shared between PosteriorPanel and ChainsPanel: the quiet per-run
+   provenance caption (wall-clock time · transport · seq) — same restrained,
+   secondary-label conventions ui-kit's panel.module.css and ui-analysis's
+   signal-path-panel.module.css already use for this register of text. */
+
+.provenance {
+  margin: 0.125rem 0 0.5rem;
+  font-size: 0.75rem;
+  color: var(--dsw-alias-label-secondary);
+}

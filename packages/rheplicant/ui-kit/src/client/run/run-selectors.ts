@@ -28,6 +28,8 @@ export interface AnalysisRunDiagnostics {
   readonly delta?: number | null
   readonly iterations?: number
   readonly notes?: readonly string[]
+  /** Per-latent r_hat/n_eff when the sampler reports more than one latent. */
+  readonly mcmc?: Record<string, unknown>
   readonly [key: string]: unknown
 }
 
@@ -54,6 +56,12 @@ export interface AnalysisRun {
   /** Viz-ready m-mode power spectrum (magnitude), for `mmodes` runs; a `null` cell was not finite. */
   readonly spectrum?: (number | null)[][]
   readonly product?: AnalysisRunProduct
+  /** Unix epoch ms the run's `rheplicant/run` event was appended — provenance distinguishing two otherwise-identical-looking runs (e.g. a rerun with the same seed producing a byte-identical outcome). */
+  readonly time?: number
+  /** The transport (`local`/`ssh`/`http`) that executed the run. */
+  readonly transport?: 'local' | 'ssh' | 'http'
+  /** The event's own session sequence number — the one field guaranteed to differ between two runs, even two reruns inside the same wall-clock second. */
+  readonly seq?: number
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

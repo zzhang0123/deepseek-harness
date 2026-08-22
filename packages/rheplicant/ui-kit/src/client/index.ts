@@ -22,6 +22,12 @@ export type { EmptyStateProps } from './panel/EmptyState.tsx'
 
 export { formatNumber, formatDiagnostic, formatMs } from './format/number.ts'
 
+export { mcmcLatents, mcmcRows, RHAT_WARN_ABOVE } from './format/mcmc.ts'
+export type { McmcLatentDiagnostic, McmcLatentRow, McmcStatCell } from './format/mcmc.ts'
+
+export { formatRunProvenance } from './format/provenance.ts'
+export type { RunProvenance } from './format/provenance.ts'
+
 export { selectAnalysisRuns } from './run/run-selectors.ts'
 export type { AnalysisRun, AnalysisRunDiagnostics, AnalysisRunProduct } from './run/run-selectors.ts'
 

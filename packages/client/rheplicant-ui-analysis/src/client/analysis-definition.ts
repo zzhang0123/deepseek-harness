@@ -12,7 +12,7 @@ import type {
   ConversationNodeDefinition,
 } from '@deepseek-ai/dsh-client-runtime/client'
 import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
-import type { GateFinding, RunDiagnostics, RunOutcome, SignalPathGraph } from '@rheplicant/dsh-rheplicant'
+import type { GateFinding, RunDiagnostics, RunOutcome, SignalPathGraph, Transport } from '@rheplicant/dsh-rheplicant'
 
 /** Final keyed Chat payload for one analysis run. */
 export interface AnalysisRunChatData {
@@ -24,6 +24,18 @@ export interface AnalysisRunChatData {
     /** Passed through verbatim from the wire `RunEntry.chains` (see its key grammar; nulls = non-finite). */
     readonly chains?: Record<string, (number | null)[]>
     readonly spectrum?: (number | null)[][]
+    /**
+     * Provenance, folded in from the owning `rheplicant/run` event rather
+     * than the wire `RunEntry` (which carries none of this) — every run in
+     * one event's `outcome.runs` shares the same `time`/`transport`/`seq`,
+     * which is exactly the point: it is how two runs from DIFFERENT events
+     * (e.g. a rerun with an identical seed producing a byte-identical
+     * outcome) still read as distinct cards instead of one repeated. Kept
+     * optional/additive so nothing that predates this field breaks.
+     */
+    readonly time?: number
+    readonly transport?: Transport
+    readonly seq?: number
   }[]
   readonly tookMs?: number
   readonly graph?: SignalPathGraph
@@ -38,6 +50,7 @@ declare module '@deepseek-ai/dsh-client-ui-conversation/client' {
 
 interface AnalysisState {
   readonly outcome?: RunOutcome
+  readonly transport?: Transport
 }
 
 /** Fold one durable `rheplicant/run` event into a keyed Chat node. */
@@ -56,13 +69,20 @@ export const analysisRunDefinition: ConversationNodeDefinition<AnalysisState> = 
     if (match.event.type !== 'rheplicant/run') {
       throw new Error('rheplicant-analysis start requires rheplicant/run')
     }
-    return { outcome: match.event.data.outcome }
+    return { outcome: match.event.data.outcome, transport: match.event.data.transport }
   },
   update: (context, _match) => context.state,
   buildViewNode: (context): ChatConversationViewNode | null => {
     if (context.start === undefined || context.state === undefined) return null
     const outcome = context.state.outcome
     if (outcome === undefined) return null
+    // Provenance for every run this node carries: all of them came from this
+    // ONE `rheplicant/run` event, so they all share its time/transport/seq —
+    // see `AnalysisRunChatData.runs[].time`'s doc comment for why that's the
+    // point, not a limitation.
+    const time = context.start.event.time
+    const seq = context.start.event.seq
+    const transport = context.state.transport
     const data: AnalysisRunChatData = {
       runs: outcome.runs.map((run) => ({
         name: run.name,
@@ -71,6 +91,9 @@ export const analysisRunDefinition: ConversationNodeDefinition<AnalysisState> = 
         ...(run.diagnostics === undefined ? {} : { diagnostics: run.diagnostics }),
         ...(run.chains === undefined ? {} : { chains: run.chains }),
         ...(run.spectrum === undefined ? {} : { spectrum: run.spectrum }),
+        time,
+        ...(transport === undefined ? {} : { transport }),
+        seq,
       })),
       ...(outcome.tookMs !== undefined ? { tookMs: outcome.tookMs } : {}),
       ...(outcome.graph === undefined ? {} : { graph: outcome.graph }),
