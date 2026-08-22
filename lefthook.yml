@@ -16,10 +16,18 @@ pre-commit:
 
     - name: lint (staged)
       glob: '*.{ts,tsx,mts,cts,mjs}'
+      # The rheplicant entries are GENERATED mirrors of another repository, so
+      # `--fix` here rewrites a copy and makes it differ from the original it
+      # came from -- which then reports as drift nobody caused. `tests/**`
+      # mirrors alongside `src/**` and is listed for the same reason; it is
+      # also ignored by `.oxlintrc.staged.json`, and naming it in only one of
+      # the two places is how a reader concludes it is unprotected.
       exclude:
         - 'vendor/*/src/**'
         - 'packages/rheplicant/*/src/**'
+        - 'packages/rheplicant/*/tests/**'
         - 'packages/client/rheplicant-ui-*/src/**'
+        - 'packages/client/rheplicant-ui-*/tests/**'
       run: node_modules/.bin/tsx scripts/run-oxlint.ts --config .oxlintrc.staged.json --fix --no-error-on-unmatched-pattern {staged_files}
       stage_fixed: true
 
