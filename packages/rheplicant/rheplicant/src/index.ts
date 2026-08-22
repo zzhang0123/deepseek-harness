@@ -38,6 +38,8 @@ export type {
   RunCost,
   RunDiagnostics,
   RunEntry,
+  RheplicantGatesEventData,
+  RheplicantValidateEventData,
   RunOpts,
   RunOutcome,
   RunProduct,

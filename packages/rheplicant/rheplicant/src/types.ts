@@ -36,8 +36,42 @@ export interface ValidationReport {
 /** One check the document will run, and what it costs. */
 export interface CheckCost {
   readonly check: 'linearity' | 'identifiability' | 'prior_sensitivity'
+  /**
+   * What the document DECLARED (or its default), before any gate logic resolves it.
+   *
+   * KNOWN GAP: the service currently fills this from the EFFECTIVE gate state,
+   * so it equals `state` today (a `# P0 TODO` sits on that line in
+   * `server.py::_gates`). Prefer `state` when present; treat `mode` as the
+   * effective value until the service separates the two.
+   */
   readonly mode: 'refuse' | 'warn' | 'report' | 'skip'
-  readonly cost: string
+  /**
+   * The resource this check spends, in the package's own words. Optional
+   * because the service does not compute it yet — the design promises it
+   * (`docs/agentic-ui-design.md`), the wire does not carry it.
+   */
+  readonly cost?: string
+  /** Schema §6 check id: linearity is `C12`, identifiability `C13`, prior_sensitivity `C19`. */
+  readonly id?: 'C12' | 'C13' | 'C19'
+  /**
+   * What actually governs this check, defaults applied. Six states rather than
+   * `mode`'s four: `off` (nobody asked for this check) and `auto_skip` (asked
+   * for, but undefined on this document) are never written into a document —
+   * only `refuse`/`warn`/`report`/`skip` can be.
+   */
+  readonly state?: 'refuse' | 'warn' | 'report' | 'skip' | 'off' | 'auto_skip'
+  /** The document's `report:` — whether this check's numbers are recorded when it passes. */
+  readonly record?: boolean
+  /**
+   * A skip needs a reason because somebody chose it; an off does not. Set for
+   * a written `skip` (verbatim) or a generated `auto_skip`; `null` for every
+   * other state, `off` included.
+   */
+  readonly reason?: string | null
+  /** The document path the user edits to change this gate, e.g. `inference.checks.linearity`. */
+  readonly where?: string
+  /** Relative tolerance, carried by `identifiability` only; `null` for the other two. */
+  readonly rtol?: number | null
 }
 
 /**
@@ -222,6 +256,26 @@ export interface RheplicantRunEventData {
   readonly transport: Transport
 }
 
+/** The durable record one `rheplicant_validate` call leaves in the session log. */
+export interface RheplicantValidateEventData {
+  /** The document that was validated. */
+  readonly document: ComputeDocument
+  /** The transport that validated it. */
+  readonly transport: Transport
+  /** Its outcome: every refusal and warning, with the JSON path to fix. */
+  readonly report: ValidationReport
+}
+
+/** The durable record one `rheplicant_gates` call leaves in the session log. */
+export interface RheplicantGatesEventData {
+  /** The document whose checks were priced. */
+  readonly document: ComputeDocument
+  /** The transport that priced them. */
+  readonly transport: Transport
+  /** Its outcome: which checks run in which mode, and what they cost. */
+  readonly report: GatesReport
+}
+
 /**
  * Endpoint configuration for the network transports, editable at runtime through
  * the `ui-compute` settings card (the seam's settings channel).
@@ -238,5 +292,15 @@ declare module '@deepseek-ai/dsh-session/types' {
      * @param data - the document, transport, and run outcome.
      */
     'rheplicant/run': RheplicantRunEventData
+    /**
+     * Records one validate call: the document, its transport, and its validation report.
+     * @param data - the document, transport, and validation report.
+     */
+    'rheplicant/validate': RheplicantValidateEventData
+    /**
+     * Records one gates call: the document, its transport, and its gates report.
+     * @param data - the document, transport, and gates report.
+     */
+    'rheplicant/gates': RheplicantGatesEventData
   }
 }
