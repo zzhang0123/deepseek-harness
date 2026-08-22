@@ -26,13 +26,16 @@
  * object (`ui-renderer/src/client/scoped-slots.tsx`'s list branch calls
  * `guarded(entry, key)` with no per-row owner override, so `renderSlot`'s
  * second argument really is identical for every row). `ConsolePanelLayoutView`
- * (ui-kit) documents the same thing from the occupant's side. Concretely:
- * `gates` (this package), `posterior`/`chains` (ui-posterior) read `layout`
- * and self-apply; `signal-path`/`identifiability`/`spectrum` do not (out of
- * this task's file scope) and so stay always-visible, always-expanded,
- * regardless of the store — an honest degrade, not a silent contract break
- * (an occupant that ignores an unknown prop is just an occupant that ignores
- * an unknown prop, not an error).
+ * (ui-kit) documents the same thing from the occupant's side. Concretely, all
+ * six occupants — `gates` (this package), `posterior`/`chains`
+ * (ui-posterior), `signal-path` (ui-analysis), `identifiability`
+ * (ui-identifiability), `spectrum` (ui-spectrum) — read `layout` off this
+ * shared object and self-apply it (hidden → render nothing, collapsed → pass
+ * `collapsed`/`onToggleCollapse` down to the kit `Panel`). A future occupant
+ * that skips this is simply unmanaged by the console's layout — no error, it
+ * stays always-visible/always-expanded, same as before any occupant wired it
+ * (an occupant ignoring an unknown prop is just an occupant ignoring an
+ * unknown prop, not a contract break).
  * @module @rheplicant/dsh-rheplicant-ui-console/client/ConsoleView
  */
 import { memo, useCallback, useMemo, type ReactNode } from 'react'

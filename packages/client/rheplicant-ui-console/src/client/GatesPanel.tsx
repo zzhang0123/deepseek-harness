@@ -18,6 +18,7 @@ import type { CheckCost, GateFinding } from '@rheplicant/dsh-rheplicant'
 import {
   Badge, type ConsolePanelLayoutView, EmptyState, Panel, type PanelStatus, StatRow, formatDiagnostic,
 } from '@rheplicant/dsh-rheplicant-ui-kit/client'
+import styles from './gates-panel.module.css'
 
 /** This panel's own `console.panel` id — the key it reads/writes in `layout`. */
 const PANEL_ID = 'gates'
@@ -43,15 +44,20 @@ function isSkipLike(state: string): boolean {
   return state === 'skip' || state === 'auto_skip'
 }
 
+/**
+ * One check's card: title row (name + id + state Badge), the mono `where`
+ * path, the record line, then the reason blockquote when present — each
+ * card visually delimited (a top rule + its own padding) so three checks
+ * read as three cards, not one run-together paragraph block.
+ */
 const CheckCard = memo(function CheckCard({ check }: { check: CheckCost }) {
   const state = effectiveState(check)
   const hasReason = isSkipLike(state) && typeof check.reason === 'string'
   return (
-    <div data-gate-check data-check={check.check} data-check-state={state}>
-      <div>
-        <strong>{CHECK_LABEL[check.check]}</strong>
-        {check.id !== undefined ? <span data-check-id> ({check.id})</span> : null}
-        {' '}
+    <div data-gate-check data-check={check.check} data-check-state={state} className={styles.card}>
+      <div className={styles.titleRow}>
+        <strong className={styles.checkName}>{CHECK_LABEL[check.check]}</strong>
+        {check.id !== undefined ? <span data-check-id className={styles.checkId}>({check.id})</span> : null}
         {/* `exactOptionalPropertyTypes` forbids passing `reason={undefined}` explicitly
           * (BadgeProps declares `reason?: string`, not `string | undefined`) — spread the
           * prop in only when there is an actual string, matching the codebase's own
@@ -60,11 +66,11 @@ const CheckCard = memo(function CheckCard({ check }: { check: CheckCost }) {
       </div>
       {check.where !== undefined ? (
         <div data-check-where>
-          <code>{check.where}</code>
+          <code className={styles.where}>{check.where}</code>
         </div>
       ) : null}
-      <div data-check-record>{check.record === true ? 'numbers recorded' : 'not recorded'}</div>
-      {hasReason ? <blockquote data-gate-reason>{check.reason}</blockquote> : null}
+      <div data-check-record className={styles.record}>{check.record === true ? 'numbers recorded' : 'not recorded'}</div>
+      {hasReason ? <blockquote data-gate-reason className={styles.reason}>{check.reason}</blockquote> : null}
       {check.rtol !== null && check.rtol !== undefined ? (
         <StatRow statKey={`rtol-${check.check}`} label="rtol" value={formatDiagnostic('rtol', check.rtol)} />
       ) : null}
@@ -74,10 +80,12 @@ const CheckCard = memo(function CheckCard({ check }: { check: CheckCost }) {
 
 const FindingRow = memo(function FindingRow({ finding }: { finding: GateFinding }) {
   return (
-    <div data-gate-finding data-check={finding.check} data-severity={finding.severity}>
-      <strong>{finding.check}</strong> <Badge state={finding.severity} />
+    <div data-gate-finding data-check={finding.check} data-severity={finding.severity} className={styles.card}>
+      <div className={styles.titleRow}>
+        <strong className={styles.checkName}>{finding.check}</strong> <Badge state={finding.severity} />
+      </div>
       <div data-finding-where>
-        <code>{finding.where}</code>
+        <code className={styles.where}>{finding.where}</code>
       </div>
       <div data-finding-message>{finding.message}</div>
     </div>
@@ -88,29 +96,43 @@ const FindingRow = memo(function FindingRow({ finding }: { finding: GateFinding 
  * The two informational checks that run unconditionally and are never routed
  * through `inference.checks`' refuse/warn/report/skip gating — quoted
  * faithfully from the compute service and the e-RHINO check modules, not
- * invented wording.
+ * invented wording. `summary` is a one-line paraphrase of `detail` (the
+ * original, unmodified wording) so the panel can show a short line by
+ * default and put the fuller explanation behind a disclosure.
  */
-const ALWAYS_ON_CHECKS: readonly { readonly id: string; readonly note: string }[] = [
+const ALWAYS_ON_CHECKS: readonly { readonly id: string; readonly summary: string; readonly detail: string }[] = [
   {
     id: 'C16',
-    note:
+    summary: 'ADC saturation — always runs; never gated.',
+    detail:
       'ADC saturation — what the digitiser clipped, and what that costs a fit. '
       + 'Ungated: adc_saturation is not one of the three inference.checks names, '
       + 'so this check always runs and is never subject to refuse/warn/report/skip.',
   },
   {
     id: 'C18',
-    note:
+    summary: 'The two-sigma cross-check — always runs; never gated.',
+    detail:
       'The two-sigma cross-check — does the twin’s own drawn sigma agree with '
       + 'the likelihood’s own weighed sigma? Belongs to no gate: like C16, it '
       + 'is not one of the three inference.checks names.',
   },
 ]
 
-const AlwaysOnRow = memo(function AlwaysOnRow({ id, note }: { id: string; note: string }) {
+/**
+ * One always-on row: a compressed one-line summary, with the full original
+ * wording behind a `<details data-always-on-details>` disclosure — the same
+ * plain-`<details>` idiom `PosteriorPanel`'s corner plot and `PanelsMenu`
+ * already use for exactly this shape (a summary line plus more beneath it).
+ */
+const AlwaysOnRow = memo(function AlwaysOnRow({ id, summary, detail }: { id: string; summary: string; detail: string }) {
   return (
     <div data-always-on-check={id}>
-      <strong>{id}</strong> <span data-always-on-note>{note}</span>
+      <strong>{id}</strong> <span data-always-on-summary className={styles.alwaysOnSummary}>{summary}</span>
+      <details data-always-on-details className={styles.alwaysOnDetails}>
+        <summary>Details</summary>
+        <p data-always-on-note className={styles.alwaysOnNote}>{detail}</p>
+      </details>
     </div>
   )
 })
@@ -144,17 +166,17 @@ export const GatesPanel = memo(function GatesPanel({ useSession, layout }: Gates
       ) : (
         <>
           {checks.length > 0 ? (
-            <div data-gate-checks>
+            <div data-gate-checks className={styles.checks}>
               {checks.map(check => <CheckCard key={check.check} check={check} />)}
             </div>
           ) : null}
           {findings !== undefined && findings.length > 0 ? (
-            <div data-gate-findings>
+            <div data-gate-findings className={styles.findings}>
               {findings.map((finding, index) => <FindingRow key={index} finding={finding} />)}
             </div>
           ) : null}
-          <div data-always-on-checks>
-            {ALWAYS_ON_CHECKS.map(entry => <AlwaysOnRow key={entry.id} id={entry.id} note={entry.note} />)}
+          <div data-always-on-checks className={styles.alwaysOn}>
+            {ALWAYS_ON_CHECKS.map(entry => <AlwaysOnRow key={entry.id} id={entry.id} summary={entry.summary} detail={entry.detail} />)}
           </div>
         </>
       )}

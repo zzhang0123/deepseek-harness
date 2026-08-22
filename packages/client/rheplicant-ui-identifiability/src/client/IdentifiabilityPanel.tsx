@@ -1,9 +1,15 @@
-/** Identifiability panel: rank/nullity and the singular-value spectrum as a log-height bar chart. */
+/**
+ * Identifiability panel: rank/nullity and the singular-value spectrum as a
+ * log-height bar chart. Self-applies the console layout (owner prop — see
+ * ui-console's ConsoleView doc comment), the same way
+ * `PosteriorPanel`/`ChainsPanel`/`GatesPanel`/`SignalPathPanel` do.
+ */
 import { memo } from 'react'
 import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
 import {
   type AnalysisRun,
   BarChart,
+  type ConsolePanelLayoutView,
   EmptyState,
   Panel,
   type PanelStatus,
@@ -12,8 +18,13 @@ import {
   selectAnalysisRuns,
 } from '@rheplicant/dsh-rheplicant-ui-kit/client'
 
+/** This panel's own `console.panel` id — the key it reads/writes in `layout`. */
+const PANEL_ID = 'identifiability'
+
 interface IdentifiabilityPanelProps {
   useSession: <T>(selector: (snapshot: ConversationSnapshot) => T) => T
+  /** Console layout state (owner prop — see ui-console's ConsoleView doc comment). Absent when not rendered through the console shell (e.g. a unit test): renders un-collapsed, always visible. */
+  layout?: ConsolePanelLayoutView
 }
 
 /**
@@ -57,12 +68,21 @@ function asWeakestIdentified(value: unknown): number | null | undefined {
   return typeof value === 'number' ? value : undefined
 }
 
-export const IdentifiabilityPanel = memo(function IdentifiabilityPanel({ useSession }: IdentifiabilityPanelProps) {
+export const IdentifiabilityPanel = memo(function IdentifiabilityPanel({ useSession, layout }: IdentifiabilityPanelProps) {
   const runs = useSession(selectAnalysisRuns).filter(run => runSingularValues(run) !== undefined)
+  if (layout?.hidden.has(PANEL_ID) === true) return null
   const status: PanelStatus = runs.length === 0 ? 'idle' : runs.some(run => run.status === 'failed') ? 'error' : 'ok'
 
   return (
-    <Panel id="identifiability" title="Identifiability" status={status}>
+    <Panel
+      id={PANEL_ID}
+      title="Identifiability"
+      status={status}
+      {...(layout === undefined ? {} : {
+        collapsed: layout.collapsed.has(PANEL_ID),
+        onToggleCollapse: () => { layout.toggleCollapsed(PANEL_ID) },
+      })}
+    >
       {runs.length === 0 ? (
         <EmptyState message="No identifiability runs yet" hint="Ask the agent for a condition run" />
       ) : (

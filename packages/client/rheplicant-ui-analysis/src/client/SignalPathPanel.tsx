@@ -4,17 +4,27 @@
  * pattern). Reads the loop projection's latest run graph — never re-runs
  * compute — and renders the SAME `SignalPath` component the
  * `rheplicant-analysis` Chat node uses, plus a legend row naming the four
- * graph node kinds by their token colors.
+ * graph node kinds by their token colors. Self-applies the console layout
+ * (owner prop — see ui-console's ConsoleView doc comment), the same way
+ * `PosteriorPanel`/`ChainsPanel`/`GatesPanel` do.
  * @module @rheplicant/dsh-rheplicant-ui-analysis/client/SignalPathPanel
  */
 import { memo } from 'react'
 import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-rheplicant-ui-console/client'
-import { EmptyState, Panel, type PanelStatus, TOKEN } from '@rheplicant/dsh-rheplicant-ui-kit/client'
+import {
+  type ConsolePanelLayoutView, EmptyState, Panel, type PanelStatus, TOKEN,
+} from '@rheplicant/dsh-rheplicant-ui-kit/client'
 import { SignalPath } from './SignalPath.tsx'
+import styles from './signal-path-panel.module.css'
+
+/** This panel's own `console.panel` id — the key it reads/writes in `layout`. */
+const PANEL_ID = 'signal-path'
 
 interface SignalPathPanelProps {
   useSession: <T>(selector: (snapshot: ConversationSnapshot) => T) => T
+  /** Console layout state (owner prop — see ui-console's ConsoleView doc comment). Absent when not rendered through the console shell (e.g. a unit test): renders un-collapsed, always visible. */
+  layout?: ConsolePanelLayoutView
 }
 
 const LEGEND: readonly { readonly kind: string; readonly label: string; readonly color: string }[] = [
@@ -24,13 +34,18 @@ const LEGEND: readonly { readonly kind: string; readonly label: string; readonly
   { kind: 'wire', label: 'wire', color: TOKEN.wire },
 ]
 
-/** Legend row of node-kind chips, colored from the SAME tokens the signal-path diagram itself uses. */
+/**
+ * Legend row of node-kind chips, colored from the SAME tokens the signal-path
+ * diagram itself uses. `styles.legend` puts a flex gap between chips —
+ * without it the chips have no separating whitespace in the DOM and render
+ * as one run of concatenated text.
+ */
 const Legend = memo(function Legend() {
   return (
-    <div data-signal-path-legend>
+    <div data-signal-path-legend className={styles.legend}>
       {LEGEND.map(entry => (
-        <span key={entry.kind} data-legend-node={entry.kind}>
-          <span data-legend-swatch style={{ background: entry.color }} />
+        <span key={entry.kind} data-legend-node={entry.kind} className={styles.chip}>
+          <span data-legend-swatch className={styles.swatch} style={{ background: entry.color }} />
           {entry.label}
         </span>
       ))}
@@ -38,12 +53,22 @@ const Legend = memo(function Legend() {
   )
 })
 
-export const SignalPathPanel = memo(function SignalPathPanel({ useSession }: SignalPathPanelProps) {
+export const SignalPathPanel = memo(function SignalPathPanel({ useSession, layout }: SignalPathPanelProps) {
   const graph = useSession(snapshot => snapshot.views.get('rheplicant-loop')?.run?.outcome.graph)
+  if (layout?.hidden.has(PANEL_ID) === true) return null
   const status: PanelStatus = graph === undefined ? 'idle' : 'ok'
 
   return (
-    <Panel id="signal-path" title="Signal path" status={status} span={2}>
+    <Panel
+      id={PANEL_ID}
+      title="Signal path"
+      status={status}
+      span={2}
+      {...(layout === undefined ? {} : {
+        collapsed: layout.collapsed.has(PANEL_ID),
+        onToggleCollapse: () => { layout.toggleCollapsed(PANEL_ID) },
+      })}
+    >
       {graph === undefined ? (
         <EmptyState message="No signal path yet" hint="Ask the agent to run a document that declares a model:" />
       ) : (

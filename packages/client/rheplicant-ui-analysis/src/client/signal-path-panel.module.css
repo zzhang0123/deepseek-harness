@@ -1,0 +1,28 @@
+/* Signal-path legend: a row of node-kind chips — same restrained,
+   instrument-like conventions as ui-kit's panel.module.css. Without this
+   flex layout the chips have no separating whitespace in the DOM and render
+   as one run of concatenated text (e.g. "sourcetransformprocessingwire"). */
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  padding: 0 0 0.625rem;
+  font-size: 0.75rem;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.swatch {
+  display: inline-block;
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 999px;
+  flex-shrink: 0;
+}

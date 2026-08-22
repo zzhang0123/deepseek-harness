@@ -1,0 +1,92 @@
+/* Gates panel: one visually delimited card per check/finding, plus the two
+   compressed always-on informational rows — same restrained, instrument-like
+   conventions as ui-kit's panel.module.css. */
+
+.checks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding: 0.625rem 0.75rem 0.75rem;
+  border-top: 2px solid var(--dsw-alias-border-l1);
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.checkName {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+}
+
+.checkId {
+  font-size: 0.75rem;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.where {
+  margin: 0;
+  font-family: var(--dsw-alias-font-mono, ui-monospace, monospace);
+  font-size: 0.75rem;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.record {
+  font-size: 0.75rem;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.reason {
+  margin: 0;
+  padding: 0.375rem 0.625rem;
+  border-left: 2px solid var(--dsw-alias-border-l2);
+  font-size: 0.75rem;
+  font-style: italic;
+  color: var(--dsw-alias-label-primary);
+}
+
+.findings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  margin-top: 0.625rem;
+}
+
+.alwaysOn {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding-top: 0.625rem;
+  border-top: 1px solid var(--dsw-alias-border-l1);
+}
+
+.alwaysOnSummary {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.alwaysOnDetails {
+  margin-top: 0.25rem;
+}
+
+.alwaysOnDetails summary {
+  cursor: pointer;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 0.75rem;
+}
+
+.alwaysOnNote {
+  margin: 0.375rem 0 0;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 0.75rem;
+}
