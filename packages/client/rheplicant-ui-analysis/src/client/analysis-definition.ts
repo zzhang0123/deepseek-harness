@@ -45,7 +45,11 @@ export const analysisRunDefinition: ConversationNodeDefinition<AnalysisState> = 
   kind: 'rheplicant-analysis',
   target: 'chat',
   match: (event: SessionEvent): { id: string; role: 'start' | 'update' } | null => {
-    if (event.type === 'rheplicant/run') return { id: 'run', role: 'start' }
+    // One node per run event, keyed by its sequence number. A constant id would
+    // start the same Context twice and the assembler throws
+    // ("received more than one start Match") the moment a session runs a second
+    // analysis — which is the normal case, not an edge case.
+    if (event.type === 'rheplicant/run') return { id: `run-${event.seq}`, role: 'start' }
     return null
   },
   start: (_context, match) => {

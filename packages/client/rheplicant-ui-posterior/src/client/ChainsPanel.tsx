@@ -4,6 +4,7 @@ import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/clien
 import {
   type AnalysisRun,
   BandChart,
+  type ConsolePanelLayoutView,
   EmptyState,
   Panel,
   type PanelStatus,
@@ -14,8 +15,13 @@ import {
   selectAnalysisRuns,
 } from '@rheplicant/dsh-rheplicant-ui-kit/client'
 
+/** This panel's own `console.panel` id — the key it reads/writes in `layout`. */
+const PANEL_ID = 'chains'
+
 interface ChainsPanelProps {
   useSession: <T>(selector: (snapshot: ConversationSnapshot) => T) => T
+  /** Console layout state (owner prop — see ui-console's ConsoleView doc comment). Absent when not rendered through the console shell: renders un-collapsed, always visible. */
+  layout?: ConsolePanelLayoutView
 }
 
 /** An analysis run that has the chain draws this panel needs to draw traces. */
@@ -71,12 +77,21 @@ const RunChainGroups = memo(function RunChainGroups({ chains }: { chains: Record
   )
 })
 
-export const ChainsPanel = memo(function ChainsPanel({ useSession }: ChainsPanelProps) {
+export const ChainsPanel = memo(function ChainsPanel({ useSession, layout }: ChainsPanelProps) {
   const runs = useSession(selectAnalysisRuns).filter(hasChains)
+  if (layout?.hidden.has(PANEL_ID) === true) return null
   const status: PanelStatus = runs.length === 0 ? 'idle' : runs.some(run => run.status === 'failed') ? 'error' : 'ok'
 
   return (
-    <Panel id="chains" title="Chains" status={status}>
+    <Panel
+      id={PANEL_ID}
+      title="Chains"
+      status={status}
+      {...(layout === undefined ? {} : {
+        collapsed: layout.collapsed.has(PANEL_ID),
+        onToggleCollapse: () => { layout.toggleCollapsed(PANEL_ID) },
+      })}
+    >
       {runs.length === 0 ? (
         <EmptyState message="No chain draws yet" hint="Ask the agent for a nuts or plan.sample run" />
       ) : (

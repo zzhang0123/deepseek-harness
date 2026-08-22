@@ -12,6 +12,10 @@ export interface PanelProps {
   /** Grid-column span within the `console.panel` host grid. Defaults to 1. */
   readonly span?: 1 | 2
   readonly actions?: ReactNode
+  /** Collapsed: header only, body not rendered. Omitted/`false` renders normally — every existing caller is unaffected. */
+  readonly collapsed?: boolean
+  /** Disclosure toggle callback. Present <=> the collapse affordance renders at all (a caller with nothing to toggle simply omits it). */
+  readonly onToggleCollapse?: () => void
   readonly children: ReactNode
 }
 
@@ -25,10 +29,13 @@ const STATUS_DOT: Record<PanelStatus, string> = {
   idle: styles.dotIdle ?? '',
 }
 
-export const Panel = memo(function Panel({ id, title, subtitle, status, span, actions, children }: PanelProps) {
+export const Panel = memo(function Panel({ id, title, subtitle, status, span, actions, collapsed, onToggleCollapse, children }: PanelProps) {
+  const isCollapsed = collapsed === true
+  const hasActionsRow = actions !== undefined || onToggleCollapse !== undefined
   return (
     <section
       data-panel={id}
+      data-panel-collapsed={isCollapsed ? 'true' : undefined}
       className={styles.panel}
       style={span === 2 ? { gridColumn: 'span 2' } : undefined}
     >
@@ -40,11 +47,29 @@ export const Panel = memo(function Panel({ id, title, subtitle, status, span, ac
           <span className={styles.title} data-panel-title>{title}</span>
           {subtitle !== undefined ? <span className={styles.subtitle} data-panel-subtitle>{subtitle}</span> : null}
         </div>
-        {actions !== undefined ? <div className={styles.actions} data-panel-actions>{actions}</div> : null}
+        {hasActionsRow ? (
+          <div className={styles.actions} data-panel-actions>
+            {actions}
+            {onToggleCollapse !== undefined ? (
+              <button
+                type="button"
+                className={styles.collapseToggle}
+                data-panel-collapse-toggle
+                aria-expanded={!isCollapsed}
+                aria-label={isCollapsed ? `Expand ${title}` : `Collapse ${title}`}
+                onClick={onToggleCollapse}
+              >
+                {isCollapsed ? '▸' : '▾'}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </header>
-      <div className={styles.body} data-panel-body>
-        {children}
-      </div>
+      {!isCollapsed ? (
+        <div className={styles.body} data-panel-body>
+          {children}
+        </div>
+      ) : null}
     </section>
   )
 })

@@ -62,3 +62,8 @@ export type { HeatMapProps } from './chart/HeatMap.tsx'
 
 export { BandChart } from './chart/BandChart.tsx'
 export type { BandChartProps } from './chart/BandChart.tsx'
+
+export { CornerGrid } from './chart/CornerGrid.tsx'
+export type { CornerGridProps } from './chart/CornerGrid.tsx'
+
+export type { ConsolePanelLayoutView } from './panel/layout.ts'

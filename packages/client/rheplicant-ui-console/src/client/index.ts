@@ -16,6 +16,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { ConsoleView } from './ConsoleView.tsx'
 import { GatesPanel } from './GatesPanel.tsx'
+import { createConsoleLayoutStore } from './layout-store.ts'
 import { registerLoopDefinitions } from './loop-definitions.ts'
 import { registerLoopConversationView } from './loop-snapshot-builder.ts'
 
@@ -50,6 +51,7 @@ export function apply(ctx: ClientContext): void {
     id: 'console',
     order: 5,
     label: () => 'Console',
+    store: createConsoleLayoutStore,
     children: {
       'console.panel': { kind: 'list', scope: 'session' },
     },

@@ -18,6 +18,18 @@
       "path": "../ui-conversation"
     },
     {
+      "path": "../ui-slots"
+    },
+    {
+      "path": "../../core/session"
+    },
+    {
+      "path": "../../rheplicant/ui-kit"
+    },
+    {
+      "path": "../rheplicant-ui-console"
+    },
+    {
       "path": "../../runtime-diagnostics/invariants"
     }
   ]

@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-client-rheplicant-ui-document",
-  "description": "Config-document form editor for dsh web (renders from the static schema)",
+  "description": "Read-only config-document view for dsh web: the exact recorded document plus the generated grammar reference",
   "version": "0.1.0-rc.8",
   "type": "module",
   "main": "lib/index.js",
@@ -25,7 +25,8 @@
     "client": {
       "inject": [
         "@deepseek-ai/dsh-client-runtime",
-        "@deepseek-ai/dsh-client-ui-conversation"
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-slots"
       ],
       "platform": "web"
     }
@@ -42,17 +43,24 @@
   ],
   "license": "MIT",
   "peerDependencies": {
+    "@deepseek-ai/dsh-client-rheplicant-ui-console": "workspace:^",
     "@deepseek-ai/dsh-client-runtime": "workspace:^",
     "@deepseek-ai/dsh-client-ui-conversation": "workspace:^",
+    "@deepseek-ai/dsh-client-ui-slots": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^",
+    "@deepseek-ai/dsh-session": "workspace:^",
     "@deepseek-ai/cordis": "workspace:^"
   },
   "devDependencies": {
+    "@deepseek-ai/dsh-client-rheplicant-ui-console": "workspace:^",
     "@deepseek-ai/dsh-client-runtime": "workspace:^",
     "@deepseek-ai/dsh-client-ui-conversation": "workspace:^",
+    "@deepseek-ai/dsh-client-ui-slots": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^",
+    "@deepseek-ai/dsh-session": "workspace:^",
     "@deepseek-ai/cordis": "workspace:^",
     "react": "^18.2.0",
-    "@types/react": "~18.3.1"
+    "@types/react": "~18.3.1",
+    "@rheplicant/dsh-rheplicant-ui-kit": "workspace:^"
   }
 }

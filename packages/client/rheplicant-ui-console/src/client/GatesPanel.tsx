@@ -15,10 +15,17 @@
 import { memo } from 'react'
 import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
 import type { CheckCost, GateFinding } from '@rheplicant/dsh-rheplicant'
-import { Badge, EmptyState, Panel, type PanelStatus, StatRow, formatDiagnostic } from '@rheplicant/dsh-rheplicant-ui-kit/client'
+import {
+  Badge, type ConsolePanelLayoutView, EmptyState, Panel, type PanelStatus, StatRow, formatDiagnostic,
+} from '@rheplicant/dsh-rheplicant-ui-kit/client'
+
+/** This panel's own `console.panel` id — the key it reads/writes in `layout`. */
+const PANEL_ID = 'gates'
 
 interface GatesPanelProps {
   useSession: <T>(selector: (snapshot: ConversationSnapshot) => T) => T
+  /** Console layout state (owner prop — see ConsoleView's doc comment). Absent when not rendered through the console shell (e.g. a unit test): renders un-collapsed, always visible. */
+  layout?: ConsolePanelLayoutView
 }
 
 const CHECK_LABEL: Record<CheckCost['check'], string> = {
@@ -108,9 +115,13 @@ const AlwaysOnRow = memo(function AlwaysOnRow({ id, note }: { id: string; note: 
   )
 })
 
-export const GatesPanel = memo(function GatesPanel({ useSession }: GatesPanelProps) {
+export const GatesPanel = memo(function GatesPanel({ useSession, layout }: GatesPanelProps) {
+  // Hooks run unconditionally (React's rules) — the hidden check happens
+  // AFTER, at the return, so a panel toggled hidden/shown never skips a hook
+  // call between renders.
   const gates = useSession(snapshot => snapshot.views.get('rheplicant-loop')?.gates)
   const findings = useSession(snapshot => snapshot.views.get('rheplicant-loop')?.run?.outcome.gates)
+  if (layout?.hidden.has(PANEL_ID) === true) return null
   const checks = gates?.report.checks ?? []
   const hasEvidence = gates !== undefined || (findings !== undefined && findings.length > 0)
   const anyRefuse = checks.some(check => effectiveState(check) === 'refuse') || (findings ?? []).some(f => f.severity === 'refuse')
@@ -119,7 +130,15 @@ export const GatesPanel = memo(function GatesPanel({ useSession }: GatesPanelPro
   const status: PanelStatus = !hasEvidence ? 'idle' : anyRefuse ? 'error' : anyWarnLike ? 'warn' : 'ok'
 
   return (
-    <Panel id="gates" title="Gates" status={status}>
+    <Panel
+      id={PANEL_ID}
+      title="Gates"
+      status={status}
+      {...(layout === undefined ? {} : {
+        collapsed: layout.collapsed.has(PANEL_ID),
+        onToggleCollapse: () => { layout.toggleCollapsed(PANEL_ID) },
+      })}
+    >
       {!hasEvidence ? (
         <EmptyState message="No gates evidence yet" hint="Ask the agent for a rheplicant_gates or rheplicant_run call" />
       ) : (
