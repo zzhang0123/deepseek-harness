@@ -24,7 +24,9 @@
     "website/.generated/**",
     "vendor/**", // Vendored source keeps upstream style and idioms.
     "packages/rheplicant/*/src/**", // Mirrored from the canonical rheplicant-agent repo; keeps upstream style, like vendor/**.
+    "packages/rheplicant/*/tests/**", // Mirrored too (sync-mirrors carries tests/); fixing one here only makes it drift.
     "packages/client/rheplicant-ui-*/src/**", // Mirrored from the canonical rheplicant-agent repo; keeps upstream style, like vendor/**.
+    "packages/client/rheplicant-ui-*/tests/**", // Mirrored too (sync-mirrors carries tests/); fixing one here only makes it drift.
     "native/**", // The imported landlock-run subtree has its own gates; see native/README.md.
     "**/*.js",
     "**/*.mjs",
