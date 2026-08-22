@@ -131,17 +131,26 @@ describe('web e2e: rheplicant console panels render the chart kit', () => {
     expect(await posteriorRun.locator('[data-marginal]').count()).toBeGreaterThanOrEqual(1)
     expect(await marginal.locator('[data-bin]').count()).toBeGreaterThan(0)
 
-    // The corner scatter is collapsed behind a disclosure by default: the
+    // The corner plot is collapsed behind a disclosure by default: the
     // `<details>` is closed and its content is present in the DOM but not
     // rendered (native `<details>` semantics — `count()` still finds it, so
     // assert on visibility, not presence).
+    // ADAPTED: PosteriorPanel now renders ui-kit's `CornerGrid` (commit
+    // e7cf415) instead of the old hand-rolled scatter/histogram corner plot —
+    // `[data-corner]` no longer exists; the real DOM is one
+    // `<svg data-corner-grid>` with one `[data-corner-cell="row,col"]` per
+    // lower-triangle 2D density pane and one `[data-corner-diagonal="index"]`
+    // per 1D marginal on the diagonal.
     const cornerDetails = posteriorRun.locator('[data-corner-details]')
     await cornerDetails.waitFor({ timeout: 5_000 })
     expect(await cornerDetails.evaluate(el => (el as HTMLDetailsElement).open)).toBe(false)
-    expect(await cornerDetails.locator('[data-corner]').isVisible()).toBe(false)
+    expect(await cornerDetails.locator('[data-corner-grid]').isVisible()).toBe(false)
     await cornerDetails.locator('summary').click()
-    await cornerDetails.locator('[data-corner]').waitFor({ timeout: 5_000 })
+    const cornerGrid = cornerDetails.locator('[data-corner-grid]')
+    await cornerGrid.waitFor({ timeout: 5_000 })
     expect(await cornerDetails.evaluate(el => (el as HTMLDetailsElement).open)).toBe(true)
+    expect(await cornerGrid.locator('[data-corner-cell]').count()).toBeGreaterThan(0)
+    expect(await cornerGrid.locator('[data-corner-diagonal]').count()).toBeGreaterThan(0)
 
     // --- Identifiability panel: BarChart over the singular-value spectrum. ---
     const identifiability = page.locator('[data-panel="identifiability"]')
