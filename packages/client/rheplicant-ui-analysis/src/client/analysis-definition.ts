@@ -36,6 +36,16 @@ export interface AnalysisRunChatData {
     readonly time?: number
     readonly transport?: Transport
     readonly seq?: number
+    /**
+     * Execution identity, folded in from the same event
+     * (`docs/project-model.md` §4.1). `seq` only orders events inside one
+     * session log; `executionId` names the execution durably, and
+     * `taskPath` names the file it ran. Optional/additive for exactly the
+     * same reason as `time`/`transport`/`seq`: events recorded before
+     * execution identity existed carry neither.
+     */
+    readonly executionId?: string
+    readonly taskPath?: string
   }[]
   readonly tookMs?: number
   readonly graph?: SignalPathGraph
@@ -51,6 +61,8 @@ declare module '@deepseek-ai/dsh-client-ui-conversation/client' {
 interface AnalysisState {
   readonly outcome?: RunOutcome
   readonly transport?: Transport
+  readonly executionId?: string
+  readonly taskPath?: string
 }
 
 /** Fold one durable `rheplicant/run` event into a keyed Chat node. */
@@ -69,7 +81,13 @@ export const analysisRunDefinition: ConversationNodeDefinition<AnalysisState> = 
     if (match.event.type !== 'rheplicant/run') {
       throw new Error('rheplicant-analysis start requires rheplicant/run')
     }
-    return { outcome: match.event.data.outcome, transport: match.event.data.transport }
+    const { outcome, transport, executionId, taskPath } = match.event.data
+    return {
+      outcome,
+      transport,
+      ...(executionId === undefined ? {} : { executionId }),
+      ...(taskPath === undefined ? {} : { taskPath }),
+    }
   },
   update: (context, _match) => context.state,
   buildViewNode: (context): ChatConversationViewNode | null => {
@@ -82,7 +100,7 @@ export const analysisRunDefinition: ConversationNodeDefinition<AnalysisState> = 
     // point, not a limitation.
     const time = context.start.event.time
     const seq = context.start.event.seq
-    const transport = context.state.transport
+    const { transport, executionId, taskPath } = context.state
     const data: AnalysisRunChatData = {
       runs: outcome.runs.map((run) => ({
         name: run.name,
@@ -94,6 +112,8 @@ export const analysisRunDefinition: ConversationNodeDefinition<AnalysisState> = 
         time,
         ...(transport === undefined ? {} : { transport }),
         seq,
+        ...(executionId === undefined ? {} : { executionId }),
+        ...(taskPath === undefined ? {} : { taskPath }),
       })),
       ...(outcome.tookMs !== undefined ? { tookMs: outcome.tookMs } : {}),
       ...(outcome.graph === undefined ? {} : { graph: outcome.graph }),

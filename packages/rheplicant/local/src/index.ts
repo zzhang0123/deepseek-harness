@@ -13,6 +13,7 @@ import { stdioRequest } from '@rheplicant/dsh-rheplicant-transport'
 import type {} from '@rheplicant/dsh-rheplicant'
 import type {
   ComputeDocument,
+  ComputeInput,
   ComputeOpts,
   ComputeProvider,
   GatesReport,
@@ -57,16 +58,19 @@ export function apply(ctx: Context, config: Config): void {
 class LocalComputeProvider implements ComputeProvider {
   constructor(private readonly config: ResolvedConfig) {}
 
-  validate(document: ComputeDocument, opts: ComputeOpts): Promise<ValidationReport> {
-    return this.request<ValidationReport>('validate', { document }, opts)
+  // `input` is spread verbatim into the JSON-RPC params: an absent half is
+  // `undefined`, which `JSON.stringify` drops, so the service sees exactly
+  // the one key the caller set and owns the "exactly one" rule alone.
+  validate(input: ComputeInput, opts: ComputeOpts): Promise<ValidationReport> {
+    return this.request<ValidationReport>('validate', { ...input }, opts)
   }
 
-  gates(document: ComputeDocument, opts: ComputeOpts): Promise<GatesReport> {
-    return this.request<GatesReport>('gates', { document }, opts)
+  gates(input: ComputeInput, opts: ComputeOpts): Promise<GatesReport> {
+    return this.request<GatesReport>('gates', { ...input }, opts)
   }
 
-  run(document: ComputeDocument, opts: RunOpts): Promise<RunOutcome> {
-    return this.request<RunOutcome>('run', { document, runs: opts.runs }, opts)
+  run(input: ComputeInput, opts: RunOpts): Promise<RunOutcome> {
+    return this.request<RunOutcome>('run', { ...input, runs: opts.runs }, opts)
   }
 
   schema(opts: ComputeOpts): Promise<SchemaDocument> {

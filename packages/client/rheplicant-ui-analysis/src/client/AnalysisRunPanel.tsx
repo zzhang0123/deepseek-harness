@@ -146,11 +146,28 @@ const McmcDiagnostics = memo(function McmcDiagnostics({ mcmc }: { mcmc: unknown 
  * site — see `RunProvenance`'s (ui-kit) doc comment for why that matters
  * under `exactOptionalPropertyTypes`.
  */
-const RunProvenanceCaption = memo(function RunProvenanceCaption({ run }: { run: { time?: number; transport?: string; seq?: number } }) {
-  const provenance = formatRunProvenance({ time: run.time, transport: run.transport, seq: run.seq })
+const RunProvenanceCaption = memo(function RunProvenanceCaption(
+  { run }: { run: { time?: number; transport?: string; seq?: number; executionId?: string; taskPath?: string } },
+) {
+  const provenance = formatRunProvenance({
+    time: run.time,
+    transport: run.transport,
+    seq: run.seq,
+    executionId: run.executionId,
+    taskPath: run.taskPath,
+  })
   if (provenance === undefined) return null
+  // The caption text carries the SHORT execution id (the caption already
+  // says the time); the attribute carries the FULL one, because that is the
+  // string a results tree on disk is keyed by and what a reader copies.
   return (
-    <p className={styles.provenance} data-run-provenance={provenance} data-run-seq={run.seq}>{provenance}</p>
+    <p
+      className={styles.provenance}
+      data-run-provenance={provenance}
+      data-run-seq={run.seq}
+      data-execution-id={run.executionId}
+      data-task-path={run.taskPath}
+    >{provenance}</p>
   )
 })
 

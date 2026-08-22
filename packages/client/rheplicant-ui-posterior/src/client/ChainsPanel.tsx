@@ -74,10 +74,24 @@ const RunDiagnosticStats = memo(function RunDiagnosticStats({ run }: { run: Chai
 
 /** One run's provenance caption: a quiet secondary-label line so two runs with an identical outcome (e.g. a rerun with the same seed) still read as distinct cards. */
 const RunProvenanceCaption = memo(function RunProvenanceCaption({ run }: { run: ChainsRun }) {
-  const provenance = formatRunProvenance({ time: run.time, transport: run.transport, seq: run.seq })
+  const provenance = formatRunProvenance({
+    time: run.time,
+    transport: run.transport,
+    seq: run.seq,
+    executionId: run.executionId,
+    taskPath: run.taskPath,
+  })
   if (provenance === undefined) return null
+  // Short id in the caption text, full id in the attribute -- see
+  // `AnalysisRunPanel.tsx`'s caption for why the two differ.
   return (
-    <p className={styles.provenance} data-run-provenance={provenance} data-run-seq={run.seq}>{provenance}</p>
+    <p
+      className={styles.provenance}
+      data-run-provenance={provenance}
+      data-run-seq={run.seq}
+      data-execution-id={run.executionId}
+      data-task-path={run.taskPath}
+    >{provenance}</p>
   )
 })
 

@@ -15,6 +15,32 @@ export type Transport = 'local' | 'ssh' | 'http'
 /** The JSON form of a rheplicant config document. */
 export type ComputeDocument = Record<string, unknown>
 
+/**
+ * The ONE document a compute call carries, in exactly one of two forms.
+ *
+ * `document` is an already-parsed mapping — the inline form, for scratch
+ * work. `documentText` is a task file's EXACT bytes, decoded as UTF-8 and
+ * never parsed on this side of the wire: the config grammar has exactly one
+ * owner (rheplicant's own bounded YAML loader), and `taskDigest` is the
+ * digest of those exact bytes, so the bytes must reach the service unparsed
+ * or the digest would describe something that never ran.
+ *
+ * Exactly one must be present. The refusal is the compute service's, in its
+ * own vocabulary (`INVALID_DOCUMENT`), so one rule lives in one place rather
+ * than being restated by every provider.
+ *
+ * Both fields spell their optionality as `T | undefined` rather than a bare
+ * `T`, so a caller can build the object straight off another optional value
+ * without a conditional spread under `exactOptionalPropertyTypes` — the same
+ * reasoning `RunProvenance` (ui-kit) records for its own fields.
+ */
+export interface ComputeInput {
+  /** An already-parsed config document (the inline form). */
+  readonly document?: ComputeDocument | undefined
+  /** A task file's exact bytes as UTF-8 text, parsed only by the service. */
+  readonly documentText?: string | undefined
+}
+
 /** One refusal or warning about one place in the document. */
 export interface ValidationError {
   /** JSON path into the document, e.g. `inference.parameters.g`. */
@@ -31,6 +57,14 @@ export interface ValidationReport {
   readonly valid: boolean
   readonly errors: readonly ValidationError[]
   readonly warnings?: readonly ValidationError[]
+  /**
+   * The document the service parsed, echoed back — present ONLY when the
+   * call sent `documentText`. The caller has bytes, not a mapping, in that
+   * case, and the session log's `document` field (and every console panel
+   * folded off it) needs the parsed form; re-parsing YAML on this side would
+   * put a second owner on the grammar. See {@link ComputeInput}.
+   */
+  readonly document?: ComputeDocument
 }
 
 /** One check the document will run, and what it costs. */
@@ -89,6 +123,8 @@ export interface GatesReport {
   readonly checks: readonly CheckCost[]
   readonly runs: readonly RunCost[]
   readonly warnings: readonly string[]
+  /** The parsed document, echoed back when the call sent `documentText`. See {@link ValidationReport.document}. */
+  readonly document?: ComputeDocument
 }
 
 /**
@@ -207,6 +243,8 @@ export interface RunOutcome {
   readonly graph?: SignalPathGraph
   /** Post-flight gate verdicts, read off rheplicant's own report ledger. */
   readonly gates?: readonly GateFinding[]
+  /** The parsed document, echoed back when the call sent `documentText`. See {@link ValidationReport.document}. */
+  readonly document?: ComputeDocument
 }
 
 /** The config grammar as one object: schema plus the exit/operator/transform catalogs. */
@@ -230,9 +268,9 @@ export interface RunOpts extends ComputeOpts {
 
 /** One compute backend, registered under one or more transport names. */
 export interface ComputeProvider {
-  validate(document: ComputeDocument, opts: ComputeOpts): Promise<ValidationReport>
-  gates(document: ComputeDocument, opts: ComputeOpts): Promise<GatesReport>
-  run(document: ComputeDocument, opts: RunOpts): Promise<RunOutcome>
+  validate(input: ComputeInput, opts: ComputeOpts): Promise<ValidationReport>
+  gates(input: ComputeInput, opts: ComputeOpts): Promise<GatesReport>
+  run(input: ComputeInput, opts: RunOpts): Promise<RunOutcome>
   schema(opts: ComputeOpts): Promise<SchemaDocument>
   /** The lit/dim signal-path rendering for a document's `model:` section. */
   graph(document: ComputeDocument, opts: ComputeOpts): Promise<SignalPathGraph | null>
@@ -246,8 +284,44 @@ export interface ComputeProvider {
  */
 export class ComputeError extends HarnessError {}
 
+/**
+ * Which task a logged call was about (`docs/project-model.md` §3, §4.2).
+ *
+ * Both fields are OPTIONAL because events written before this existed carry
+ * neither — a reader must treat their absence as "an older call", never as
+ * an error — and because an inline (scratch) call has no task file.
+ */
+export interface TaskIdentity {
+  /**
+   * sha256 (hex) of the document the user AUTHORED — the task file's exact
+   * bytes, or the inline document's stable JSON when there is no file. Never
+   * the digest of what ran: with a per-execution output directory injected
+   * (§4.4) the executed bytes contain the id, so deriving the id from them
+   * would be circular. This is the digest staleness is measured against.
+   */
+  readonly taskDigest?: string
+  /** The task file's path as the caller spelled it; absent for an inline (scratch) call. */
+  readonly taskPath?: string
+}
+
+/**
+ * Execution identity, carried on the durable `rheplicant/run` event
+ * (`docs/project-model.md` §4.1). An Execution is one run of one task at one
+ * time: two runs of one document with one seed are byte-identical, so
+ * nothing in the outcome distinguishes them — the id does.
+ */
+export interface ExecutionIdentity extends TaskIdentity {
+  /**
+   * `<UTC compact>-<first 8 of taskDigest>-<6 random>`, e.g.
+   * `20260822T134501Z-3f9ac2b1-k7m2xq`. Minted host-side, once per call.
+   * Only a RUN is an execution: validate and gates carry the task identity
+   * without one.
+   */
+  readonly executionId?: string
+}
+
 /** The durable record one executed analysis leaves in the session log. */
-export interface RheplicantRunEventData {
+export interface RheplicantRunEventData extends ExecutionIdentity {
   /** The document that was executed. */
   readonly document: ComputeDocument
   /** Its outcome: one entry per run, in declaration order. */
@@ -257,7 +331,7 @@ export interface RheplicantRunEventData {
 }
 
 /** The durable record one `rheplicant_validate` call leaves in the session log. */
-export interface RheplicantValidateEventData {
+export interface RheplicantValidateEventData extends TaskIdentity {
   /** The document that was validated. */
   readonly document: ComputeDocument
   /** The transport that validated it. */
@@ -267,7 +341,7 @@ export interface RheplicantValidateEventData {
 }
 
 /** The durable record one `rheplicant_gates` call leaves in the session log. */
-export interface RheplicantGatesEventData {
+export interface RheplicantGatesEventData extends TaskIdentity {
   /** The document whose checks were priced. */
   readonly document: ComputeDocument
   /** The transport that priced them. */

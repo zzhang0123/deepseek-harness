@@ -24,14 +24,43 @@ export interface RunProvenance {
   readonly time?: number | undefined
   readonly transport?: string | undefined
   readonly seq?: number | undefined
+  /**
+   * The run's `ExecutionId` (`docs/project-model.md` §4.1) — the durable
+   * name of this execution, which outlives the session log the `seq` is
+   * scoped to. Shown in its SHORT form (see {@link shortExecutionId}).
+   */
+  readonly executionId?: string | undefined
+  /** The task file this run came from; absent for an inline (scratch) run. */
+  readonly taskPath?: string | undefined
+}
+
+/** `<8-digit date>T<6-digit time>Z-` — the execution id's leading segment. */
+const EXECUTION_ID_STAMP = /^\d{8}T\d{6}Z-(.+)$/
+
+/**
+ * An execution id minus its leading UTC timestamp:
+ * `20260822T134501Z-3f9ac2b1-k7m2xq` -> `3f9ac2b1-k7m2xq`. The caption
+ * already carries the wall-clock time, so the timestamp segment is repeated
+ * noise there; what remains is the pair that actually identifies the
+ * execution (which task version, and which of its runs). An id that does not
+ * match the shape is shown whole rather than guessed at.
+ * @param executionId - the full execution id.
+ * @returns the short form, or the input unchanged.
+ */
+export function shortExecutionId(executionId: string): string {
+  return executionId.match(EXECUTION_ID_STAMP)?.[1] ?? executionId
 }
 
 /**
  * Render one run's provenance as a single `·`-joined caption, or `undefined`
- * when none of the three fields are present (an older or malformed run
- * entry) — callers render no caption line at all rather than an empty one.
+ * when none of the fields are present (an older or malformed run entry) —
+ * callers render no caption line at all rather than an empty one.
  * Time-of-day only, not a full date: a rheplicant session rarely spans a day
  * boundary, so the date would be noise, not signal.
+ *
+ * Field order is narrowest-scope-first: when it happened, where it ran, where
+ * it sits in THIS session's log, then the two facts that survive the session
+ * — the execution's own id and the task file it came from.
  */
 export function formatRunProvenance(provenance: RunProvenance): string | undefined {
   const parts: string[] = []
@@ -40,5 +69,7 @@ export function formatRunProvenance(provenance: RunProvenance): string | undefin
   }
   if (provenance.transport !== undefined) parts.push(provenance.transport)
   if (provenance.seq !== undefined) parts.push(`seq ${provenance.seq}`)
+  if (provenance.executionId !== undefined) parts.push(shortExecutionId(provenance.executionId))
+  if (provenance.taskPath !== undefined) parts.push(provenance.taskPath)
   return parts.length === 0 ? undefined : parts.join(' · ')
 }

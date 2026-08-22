@@ -14,6 +14,10 @@
       "types": "./lib/types.d.ts",
       "default": "./lib/types.js"
     },
+    "./task": {
+      "types": "./lib/task.d.ts",
+      "default": "./lib/task.js"
+    },
     "./package.json": "./package.json",
     "./invariant": {
       "types": "./lib/invariant.d.ts",

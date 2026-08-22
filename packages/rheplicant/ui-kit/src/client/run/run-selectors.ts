@@ -62,6 +62,15 @@ export interface AnalysisRun {
   readonly transport?: 'local' | 'ssh' | 'http'
   /** The event's own session sequence number — the one field guaranteed to differ between two runs, even two reruns inside the same wall-clock second. */
   readonly seq?: number
+  /**
+   * The run's `ExecutionId` (`<UTC compact>-<taskDigest8>-<random6>`). Unlike
+   * `seq`, which only orders events inside one session log, this names the
+   * execution durably: it is the same string the results tree on disk is
+   * keyed by. Absent on runs recorded before execution identity existed.
+   */
+  readonly executionId?: string
+  /** The task file the run came from; absent for an inline (scratch) run. */
+  readonly taskPath?: string
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

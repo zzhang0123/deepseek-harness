@@ -14,6 +14,7 @@ import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-sett
 import type {
   ComputeDocument,
   ComputeEndpoints,
+  ComputeInput,
   ComputeOpts,
   ComputeProvider,
   GatesReport,
@@ -31,20 +32,24 @@ export type {
   CheckCost,
   ComputeDocument,
   ComputeEndpoints,
+  ComputeInput,
   ComputeOpts,
   ComputeProvider,
+  ExecutionIdentity,
   GatesReport,
   GateFinding,
   RunCost,
   RunDiagnostics,
   RunEntry,
   RheplicantGatesEventData,
+  RheplicantRunEventData,
   RheplicantValidateEventData,
   RunOpts,
   RunOutcome,
   RunProduct,
   SchemaDocument,
   SignalPathGraph,
+  TaskIdentity,
   Transport,
   ValidationError,
   ValidationReport,
@@ -120,16 +125,24 @@ export class ComputeRuntime extends Service {
     return [...this.providers.keys()]
   }
 
-  validate(document: ComputeDocument, opts: ComputeOpts): Promise<ValidationReport> {
-    return this.provider(opts.transport).validate(document, opts)
+  /**
+   * Validate one document. `input` carries EXACTLY ONE of `document` (an
+   * inline mapping) or `documentText` (a task file's exact bytes); the
+   * compute service owns that rule and refuses `INVALID_DOCUMENT` otherwise,
+   * so the seam forwards without restating it.
+   */
+  validate(input: ComputeInput, opts: ComputeOpts): Promise<ValidationReport> {
+    return this.provider(opts.transport).validate(input, opts)
   }
 
-  gates(document: ComputeDocument, opts: ComputeOpts): Promise<GatesReport> {
-    return this.provider(opts.transport).gates(document, opts)
+  /** {@inheritDoc ComputeRuntime.validate} */
+  gates(input: ComputeInput, opts: ComputeOpts): Promise<GatesReport> {
+    return this.provider(opts.transport).gates(input, opts)
   }
 
-  run(document: ComputeDocument, opts: RunOpts): Promise<RunOutcome> {
-    return this.provider(opts.transport).run(document, opts)
+  /** {@inheritDoc ComputeRuntime.validate} */
+  run(input: ComputeInput, opts: RunOpts): Promise<RunOutcome> {
+    return this.provider(opts.transport).run(input, opts)
   }
 
   schema(opts: ComputeOpts): Promise<SchemaDocument> {
