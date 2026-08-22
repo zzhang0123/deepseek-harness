@@ -100,6 +100,7 @@
     "tests/pwsh-terminal.e2e.ts",
     "tests/workflow-run.e2e.ts",
     "tests/_serve-console.e2e.ts",
+    "tests/rheplicant-analysis-provenance.e2e.ts",
     "tests/rheplicant-analysis-repeat.e2e.ts",
     "tests/rheplicant-analysis.e2e.ts",
     "tests/rheplicant-console-charts.e2e.ts",
