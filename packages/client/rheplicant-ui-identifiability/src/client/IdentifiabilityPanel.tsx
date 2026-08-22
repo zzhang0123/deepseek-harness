@@ -3,11 +3,11 @@ import { memo } from 'react'
 import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
 import {
   type AnalysisRun,
+  BarChart,
   EmptyState,
   Panel,
   type PanelStatus,
   StatRow,
-  TOKEN,
   formatDiagnostic,
   selectAnalysisRuns,
 } from '@rheplicant/dsh-rheplicant-ui-kit/client'
@@ -15,10 +15,6 @@ import {
 interface IdentifiabilityPanelProps {
   useSession: <T>(selector: (snapshot: ConversationSnapshot) => T) => T
 }
-
-const BAR_WIDTH = 10
-const BAR_GAP = 3
-const MAX_BAR_HEIGHT = 64
 
 /**
  * Narrow an untyped diagnostics field down to a numeric array, or `undefined`
@@ -39,24 +35,27 @@ function runSingularValues(run: AnalysisRun): readonly (number | null)[] | undef
   return asNumberArray(run.diagnostics?.singular_values)
 }
 
-const SingularValues = memo(function SingularValues({ values }: { values: readonly (number | null)[] }) {
-  // A null (non-finite) singular value draws as the 1px floor bar — keeping
-  // its slot so bar i is always singular value i. The explicit <number> type
-  // argument keeps the accumulator `number`: reduce over a union-typed array
-  // otherwise locks the accumulator to `number | null`.
-  const maxLog = values.reduce<number>((m, value) => Math.max(m, Math.log1p(value ?? 0)), 0) || 1
-  const width = values.length * (BAR_WIDTH + BAR_GAP) - BAR_GAP
-  return (
-    <svg width={width} height={MAX_BAR_HEIGHT} role="img" aria-label="Singular values" data-singular-values>
-      {values.map((value, i) => {
-        const height = Math.max(1, (Math.log1p(value ?? 0) / maxLog) * MAX_BAR_HEIGHT)
-        return (
-          <rect key={i} x={i * (BAR_WIDTH + BAR_GAP)} y={MAX_BAR_HEIGHT - height} width={BAR_WIDTH} height={height} fill={TOKEN.lit} data-singular-value />
-        )
-      })}
-    </svg>
-  )
-})
+/**
+ * Narrow the untyped `weakest_identified` diagnostic to `number | null`.
+ *
+ * Checked against the source of truth,
+ * `rheplicant.inference.identifiability.IdentifiabilityReport.weakest_identified`
+ * (installed package, `inference/identifiability.py:308`): it is a computed
+ * `@property` returning `float(singular_values[rank - 1] / singular_values[0])`
+ * — the ratio between the worst- and best-identified directions, `0.0` when
+ * nothing is identified. It is NOT a latent name and NOT an index into
+ * `singular_values`, despite the generic `unknown` this field carries on the
+ * wire type (`RunDiagnostics.weakest_identified`, `packages/rheplicant/
+ * rheplicant/src/types.ts`). `server.py`'s `_wire_safe` spells a non-finite
+ * float as JSON `null`, same convention as every other diagnostic here, so
+ * this narrows to `number | null` — never a string, never used as
+ * `BarChart`'s `highlightIndex`.
+ */
+function asWeakestIdentified(value: unknown): number | null | undefined {
+  if (value === undefined) return undefined
+  if (value === null) return null
+  return typeof value === 'number' ? value : undefined
+}
 
 export const IdentifiabilityPanel = memo(function IdentifiabilityPanel({ useSession }: IdentifiabilityPanelProps) {
   const runs = useSession(selectAnalysisRuns).filter(run => runSingularValues(run) !== undefined)
@@ -71,16 +70,31 @@ export const IdentifiabilityPanel = memo(function IdentifiabilityPanel({ useSess
           const diagnostics = run.diagnostics
           const singularValues = runSingularValues(run)
           if (singularValues === undefined) return null
+          const rank = diagnostics?.rank
+          const weakestIdentified = asWeakestIdentified(diagnostics?.weakest_identified)
           return (
             <div key={run.name} data-identifiability-run data-run-name={run.name}>
               <div><strong>{run.name}</strong> <span>({run.kind})</span></div>
-              {diagnostics?.rank !== undefined ? (
-                <StatRow statKey="rank" label="rank" value={formatDiagnostic('rank', diagnostics.rank)} />
+              {rank !== undefined ? (
+                <StatRow statKey="rank" label="rank" value={formatDiagnostic('rank', rank)} />
               ) : null}
               {diagnostics?.nullity !== undefined ? (
                 <StatRow statKey="nullity" label="nullity" value={formatDiagnostic('nullity', diagnostics.nullity)} />
               ) : null}
-              <SingularValues values={singularValues} />
+              {weakestIdentified !== undefined ? (
+                <StatRow
+                  statKey="weakest_identified"
+                  label="weakest identified"
+                  value={formatDiagnostic('weakest_identified', weakestIdentified)}
+                />
+              ) : null}
+              <div data-singular-values>
+                <BarChart
+                  values={singularValues}
+                  logY
+                  {...typeof rank === 'number' ? { cutoffIndex: rank } : {}}
+                />
+              </div>
             </div>
           )
         })

@@ -1,15 +1,19 @@
-/** Posterior panel: corner plot of the folded analysis run's per-latent chains. */
+/** Posterior panel: per-latent marginal histograms, with the pairwise corner scatter behind a disclosure. */
 import { memo } from 'react'
 import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
 import {
   type AnalysisRun,
+  type ChainGroup,
+  type ChainSeries,
   EmptyState,
+  Histogram,
   Panel,
   type PanelStatus,
   SERIES,
   StatRow,
   TOKEN,
   formatDiagnostic,
+  groupChains,
   selectAnalysisRuns,
 } from '@rheplicant/dsh-rheplicant-ui-kit/client'
 
@@ -17,26 +21,31 @@ interface PosteriorPanelProps {
   useSession: <T>(selector: (snapshot: ConversationSnapshot) => T) => T
 }
 
-/** An analysis run that has the chain draws this panel needs to draw a corner plot. */
+/** An analysis run that has the chain draws this panel needs to draw marginals + a corner plot. */
 type PosteriorRun = AnalysisRun & { readonly chains: Record<string, (number | null)[]> }
 
-const BINS = 20
+const CORNER_BINS = 20
+const MARGINAL_BINS = 24
 const CELL = 96
 const PAD = 8
+
+function hasChains(run: AnalysisRun): run is PosteriorRun {
+  return run.chains !== undefined
+}
 
 /** Drop the `null` draws — the wire's spelling of a non-finite value. */
 function finiteValues(values: readonly (number | null)[]): number[] {
   return values.filter((value): value is number => value !== null)
 }
 
-/** Bin a draw sequence into a ~20-bin 1D histogram. */
+/** Bin a draw sequence into a ~20-bin 1D histogram, for the corner plot's own diagonal/scatter grid. */
 function histogram(values: number[]): number[] {
   const min = Math.min(...values)
   const max = Math.max(...values)
   const range = max - min || 1
-  const counts = new Array<number>(BINS).fill(0)
+  const counts = new Array<number>(CORNER_BINS).fill(0)
   for (const value of values) {
-    const bin = Math.min(BINS - 1, Math.floor(((value - min) / range) * BINS))
+    const bin = Math.min(CORNER_BINS - 1, Math.floor(((value - min) / range) * CORNER_BINS))
     counts[bin] = (counts[bin] ?? 0) + 1
   }
   return counts
@@ -53,11 +62,7 @@ function latentColor(index: number, count: number): string {
   return count > 1 ? (SERIES[index % SERIES.length] ?? TOKEN.lit) : TOKEN.lit
 }
 
-function hasChains(run: AnalysisRun): run is PosteriorRun {
-  return run.chains !== undefined
-}
-
-/** Corner plot: diagonal 1D histograms, upper triangle 2D scatter. */
+/** Corner plot: diagonal 1D histograms, upper triangle 2D scatter — unchanged, just moved behind a disclosure. */
 const Corner = memo(function Corner({ chains }: { chains: Record<string, (number | null)[]> }) {
   const entries = Object.entries(chains)
   const n = entries.length
@@ -68,7 +73,7 @@ const Corner = memo(function Corner({ chains }: { chains: Record<string, (number
       {entries.map(([latent, values], i) => {
         const counts = histogram(finiteValues(values))
         const maxCount = Math.max(...counts) || 1
-        const barWidth = CELL / BINS
+        const barWidth = CELL / CORNER_BINS
         const color = latentColor(i, n)
         return (
           <g key={`hist-${latent}`} transform={`translate(${PAD + i * CELL}, ${PAD + i * CELL})`}>
@@ -115,6 +120,42 @@ const Corner = memo(function Corner({ chains }: { chains: Record<string, (number
   )
 })
 
+/** Every series across a run's 'series'-kind chain groups, flattened in group-then-series order (band groups carry no marginal). */
+function marginalSeries(groups: readonly ChainGroup[]): readonly ChainSeries[] {
+  const out: ChainSeries[] = []
+  for (const group of groups) {
+    if (group.kind !== 'series') continue
+    out.push(...group.series)
+  }
+  return out
+}
+
+/** A run's band-kind chain groups — their draws are per-draw summaries, so they get a note instead of a marginal. */
+function bandLatents(groups: readonly ChainGroup[]): readonly string[] {
+  return groups.filter(group => group.kind === 'band').map(group => group.latent)
+}
+
+/** One run's marginal histograms (one per series across every 'series' group) plus a one-line note per band-kind latent. */
+const RunMarginals = memo(function RunMarginals({ groups }: { groups: readonly ChainGroup[] }) {
+  const series = marginalSeries(groups)
+  const bands = bandLatents(groups)
+  return (
+    <div data-marginals>
+      {series.map((s, i) => (
+        <div key={s.key} data-marginal={s.key}>
+          <div>{s.label}</div>
+          <Histogram values={s.values} bins={MARGINAL_BINS} color={SERIES[i % SERIES.length] ?? TOKEN.lit} />
+        </div>
+      ))}
+      {bands.map(latent => (
+        <p key={latent} data-band-note={latent}>
+          {latent}: credible-band summary (mean/q05/q95) — no marginal
+        </p>
+      ))}
+    </div>
+  )
+})
+
 /** One run's rhat / n_eff diagnostics, folded into StatRow chips. */
 const RunDiagnosticStats = memo(function RunDiagnosticStats({ run }: { run: PosteriorRun }) {
   const diagnostics = run.diagnostics
@@ -148,13 +189,20 @@ export const PosteriorPanel = memo(function PosteriorPanel({ useSession }: Poste
       {runs.length === 0 ? (
         <EmptyState message="No draws yet" hint="Ask the agent for a nuts or plan.sample run" />
       ) : (
-        runs.map(run => (
-          <div key={run.name} data-posterior-run data-run-name={run.name}>
-            <div><strong>{run.name}</strong> <span>({run.kind})</span></div>
-            <RunDiagnosticStats run={run} />
-            <Corner chains={run.chains} />
-          </div>
-        ))
+        runs.map(run => {
+          const groups = groupChains(run.chains)
+          return (
+            <div key={run.name} data-posterior-run data-run-name={run.name}>
+              <div><strong>{run.name}</strong> <span>({run.kind})</span></div>
+              <RunDiagnosticStats run={run} />
+              <RunMarginals groups={groups} />
+              <details data-corner-details>
+                <summary>Corner</summary>
+                <Corner chains={run.chains} />
+              </details>
+            </div>
+          )
+        })
       )}
     </Panel>
   )
