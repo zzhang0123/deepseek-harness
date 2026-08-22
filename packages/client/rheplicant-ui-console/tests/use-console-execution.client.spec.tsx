@@ -18,15 +18,42 @@ const NEWER = '20260822T134501Z-3f9ac2b1-k7m2xq'
 const OTHER = '20260822T170000Z-bbbbbbbb-bbbbbb'
 const WORKSPACE = '/home/z/rhino-2026'
 
-function ref(id: string, over: Partial<LoopExecutionRef> = {}): LoopExecutionRef {
-  return {
+
+/**
+ * A `Partial` that also accepts an explicit `undefined`.
+ *
+ * These builders exist so a test can say "this field is ABSENT here", and it
+ * says that by passing `undefined`. Plain `Partial<T>` refuses that under
+ * `exactOptionalPropertyTypes` (the checkout's client build), where it means
+ * "omit the key" — which a spread of overrides cannot express.
+ */
+type Loose<T> = { readonly [K in keyof T]?: T[K] | undefined }
+
+/**
+ * Merge overrides into a base, treating an explicit `undefined` as REMOVE.
+ *
+ * That is what `ref({ resultsPath: undefined })` means in these tests: not
+ * "set it to undefined" but "build one without a results path". A plain spread
+ * would leave the key present holding `undefined`, which is a different object
+ * and, for an optional field, not even a legal one.
+ */
+function build<T extends object>(base: T, overrides: Loose<T>): T {
+  const merged = { ...base } as Record<string, unknown>
+  for (const [key, value] of Object.entries(overrides)) {
+    if (value === undefined) delete merged[key]
+    else merged[key] = value
+  }
+  return merged as T
+}
+
+function ref(id: string, over: Loose<LoopExecutionRef> = {}): LoopExecutionRef {
+  return build({
     executionId: id,
     resultsPath: `${WORKSPACE}/results/tasks/fit/${id}`,
     transport: 'local',
     status: 'ok',
     seq: 1,
-    ...over,
-  }
+  }, over)
 }
 
 /** Route answers keyed by pathname; a missing key means "route not there". */

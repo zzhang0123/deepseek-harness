@@ -4,7 +4,14 @@ import styles from './empty-state.module.css'
 
 export interface EmptyStateProps {
   readonly message: string
-  readonly hint?: string
+  /**
+   * `| undefined` explicitly, not just `?`. Under `exactOptionalPropertyTypes`
+   * (the checkout's client build) `hint?: string` means "omit the key or pass
+   * a string", and every caller here computes a hint that may be absent —
+   * `hint={condition ? text : undefined}`. Widening the prop is one change; the
+   * alternative was a conditional spread at each of five call sites.
+   */
+  readonly hint?: string | undefined
 }
 
 export const EmptyState = memo(function EmptyState({ message, hint }: EmptyStateProps) {

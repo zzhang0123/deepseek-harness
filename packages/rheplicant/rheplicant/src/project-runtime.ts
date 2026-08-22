@@ -11,6 +11,7 @@
 
 import { Context, Service } from '@deepseek-ai/cordis'
 
+import { scanProject, type ProjectContents } from './contents.ts'
 import {
   listExecutions,
   readArtifact,
@@ -66,6 +67,20 @@ export class ProjectRuntime extends Service {
    */
   readArtifact(workspace: string, request: ArtifactRequest): Artifact {
     return readArtifact(workspace, request)
+  }
+
+  /**
+   * What one project HOLDS: its task documents and its candidate inputs.
+   *
+   * The companion to {@link listExecutions}, which reports what it has RUN.
+   * A project home needs both, and needs them to describe the same instant —
+   * hence one scan returning both lists rather than a method each.
+   *
+   * @param workspace - the project directory.
+   * @returns the tasks, the inputs, and whether a scan cap cut the walk short.
+   */
+  listContents(workspace: string): ProjectContents {
+    return scanProject(workspace)
   }
 }
 

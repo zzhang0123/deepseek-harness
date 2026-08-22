@@ -13,15 +13,42 @@ import type { ProjectExecutionRow } from '@rheplicant/dsh-rheplicant'
 
 const PUBLISHED = '/home/z/rhino-2026/results/tasks/global-signal-fit/20260822T134501Z-3f9ac2b1-k7m2xq'
 
-function ref(overrides: Partial<LoopExecutionRef> = {}): LoopExecutionRef {
-  return {
+
+/**
+ * A `Partial` that also accepts an explicit `undefined`.
+ *
+ * These builders exist so a test can say "this field is ABSENT here", and it
+ * says that by passing `undefined`. Plain `Partial<T>` refuses that under
+ * `exactOptionalPropertyTypes` (the checkout's client build), where it means
+ * "omit the key" — which a spread of overrides cannot express.
+ */
+type Loose<T> = { readonly [K in keyof T]?: T[K] | undefined }
+
+/**
+ * Merge overrides into a base, treating an explicit `undefined` as REMOVE.
+ *
+ * That is what `ref({ resultsPath: undefined })` means in these tests: not
+ * "set it to undefined" but "build one without a results path". A plain spread
+ * would leave the key present holding `undefined`, which is a different object
+ * and, for an optional field, not even a legal one.
+ */
+function build<T extends object>(base: T, overrides: Loose<T>): T {
+  const merged = { ...base } as Record<string, unknown>
+  for (const [key, value] of Object.entries(overrides)) {
+    if (value === undefined) delete merged[key]
+    else merged[key] = value
+  }
+  return merged as T
+}
+
+function ref(overrides: Loose<LoopExecutionRef> = {}): LoopExecutionRef {
+  return build({
     executionId: '20260822T134501Z-3f9ac2b1-k7m2xq',
     resultsPath: PUBLISHED,
     transport: 'local',
     status: 'ok',
     seq: 4,
-    ...overrides,
-  }
+  }, overrides)
 }
 
 describe('reading the header off a published path', () => {

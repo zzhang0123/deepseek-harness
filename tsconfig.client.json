@@ -75,6 +75,7 @@
     { "path": "./packages/client/rheplicant-ui-document" },
     { "path": "./packages/client/rheplicant-ui-theme" },
     { "path": "./packages/client/rheplicant-ui-console" },
+    { "path": "./packages/client/rheplicant-ui-project" },
     { "path": "./packages/client/rheplicant-ui-posterior" },
     { "path": "./packages/client/rheplicant-ui-spectrum" },
     { "path": "./packages/client/rheplicant-ui-identifiability" },

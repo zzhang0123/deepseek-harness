@@ -450,3 +450,58 @@ export interface ProjectExecutionsBody {
   readonly project: string
   readonly executions: readonly ProjectExecutionRow[]
 }
+
+/**
+ * One task document as the browser sees it.
+ *
+ * The `path` is workspace-relative and is the SAME string `rheplicant_run`
+ * takes as its `task:` parameter, so the project home can offer a task without
+ * inventing a second addressing scheme for one.
+ */
+export interface ProjectTaskRow {
+  /** Workspace-relative, POSIX separators, e.g. `tasks/fit.yaml`. */
+  readonly path: string
+  readonly bytes: number
+  /** ISO-8601 modification instant. */
+  readonly modifiedAt: string
+  /** How many executions of this task the project holds. */
+  readonly executionCount: number
+  /** The newest execution's id, absent when the task has never run. */
+  readonly newestExecutionId?: string
+}
+
+/**
+ * One candidate input file as the browser sees it.
+ *
+ * `extension`, deliberately not `format`. rheplicant refuses to infer a format
+ * from an extension (`config/files.py`), so a row that claimed one would be
+ * asserting something the engine will not — the document's `format:` key is
+ * the only thing that decides how bytes are read.
+ */
+export interface ProjectInputRow {
+  readonly path: string
+  readonly bytes: number
+  readonly modifiedAt: string
+  readonly extension: string
+}
+
+/**
+ * The project home's whole answer: what the project holds and what it has run.
+ *
+ * One body rather than three routes, because the three lists are read off ONE
+ * walk of the tree and a home assembled from three round trips could show a
+ * task whose executions had already been pruned between calls.
+ */
+export interface ProjectOverviewBody {
+  /** The project's own name — the workspace directory's basename. */
+  readonly project: string
+  readonly tasks: readonly ProjectTaskRow[]
+  readonly inputs: readonly ProjectInputRow[]
+  readonly executions: readonly ProjectExecutionRow[]
+  /**
+   * True when a scan cap stopped the walk, so `tasks`/`inputs` are incomplete.
+   * Rendered on screen: a listing that quietly dropped half a project would
+   * read as a complete listing of a smaller project.
+   */
+  readonly truncated: boolean
+}

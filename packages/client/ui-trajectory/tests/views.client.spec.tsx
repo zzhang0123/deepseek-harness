@@ -89,7 +89,15 @@ function historySnapshot(
   return {
     sessionId: SID,
     views: {
-      get: target => target === 'trajectory' ? trajectory : undefined,
+      // The cast is the price of an OPEN snapshot map. `get` is generic over
+      // `Target extends keyof ConversationViewSnapshotMap` and returns
+      // `ConversationViewSnapshotMap[Target]`; once a second plugin augments
+      // that map (rheplicant's `rheplicant-loop` does), the return type is a
+      // union that a runtime `target === 'trajectory'` check cannot narrow for
+      // the compiler. The stub is correct — it answers only for its own target.
+      get: target => (target === 'trajectory'
+        ? trajectory
+        : undefined) as never,
     },
     chat: EMPTY_CHAT_SNAPSHOT,
     nodes,

@@ -47,7 +47,10 @@ export async function fetchProjectExecutions(
   try {
     response = await fetch(
       `${ROUTE_PREFIX}/executions?session=${encodeURIComponent(sessionId)}`,
-      { signal, headers: { accept: 'application/json' } },
+      // Spread rather than `signal`: under `exactOptionalPropertyTypes`
+      // `RequestInit.signal` is `AbortSignal | null`, so an explicit
+      // `undefined` is a type error where an omission is not.
+      { ...(signal === undefined ? {} : { signal }), headers: { accept: 'application/json' } },
     )
   } catch {
     // Aborted, offline, or no server: not an error worth showing anyone.
@@ -102,7 +105,10 @@ export async function fetchExecution(
     response = await fetch(
       `${ROUTE_PREFIX}/execution?session=${encodeURIComponent(sessionId)}`
       + `&execution=${encodeURIComponent(executionId)}`,
-      { signal, headers: { accept: 'application/json' } },
+      // Spread rather than `signal`: under `exactOptionalPropertyTypes`
+      // `RequestInit.signal` is `AbortSignal | null`, so an explicit
+      // `undefined` is a type error where an omission is not.
+      { ...(signal === undefined ? {} : { signal }), headers: { accept: 'application/json' } },
     )
   } catch {
     return undefined

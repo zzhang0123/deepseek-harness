@@ -34,6 +34,10 @@
       "types": "./lib/executions.d.ts",
       "default": "./lib/executions.js"
     },
+    "./contents": {
+      "types": "./lib/contents.d.ts",
+      "default": "./lib/contents.js"
+    },
     "./package.json": "./package.json",
     "./invariant": {
       "types": "./lib/invariant.d.ts",

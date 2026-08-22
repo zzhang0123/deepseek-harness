@@ -76,6 +76,13 @@ class CapturingProvider implements ComputeProvider {
     })
   }
 
+  // P4c added `readExecution` to the seam: a published tree projected into the
+  // same wire shape a run returns. This scenario never publishes, so the stub
+  // refuses rather than inventing an outcome that would look like a real one.
+  readExecution(resultsPath: string): Promise<RunOutcome> {
+    return Promise.reject(new Error(`this scenario publishes nothing; ${resultsPath} does not exist`))
+  }
+
   schema(): Promise<SchemaDocument> {
     return Promise.resolve({ schemaVersion: '1', jsonSchema: {}, exits: [], operators: [], transforms: [] })
   }
@@ -146,7 +153,13 @@ describe('web e2e: a rheplicant task file is the run input, confined to the sess
 
     // The bytes travelled unparsed, and they are the file's own — not a
     // re-serialization of something the host parsed.
-    expect(provider.seen).toEqual([{ documentText: TASK_YAML }])
+    expect(provider.seen).toHaveLength(1)
+    expect(provider.seen[0]?.documentText).toBe(TASK_YAML)
+    // P2 added `taskPath` beside the bytes so the bootstrap entry can name the
+    // document's own directory (`source_name` must equal `source_path`). It is
+    // an absolute host path into the scaffold's temp workspace, so it is
+    // asserted by shape rather than by value.
+    expect(provider.seen[0]?.taskPath).toMatch(/\/tasks\/probe\.yaml$/)
 
     const rendered = textOf(result)
     const executionId = rendered.match(/execution (\S+)/)?.[1]

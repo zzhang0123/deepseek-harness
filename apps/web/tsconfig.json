@@ -112,6 +112,7 @@
     "tests/rheplicant-ui-compute-load.e2e.ts",
     "tests/rheplicant-ui-console-load.e2e.ts",
     "tests/rheplicant-ui-document-load.e2e.ts",
+    "tests/rheplicant-ui-project-home.e2e.ts",
     "tests/rheplicant-ui-theme-load.e2e.ts"
   ],
   "references": [

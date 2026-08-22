@@ -1,9 +1,10 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { apply, ROUTE_PREFIX } from '@rheplicant/dsh-rheplicant/project-api'
 import { listExecutions, readArtifact } from '@rheplicant/dsh-rheplicant/executions'
+import { scanProject } from '@rheplicant/dsh-rheplicant/contents'
 
 const MARKER = '2878be26-4551-4183-ae96-43ea0f0e83f4'
 
@@ -34,7 +35,7 @@ let compute: Record<string, unknown> | undefined
 
 function routes(
   sessions: Record<string, string | undefined>,
-  workspaces: { path: string; sessionIds: string[] }[] = [],
+  workspaces: { path: string; sessionIds: string[]; id?: string }[] = [],
 ) {
   const table = new Map<string, (req: unknown, res: unknown) => void | Promise<void>>()
   const ctx = {
@@ -47,7 +48,7 @@ function routes(
       },
     },
     workspaceRegistry: { list: () => workspaces },
-    rheplicantProject: { listExecutions, readArtifact },
+    rheplicantProject: { listExecutions, readArtifact, listContents: scanProject },
     rheplicant: {
       readExecution: (resultsPath: string) => {
         readCalls.push(resultsPath)
@@ -278,5 +279,157 @@ describe('projecting one execution', () => {
     const response = await request(`${ROUTE_PREFIX}/execution`, 'session=S-nope&execution=EXEC-1')
     expect(response.status).toBe(404)
     expect(readCalls).toEqual([])
+  })
+})
+
+describe('naming the project when no session is open', () => {
+  // §6.0's project home is shown exactly when NO session is open, so it has
+  // no session id to send. Resolving a WorkspaceId keeps the trust boundary
+  // intact for the same reason a SessionId did: it is a generated uuid the
+  // host minted, never a path, so a client still cannot name a directory.
+  it('resolves a workspace id through the registry', async () => {
+    execution('tasks/fit', 'EXEC-1')
+    const call = routes({}, [{ id: 'ws-1', path: workspace, sessionIds: [] }])
+    const found = await call(`${ROUTE_PREFIX}/overview`, 'workspace=ws-1')
+    expect(found.status).toBe(200)
+    expect(JSON.parse(found.body).executions).toHaveLength(1)
+  })
+
+  it('refuses a workspace id no registry entry claims', async () => {
+    const call = routes({}, [{ id: 'ws-1', path: workspace, sessionIds: [] }])
+    expect((await call(`${ROUTE_PREFIX}/overview`, 'workspace=ws-2')).status).toBe(404)
+  })
+
+  it('refuses a request that names neither a session nor a workspace', async () => {
+    routes({}, [{ id: 'ws-1', path: workspace, sessionIds: [] }])
+    const call = routes({}, [{ id: 'ws-1', path: workspace, sessionIds: [] }])
+    expect((await call(`${ROUTE_PREFIX}/overview`, '')).status).toBe(404)
+  })
+
+  it('never accepts a directory, however it is spelled', async () => {
+    const elsewhere = mkdtempSync(join(tmpdir(), 'rheplicant-elsewhere-'))
+    const call = routes({}, [{ id: 'ws-1', path: workspace, sessionIds: [] }])
+    for (const query of [`workspace=${encodeURIComponent(elsewhere)}`, `path=${encodeURIComponent(elsewhere)}`]) {
+      expect((await call(`${ROUTE_PREFIX}/overview`, query)).status).toBe(404)
+    }
+  })
+
+  it('lets the existing executions route be reached the same way', async () => {
+    // The console asks by session and the home asks by workspace; one
+    // resolution rule serves both, so the two surfaces cannot drift on which
+    // executions a project has.
+    execution('tasks/fit', 'EXEC-1')
+    const call = routes({}, [{ id: 'ws-1', path: workspace, sessionIds: [] }])
+    const found = await call(`${ROUTE_PREFIX}/executions`, 'workspace=ws-1')
+    expect(JSON.parse(found.body).executions).toHaveLength(1)
+  })
+})
+
+describe('the project overview', () => {
+  it('reports the tasks the project holds, not only the ones it has run', async () => {
+    mkdirSync(join(workspace, 'tasks'), { recursive: true })
+    writeFileSync(join(workspace, 'tasks', 'fit.yaml'), 'schema_version: 1')
+    writeFileSync(join(workspace, 'never-run.yaml'), 'schema_version: 1')
+    const call = routes({}, [{ id: 'ws-1', path: workspace, sessionIds: [] }])
+    const body = JSON.parse((await call(`${ROUTE_PREFIX}/overview`, 'workspace=ws-1')).body)
+    expect(body.tasks.map((task: { path: string }) => task.path))
+      .toEqual(['never-run.yaml', 'tasks/fit.yaml'])
+  })
+
+  it("counts each task's executions and names its newest", async () => {
+    mkdirSync(join(workspace, 'tasks'), { recursive: true })
+    writeFileSync(join(workspace, 'tasks', 'fit.yaml'), 'schema_version: 1')
+    execution('tasks/fit', '20260822T100000Z-aaaa-bbbb')
+    execution('tasks/fit', '20260822T120000Z-cccc-dddd')
+    const call = routes({}, [{ id: 'ws-1', path: workspace, sessionIds: [] }])
+    const body = JSON.parse((await call(`${ROUTE_PREFIX}/overview`, 'workspace=ws-1')).body)
+    expect(body.tasks[0]).toMatchObject({
+      path: 'tasks/fit.yaml',
+      executionCount: 2,
+      newestExecutionId: '20260822T120000Z-cccc-dddd',
+    })
+  })
+
+  it('leaves a never-run task without a newest execution rather than guessing one', async () => {
+    writeFileSync(join(workspace, 'lonely.yaml'), 'schema_version: 1')
+    execution('tasks/other', 'EXEC-1')
+    const call = routes({}, [{ id: 'ws-1', path: workspace, sessionIds: [] }])
+    const body = JSON.parse((await call(`${ROUTE_PREFIX}/overview`, 'workspace=ws-1')).body)
+    expect(body.tasks[0]).toMatchObject({ path: 'lonely.yaml', executionCount: 0 })
+    expect(body.tasks[0].newestExecutionId).toBeUndefined()
+  })
+
+  it('reports candidate inputs by extension and never claims a format', async () => {
+    mkdirSync(join(workspace, 'inputs'), { recursive: true })
+    writeFileSync(join(workspace, 'inputs', 'beam.npz'), 'x')
+    const call = routes({}, [{ id: 'ws-1', path: workspace, sessionIds: [] }])
+    const body = JSON.parse((await call(`${ROUTE_PREFIX}/overview`, 'workspace=ws-1')).body)
+    expect(body.inputs[0]).toMatchObject({ path: 'inputs/beam.npz', extension: 'npz' })
+    expect(body.inputs[0].format).toBeUndefined()
+  })
+
+  it('says when a scan cap truncated the walk rather than reading as complete', async () => {
+    const call = routes({}, [{ id: 'ws-1', path: workspace, sessionIds: [] }])
+    const body = JSON.parse((await call(`${ROUTE_PREFIX}/overview`, 'workspace=ws-1')).body)
+    expect(body.truncated).toBe(false)
+  })
+
+  it('sends no host path anywhere in the body', async () => {
+    writeFileSync(join(workspace, 'fit.yaml'), 'schema_version: 1')
+    writeFileSync(join(workspace, 'beam.npz'), 'x')
+    execution('fit', 'EXEC-1')
+    const call = routes({}, [{ id: 'ws-1', path: workspace, sessionIds: [] }])
+    const found = await call(`${ROUTE_PREFIX}/overview`, 'workspace=ws-1')
+    expect(found.body).not.toContain(workspace)
+    expect(found.body).not.toContain(tmpdir())
+  })
+
+  it('names the project once, as a name and not a path', async () => {
+    const call = routes({}, [{ id: 'ws-1', path: workspace, sessionIds: [] }])
+    const body = JSON.parse((await call(`${ROUTE_PREFIX}/overview`, 'workspace=ws-1')).body)
+    expect(body.project).toBe(basename(workspace))
+  })
+
+  it('is never cached: a pruned execution must not read as present', async () => {
+    const call = routes({}, [{ id: 'ws-1', path: workspace, sessionIds: [] }])
+    const found = await call(`${ROUTE_PREFIX}/overview`, 'workspace=ws-1')
+    expect(found.headers['cache-control']).toBe('no-store')
+  })
+
+  it('answers an empty project with empty lists, not an error', async () => {
+    const call = routes({}, [{ id: 'ws-1', path: workspace, sessionIds: [] }])
+    const found = await call(`${ROUTE_PREFIX}/overview`, 'workspace=ws-1')
+    expect(found.status).toBe(200)
+    expect(JSON.parse(found.body)).toMatchObject({ tasks: [], inputs: [], executions: [] })
+  })
+})
+
+describe('which parameter wins when a request carries both', () => {
+  it('reads the SESSION project, never the workspace the query names', async () => {
+    // The sharp case: `workspace=` naming a real, valid id for a DIFFERENT
+    // project this host genuinely has. A path in that parameter matches no
+    // record and is refused for free; a valid id would be honoured, so the
+    // precedence is what stops a console request being redirected.
+    const other = mkdtempSync(join(tmpdir(), 'rheplicant-other-'))
+    mkdirSync(join(other, 'results', 't', 'EXEC-THEIRS'), { recursive: true })
+    writeFileSync(join(other, 'results', 't', 'EXEC-THEIRS', '.rheplicant-results.json'),
+      JSON.stringify({ format_version: 1, run_directory_id: MARKER }))
+    execution('tasks/fit', 'EXEC-MINE')
+
+    const call = routes({ 'S-1': workspace }, [
+      { id: 'ws-mine', path: workspace, sessionIds: [] },
+      { id: 'ws-other', path: other, sessionIds: [] },
+    ])
+    const body = JSON.parse((await call(`${ROUTE_PREFIX}/overview`, 'session=S-1&workspace=ws-other')).body)
+    expect(body.executions.map((e: { executionId: string }) => e.executionId)).toEqual(['EXEC-MINE'])
+  })
+
+  it('refuses a malformed session outright rather than falling through to the workspace', async () => {
+    // A refusal must not be recoverable by appending another parameter: a
+    // request that names a session is asking about that session.
+    execution('tasks/fit', 'EXEC-MINE')
+    const call = routes({}, [{ id: 'ws-mine', path: workspace, sessionIds: [] }])
+    expect((await call(`${ROUTE_PREFIX}/overview`, 'session=not-a-session-id&workspace=ws-mine')).status)
+      .toBe(404)
   })
 })

@@ -1,0 +1,200 @@
+/* The project home: a frame-wide archive page over shell.overlay, plus the
+   sidebar-foot control that opens it. */
+
+/* shell.overlay is click-through by contract — every entry opts back into
+   pointer events for itself. A layer that grabbed them unconditionally would
+   block the app underneath for every OTHER entry too. */
+.layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+}
+
+.backdrop {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+  background: color-mix(in srgb, var(--dsw-alias-bg-base, #000) 72%, transparent);
+}
+
+.page {
+  position: relative;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  width: min(72rem, 100%);
+  margin: 2.5rem 1.5rem;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 0.75rem;
+  background: var(--dsw-alias-bg-elevated, var(--dsw-alias-bg-base));
+  box-shadow: 0 1.5rem 4rem rgb(0 0 0 / 45%);
+  overflow: hidden;
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+}
+
+.title {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  margin-inline-end: auto;
+}
+
+.eyebrow {
+  color: var(--dsw-alias-text-tertiary);
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.name {
+  color: var(--dsw-alias-text-primary);
+  font-size: 1.0625rem;
+  font-weight: 600;
+}
+
+.picker,
+.action {
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 0.375rem;
+  background: transparent;
+  color: var(--dsw-alias-text-primary);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.action:hover,
+.picker:hover {
+  border-color: var(--dsw-rh-lit, var(--dsw-alias-border-l1));
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+/* A truncated listing must not read as a complete one. */
+.warning {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--dsw-alias-state-warn-primary);
+  border-radius: 0.375rem;
+  color: var(--dsw-alias-text-secondary);
+  font-size: 0.8125rem;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.625rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--dsw-alias-border-l1) 45%, transparent);
+  font-size: 0.8125rem;
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.mono {
+  flex: 1 1 auto;
+  color: var(--dsw-alias-text-primary);
+  font-family: var(--dsw-alias-font-mono, ui-monospace, monospace);
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  flex: 0 0 auto;
+  color: var(--dsw-alias-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* An extension is a fact about a filename, not a verdict about a file — so it
+   is a neutral chip and deliberately NOT a Badge, whose vocabulary is
+   outcomes. */
+.chip {
+  flex: 0 0 auto;
+  padding: 0.05rem 0.35rem;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 0.25rem;
+  color: var(--dsw-alias-text-tertiary);
+  font-family: var(--dsw-alias-font-mono, ui-monospace, monospace);
+  font-size: 0.6875rem;
+}
+
+.note {
+  margin: 0.5rem 0 0;
+  color: var(--dsw-alias-text-tertiary);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.group + .group {
+  margin-top: 0.75rem;
+}
+
+.groupHead {
+  margin: 0 0 0.25rem;
+  color: var(--dsw-alias-text-secondary);
+  font-family: var(--dsw-alias-font-mono, ui-monospace, monospace);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+/* The sidebar-foot trigger, sized to sit beside the shipped Settings row in
+   both the wide column and the 56px rail. */
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.45rem;
+  border: none;
+  border-radius: 0.375rem;
+  background: transparent;
+  color: var(--dsw-alias-text-secondary);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.trigger:hover {
+  color: var(--dsw-alias-text-primary);
+  background: color-mix(in srgb, var(--dsw-alias-border-l1) 40%, transparent);
+}
+
+.trigger[aria-expanded='true'] {
+  color: var(--dsw-rh-lit, var(--dsw-alias-text-primary));
+}
+
+.triggerMark {
+  font-size: 0.875rem;
+  line-height: 1;
+}
+
+.triggerLabel {
+  white-space: nowrap;
+}

@@ -4,14 +4,16 @@
  * `docs/project-model.md` §6.2, §8.1. The console needs one thing the session
  * log cannot give it: the executions this session did NOT produce. That answer
  * is a directory read, and a directory read belongs to the host, so this plugin
- * puts `ctx.rheplicantProject` behind two HTTP routes the web runtime already
+ * puts `ctx.rheplicantProject` behind HTTP routes the web runtime already
  * carries.
  *
- * **The workspace never crosses the wire.** A request names a SESSION; the
- * handler resolves that session's own `cwd` through `ctx.sessions` and confines
- * every read to it. A client that could name the directory could name any
- * directory, which is the whole reason `readTaskFile` refuses to resolve a task
- * against the host process's cwd either.
+ * **The workspace never crosses the wire.** A request names a SESSION, or (for
+ * §6.0's project home, which is shown when no session is open) a WORKSPACE by
+ * the id the host minted for it. Either way the handler resolves the directory
+ * from a host record and confines every read to it. A client that could name
+ * the directory could name any directory, which is the whole reason
+ * `readTaskFile` refuses to resolve a task against the host process's cwd
+ * either.
  *
  * Nor does a path come back: a summary carries the PROJECT-RELATIVE path, which
  * is what the header displays, and an artifact is asked for by execution id.
@@ -29,22 +31,24 @@ import type {} from '@deepseek-ai/dsh-host-webserver'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-workspace'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { basename } from 'node:path'
+import { basename, join, sep } from 'node:path'
 
 import {
   ARTIFACT_MEDIA_TYPES, MARKER_NAME, ProjectReadError, type ExecutionSummary,
 } from './executions.ts'
-import type { ProjectExecutionRow, ProjectExecutionsBody } from './types.ts'
-import { RESULTS_ROOT } from './project.ts'
+import type {
+  ProjectExecutionRow, ProjectExecutionsBody, ProjectOverviewBody, ProjectTaskRow,
+} from './types.ts'
+import { RESULTS_ROOT, taskSegment } from './project.ts'
 import type {} from './project-runtime.ts'
 
 /** Stable Cordis plugin name. */
 export const name = 'rheplicant-project-api'
 
-/** Services required before either route can answer. */
+/** Services required before any route can answer. */
 export const inject = ['webServer', 'rheplicantProject', 'rheplicant', 'sessions', 'workspaceRegistry']
 
-/** Where the two routes live. */
+/** Where the project routes live. */
 export const ROUTE_PREFIX = '/rheplicant/project'
 
 /** Project-relative view of an absolute published path. */
@@ -92,6 +96,48 @@ function locate(
 /** An execution whose ownership marker parsed, so its identity can be checked. */
 type ReadableExecution = Omit<ExecutionSummary, 'markerId'> & { readonly markerId: string }
 
+/**
+ * Attach each task to the executions the project holds for it.
+ *
+ * The join key is the `results/` segment, computed by `taskSegment` rather
+ * than by stripping the extension here: an execution's own `task` field is
+ * that function's output (`tool-run` writes it into the sidecar), so
+ * recomputing it any other way is how the two sides would come to disagree
+ * about which document produced what.
+ *
+ * @param workspace - the project directory, which the segment is relative to.
+ * @param tasks - the documents the scan found.
+ * @param executions - the project's executions, already newest-first.
+ * @returns one row per task, in the scan's order.
+ */
+function withExecutions(
+  workspace: string,
+  tasks: readonly { path: string; bytes: number; modifiedAt: string }[],
+  executions: readonly ExecutionSummary[],
+): ProjectTaskRow[] {
+  // Newest-first is `listExecutions`'s contract, so the FIRST match per
+  // segment is the newest and no clock is read here either.
+  const bySegment = new Map<string, ExecutionSummary[]>()
+  for (const execution of executions) {
+    const bucket = bySegment.get(execution.task)
+    if (bucket === undefined) bySegment.set(execution.task, [execution])
+    else bucket.push(execution)
+  }
+  return tasks.map((task) => {
+    const segment = taskSegment(workspace, join(workspace, task.path)).split(sep).join('/')
+    const found = bySegment.get(segment) ?? []
+    return {
+      path: task.path,
+      bytes: task.bytes,
+      modifiedAt: task.modifiedAt,
+      executionCount: found.length,
+      // Absent, never a placeholder: "has never run" is a state the project
+      // home renders differently from "ran, and here is which".
+      ...(found[0] === undefined ? {} : { newestExecutionId: found[0].executionId }),
+    }
+  })
+}
+
 /** Answer with one JSON body and a no-store policy. */
 function json(res: ServerResponse, status: number, body: unknown): void {
   const payload = Buffer.from(JSON.stringify(body), 'utf8')
@@ -108,12 +154,37 @@ function json(res: ServerResponse, status: number, body: unknown): void {
 /**
  * The workspace this request is allowed to read, or undefined.
  *
- * The single trust decision in this module: the directory comes from the
- * session record, never from the query string.
+ * The single trust decision in this module: the directory comes from a host
+ * record, never from the query string. Two ways in, because there are two
+ * callers and only one of them has a session:
+ *
+ * * `session=<SessionId>` — the console, which is always inside a conversation.
+ * * `workspace=<WorkspaceId>` — the project home, which by §6.0 is shown
+ *   exactly when NO session is open and therefore has no session id to send.
+ *
+ * The second does not widen the boundary. A `WorkspaceId` is a generated uuid
+ * (`@deepseek-ai/dsh-workspace`'s own type: "never the path"), and an id no
+ * registry entry claims resolves to nothing — so a guessed or stale id is
+ * refused rather than coerced.
+ *
+ * To be accurate about what this buys: it is NOT secrecy. dsh's own
+ * `workspace.list` already hands the browser every workspace's canonical
+ * `path`, so the client is not being kept from knowing directories. What the
+ * id-only parameter buys is that THIS route cannot be turned into an arbitrary
+ * host file read — its reachable set is exactly the registered workspaces,
+ * by construction rather than by a validation someone has to keep correct.
+ *
+ * **`session=` wins when both are present**, and the order is load-bearing
+ * rather than arbitrary. A session is the narrower claim — it names a
+ * conversation whose directory the host already fixed — so a `workspace=`
+ * appended to an otherwise legitimate console request must not be able to
+ * redirect the read. Trying the workspace first made exactly that request read
+ * a different project (a 404 here, but the wrong shape of answer), which is
+ * what `the workspace never crosses the wire` asserts against.
  */
 function workspaceFor(ctx: Context, url: URL): string | undefined {
   const raw = url.searchParams.get('session')
-  if (raw === null || raw === '') return undefined
+  if (raw === null || raw === '') return workspaceById(ctx, url)
   // `SessionId` is a branded constructor, not a cast: it validates the shape
   // before anything is looked up, so a malformed id is refused here rather
   // than coerced into a lookup that quietly misses.
@@ -134,6 +205,22 @@ function workspaceFor(ctx: Context, url: URL): string | undefined {
   // an older conversation.
   for (const workspace of ctx.workspaceRegistry.list()) {
     if (workspace.sessionIds.includes(sessionId)) return workspace.path
+  }
+  return undefined
+}
+
+/**
+ * The workspace a `workspace=<WorkspaceId>` parameter names, or undefined.
+ *
+ * Compared, never constructed: `String(id) === named` needs no branded
+ * constructor and cannot mint an id the registry never issued, so a path
+ * spelled into this parameter simply matches no record and is refused.
+ */
+function workspaceById(ctx: Context, url: URL): string | undefined {
+  const named = url.searchParams.get('workspace')
+  if (named === null || named === '') return undefined
+  for (const workspace of ctx.workspaceRegistry.list()) {
+    if (String(workspace.id) === named) return workspace.path
   }
   return undefined
 }
@@ -169,6 +256,36 @@ export function apply(ctx: Context): void {
         project: basename(workspace),
         executions,
       } satisfies ProjectExecutionsBody)
+    },
+  }))
+
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'exact',
+    path: `${ROUTE_PREFIX}/overview`,
+    handler: (req, res) => {
+      const url = requestUrl(req)
+      const workspace = url === undefined ? undefined : workspaceFor(ctx, url)
+      if (workspace === undefined) {
+        json(res, 404, { error: 'unknown project', code: 'PROJECT_NOT_FOUND' })
+        return
+      }
+      // One body from one pair of reads, not three routes the home would have
+      // to stitch: a project home assembled from three round trips could show
+      // a task whose executions were pruned between two of them.
+      const executions = ctx.rheplicantProject.listExecutions(workspace)
+      const contents = ctx.rheplicantProject.listContents(workspace)
+      json(res, 200, {
+        project: basename(workspace),
+        tasks: withExecutions(workspace, contents.tasks, executions),
+        inputs: contents.inputs.map(input => ({
+          path: input.path,
+          bytes: input.bytes,
+          modifiedAt: input.modifiedAt,
+          extension: input.extension,
+        })),
+        executions: executions.map(summary => row(workspace, summary)),
+        truncated: contents.truncated,
+      } satisfies ProjectOverviewBody)
     },
   }))
 
