@@ -48,10 +48,12 @@ const DOCUMENT = {
 //     state/where/record/rtol.
 //   - `rheplicant/run` — one FAILED run (`RUN_FAILED`, not `BUILD_FAILED`,
 //     so axes/built are genuinely ambiguous — the "unknown" pass chip),
-//     diagnostics `rhat: 1.4` / `divergences: 3` / `converged: false`, and
-//     one post-flight gate finding (C12 refuse) — the always-on C16/C18 rows
-//     are never sourced from an event; the panel renders them unconditionally
-//     once there is any gates evidence at all.
+//     diagnostics `rhat: 1.4` / `divergences: 3` / `converged: false`, a
+//     signal-path `graph` (the document declares `model: { sky: ... }`, so
+//     the console's `signal-path` panel has data to render its legend from),
+//     and one post-flight gate finding (C12 refuse) — the always-on C16/C18
+//     rows are never sourced from an event; the panel renders them
+//     unconditionally once there is any gates evidence at all.
 // All three events are `ignorable` (the envelope marker for the out-of-repo
 // event type — see `packages/core/session/src/index.ts`'s `append` patch).
 const SEED_FIXTURE = [
@@ -61,7 +63,7 @@ const SEED_FIXTURE = [
   '{"type":"step/start","seq":2,"time":1784974200827,"data":{"turn":1,"step":1}}',
   `{"type":"rheplicant/validate","seq":3,"time":1784974200828,"ignorable":true,"data":{"document":${JSON.stringify(DOCUMENT)},"transport":"local","report":{"valid":false,"errors":[{"path":"inference.parameters.g","code":"UNKNOWN_LATENT","message":"inference.parameters.g names a latent the model does not declare."}],"warnings":[]}}}`,
   `{"type":"rheplicant/gates","seq":4,"time":1784974200829,"ignorable":true,"data":{"document":${JSON.stringify(DOCUMENT)},"transport":"local","report":{"checks":[{"check":"linearity","mode":"refuse","id":"C12","state":"refuse","record":true,"reason":null,"where":"inference.checks.linearity","rtol":null},{"check":"identifiability","mode":"skip","id":"C13","state":"skip","record":false,"reason":${JSON.stringify(IDENTIFIABILITY_SKIP_REASON)},"where":"inference.checks.identifiability","rtol":0.01},{"check":"prior_sensitivity","mode":"skip","id":"C19","state":"off","record":false,"reason":null,"where":"inference.checks.prior_sensitivity","rtol":null}],"runs":[],"warnings":[]}}}`,
-  `{"type":"rheplicant/run","seq":5,"time":1784974200830,"ignorable":true,"data":{"document":${JSON.stringify(DOCUMENT)},"transport":"local","outcome":{"runs":[{"name":"fit","kind":"nuts","status":"failed","diagnostics":{"rhat":1.4,"divergences":3,"converged":false},"error":{"code":"RUN_FAILED","message":"nuts sampler diverged."}}],"tookMs":842,"gates":[{"check":"C12","severity":"refuse","where":"inference.checks.linearity","message":"Linearity departure exceeds tolerance for operator NoiseWave."}]}}}`,
+  `{"type":"rheplicant/run","seq":5,"time":1784974200830,"ignorable":true,"data":{"document":${JSON.stringify(DOCUMENT)},"transport":"local","outcome":{"runs":[{"name":"fit","kind":"nuts","status":"failed","diagnostics":{"rhat":1.4,"divergences":3,"converged":false},"error":{"code":"RUN_FAILED","message":"nuts sampler diverged."}}],"tookMs":842,"graph":{"graph":"single-antenna","lit":["sky"],"skipped":[],"svg":"<svg xmlns=\\"http://www.w3.org/2000/svg\\" width=\\"20\\" height=\\"20\\" role=\\"img\\"></svg>"},"gates":[{"check":"C12","severity":"refuse","where":"inference.checks.linearity","message":"Linearity departure exceeds tolerance for operator NoiseWave."}]}}}`,
   '{"type":"assistant/message","seq":6,"time":1784974200831,"data":{"turn":1,"step":1,"content":[{"type":"text","text":"The console view is ready."}],"provenance":{"provider":"deepseek-official","model":"deepseek-v4-flash"}},"surfaceOp":"append"}',
   '{"type":"step/end","seq":7,"time":1784974200832,"data":{"turn":1,"step":1}}',
   '{"type":"turn/end","seq":8,"time":1784974200833,"data":{"turn":1,"reason":{"kind":"completed"}}}',
@@ -176,10 +178,18 @@ describe('web e2e: rheplicant console workflow loop (LoopRail + Gates panel)', (
     const linearityCard = gatesPanel.locator('[data-gate-check][data-check="linearity"]')
     await linearityCard.waitFor({ timeout: 5_000 })
     expect(await linearityCard.getAttribute('data-check-state')).toBe('refuse')
+    // The card exposes its own parts: a state Badge and the mono `where` path
+    // — the legibility fix's contract (title row / where / record / reason).
+    const linearityBadge = linearityCard.locator('[data-badge-state]')
+    await linearityBadge.waitFor({ timeout: 5_000 })
+    expect(await linearityBadge.getAttribute('data-badge-state')).toBe('refuse')
+    expect(await linearityCard.locator('[data-check-where] code').innerText()).toBe('inference.checks.linearity')
 
     const identifiabilityCard = gatesPanel.locator('[data-gate-check][data-check="identifiability"]')
     await identifiabilityCard.waitFor({ timeout: 5_000 })
     expect(await identifiabilityCard.getAttribute('data-check-state')).toBe('skip')
+    expect(await identifiabilityCard.locator('[data-badge-state]').getAttribute('data-badge-state')).toBe('skip')
+    expect(await identifiabilityCard.locator('[data-check-where] code').innerText()).toBe('inference.checks.identifiability')
     // The skip's reason renders VERBATIM in a blockquote.
     const reasonBlock = identifiabilityCard.locator('[data-gate-reason]')
     await reasonBlock.waitFor({ timeout: 5_000 })
@@ -197,10 +207,61 @@ describe('web e2e: rheplicant console workflow loop (LoopRail + Gates panel)', (
     expect(await finding.getAttribute('data-check')).toBe('C12')
     expect(await finding.getAttribute('data-severity')).toBe('refuse')
 
-    // The two always-on informational checks — never gated, rendered regardless.
-    await gatesPanel.locator('[data-always-on-check="C16"]').waitFor({ timeout: 5_000 })
-    await gatesPanel.locator('[data-always-on-check="C18"]').waitFor({ timeout: 5_000 })
+    // The two always-on informational checks — never gated, rendered
+    // regardless. Each is compressed to a one-line summary with the fuller
+    // explanation behind a `[data-always-on-details]` disclosure (closed by
+    // default — native `<details>` semantics keep its content in the DOM but
+    // not painted, so assert presence/closed-state rather than visibility).
+    const c16 = gatesPanel.locator('[data-always-on-check="C16"]')
+    await c16.waitFor({ timeout: 5_000 })
+    await c16.locator('[data-always-on-summary]').waitFor({ timeout: 5_000 })
+    const c16Details = c16.locator('[data-always-on-details]')
+    await c16Details.waitFor({ timeout: 5_000 })
+    expect(await c16Details.evaluate(el => (el as HTMLDetailsElement).open)).toBe(false)
+    // `<details>` hides non-summary content from RENDERING while closed, not
+    // from the DOM — `textContent` (not `innerText`, which returns '' for
+    // unrendered content) reads it without opening the disclosure.
+    expect(await c16Details.locator('[data-always-on-note]').textContent()).toContain('ADC saturation')
+
+    const c18 = gatesPanel.locator('[data-always-on-check="C18"]')
+    await c18.waitFor({ timeout: 5_000 })
+    await c18.locator('[data-always-on-summary]').waitFor({ timeout: 5_000 })
+    const c18Details = c18.locator('[data-always-on-details]')
+    await c18Details.waitFor({ timeout: 5_000 })
+    expect(await c18Details.evaluate(el => (el as HTMLDetailsElement).open)).toBe(false)
+    expect(await c18Details.locator('[data-always-on-note]').textContent()).toContain('two-sigma cross-check')
   }, 60_000)
+
+  it('renders the Signal-path panel legend as four distinct, unconcatenated chips', async () => {
+    // Regression coverage for the legend-spacing fix: the DOM used to have no
+    // separation between chips at all — reading a chip's own text as one run
+    // of concatenated text (`sourcetransformprocessingwire`). Each chip is
+    // its own `[data-legend-node]` element, so its OWN textContent (swatch +
+    // label) must equal exactly its kind name, never bleed into a neighbor's.
+    const signalPath = page.locator('[data-panel="signal-path"]')
+    await signalPath.waitFor({ timeout: 10_000 })
+    const legend = signalPath.locator('[data-signal-path-legend]')
+    await legend.waitFor({ timeout: 5_000 })
+    const chips = legend.locator('[data-legend-node]')
+    await expect.poll(() => chips.count(), { timeout: 5_000 }).toBe(4)
+
+    const expectedLabelByKind: Record<string, string> = {
+      source: 'source',
+      transform: 'transform',
+      processing: 'processing',
+      wire: 'wire',
+    }
+    for (const [kind, label] of Object.entries(expectedLabelByKind)) {
+      const chip = legend.locator(`[data-legend-node="${kind}"]`)
+      await chip.waitFor({ timeout: 5_000 })
+      // `textContent` (not `innerText`) is the direct DOM-level check: it
+      // proves the chip's own text never bled together with a neighbor's —
+      // exactly the bug the CSS-module flex/gap fix addresses.
+      expect(await chip.textContent()).toBe(label)
+      // Every chip carries its own color swatch — the visual half of the fix.
+      expect(await chip.locator('[data-legend-swatch]').count()).toBe(1)
+    }
+  }, 30_000)
 
   it('stayed clean', async () => {
     expect(tripwire.pageErrors).toEqual([])

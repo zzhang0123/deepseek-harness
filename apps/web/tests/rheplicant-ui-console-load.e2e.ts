@@ -202,12 +202,13 @@ describe('web e2e: rheplicant console per-session panel layout (collapse, hide, 
     // exactly ONE entry, and a slot component cannot enumerate the registered
     // ledger at all — see ConsoleView.tsx's own module doc comment). The
     // layout view travels through the single shared owner-props object
-    // instead, so only the occupants that actually READ it self-apply:
-    // `gates` (ui-console), `posterior`/`chains` (ui-posterior). The other
-    // three occupants (`signal-path`, `identifiability`, `spectrum`) accept
-    // no `layout` prop at all and stay always-visible/always-expanded — an
-    // honest degrade, not a bug. This scenario exercises the collapse/hide
-    // contract ONLY on the three panels that actually honor it.
+    // instead, and all six occupants now READ it and self-apply: `gates`
+    // (ui-console), `posterior`/`chains` (ui-posterior), `signal-path`
+    // (ui-analysis), `identifiability` (ui-identifiability), `spectrum`
+    // (ui-spectrum). This scenario exercises collapse/hide on Posterior and
+    // Chains; the next `it` block below exercises hide specifically on
+    // Signal path — the panel the Panels-menu gap used to leave stuck in
+    // the grid.
     const posterior = page.locator('[data-panel="posterior"]')
     await posterior.waitFor({ timeout: 10_000 })
     const chains = page.locator('[data-panel="chains"]')
@@ -269,16 +270,17 @@ describe('web e2e: rheplicant console per-session panel layout (collapse, hide, 
     await menuAfterReload.evaluate((el) => { (el as HTMLDetailsElement).open = false })
   }, 90_000)
 
-  it('the Panels menu lists all six known occupants, but only three actually respond to hide', async () => {
-    // Documents the real (not aspirational) DOM contract: `known-panels.ts`'s
-    // roster is hand-maintained and lists every `console.panel` occupant that
-    // exists today, regardless of whether that occupant reads the layout prop
-    // at all. `gates`/`posterior`/`chains` do; `signal-path`/`identifiability`/
-    // `spectrum` do not (their own Panel components accept no `layout` prop —
-    // see SignalPathPanel.tsx, IdentifiabilityPanel.tsx, SpectrumPanel.tsx).
-    // This is a menu-affordance gap (checking one of those three off still
-    // shows a checkbox flip, but the panel never actually leaves the grid) —
-    // reported here, not fixed here.
+  it('the Panels menu lists all six known occupants, and all six actually respond to hide', async () => {
+    // Documents the real DOM contract: `known-panels.ts`'s roster is
+    // hand-maintained and lists every `console.panel` occupant that exists
+    // today. It used to be the case that `gates`/`posterior`/`chains` read
+    // the layout prop and self-applied it while `signal-path`/
+    // `identifiability`/`spectrum` silently ignored it — checking one of
+    // those three off in the menu flipped the checkbox but never removed the
+    // panel from the grid. `SignalPathPanel.tsx`/`IdentifiabilityPanel.tsx`/
+    // `SpectrumPanel.tsx` now accept and self-apply the same `layout` prop
+    // `PosteriorPanel`/`ChainsPanel` do, closing that gap — asserted here
+    // concretely on `signal-path`.
     const menu = page.locator('[data-panels-menu]')
     await menu.waitFor({ timeout: 10_000 })
     await menu.evaluate((el) => { (el as HTMLDetailsElement).open = true })
@@ -287,22 +289,19 @@ describe('web e2e: rheplicant console per-session panel layout (collapse, hide, 
     const ids = await items.evaluateAll(nodes => nodes.map(node => node.getAttribute('data-panels-menu-item')))
     expect(ids.sort()).toEqual(['chains', 'gates', 'identifiability', 'posterior', 'signal-path', 'spectrum'])
 
-    // Toggle "Signal path" off: the menu accepts the click (it has no
-    // per-panel gating of its own — every roster row is checkable), but the
-    // panel — which never reads a `layout` prop — stays in the grid.
+    // Toggle "Signal path" off: the panel now actually leaves the grid.
     const signalPathItem = menu.locator('[data-panels-menu-item="signal-path"]')
     await signalPathItem.waitFor({ timeout: 5_000 })
     expect(await page.locator('[data-panel="signal-path"]').count()).toBe(1)
     await signalPathItem.locator('input[type="checkbox"]').click()
     expect(await signalPathItem.locator('input[type="checkbox"]').isChecked()).toBe(false)
-    // Give the (non-)effect a moment to (not) happen, then assert the panel
-    // is still there — the broken affordance, made concrete.
-    await page.waitForTimeout(300)
-    expect(await page.locator('[data-panel="signal-path"]').count()).toBe(1)
+    await expect.poll(() => page.locator('[data-panel="signal-path"]').count(), { timeout: 5_000 }).toBe(0)
 
-    // Restore the checkbox state so this test does not leak into any test
-    // that might run after it in this file.
+    // Toggling it back on restores the panel to the grid.
     await signalPathItem.locator('input[type="checkbox"]').click()
+    expect(await signalPathItem.locator('input[type="checkbox"]').isChecked()).toBe(true)
+    await expect.poll(() => page.locator('[data-panel="signal-path"]').count(), { timeout: 5_000 }).toBe(1)
+
     await menu.evaluate((el) => { (el as HTMLDetailsElement).open = false })
   }, 30_000)
 
