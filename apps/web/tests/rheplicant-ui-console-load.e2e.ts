@@ -89,12 +89,24 @@ describe('web e2e: rheplicant console view renders its panel grid', () => {
     expect(posteriorBg).not.toBe('transparent')
     expect(posteriorBg).toMatch(/^rgba?\(/)
 
-    // The posterior folds the seeded rheplicant/run into a corner plot, and the
-    // spectrum/identifiability panels render their own runs from the same log.
+    // The posterior folds the seeded rheplicant/run into per-latent marginal
+    // histograms (the chart kit's Histogram), and the spectrum/identifiability
+    // panels render their own runs from the same log.
     const run = posterior.locator('[data-posterior-run]')
     await run.waitFor({ timeout: 10_000 })
     expect(await run.count()).toBe(1)
     expect(await run.getAttribute('data-run-name')).toBe('fit')
+    const marginal = run.locator('[data-marginal]').first()
+    await marginal.waitFor({ timeout: 5_000 })
+    expect(await run.locator('[data-marginal]').count()).toBeGreaterThan(0)
+    expect(await marginal.locator('[data-bin]').count()).toBeGreaterThan(0)
+
+    // The pairwise corner scatter moved behind a collapsed disclosure; open it
+    // before asserting its contents (native `<details>` semantics hide
+    // non-summary content from view, not from the DOM, while collapsed).
+    const cornerDetails = run.locator('[data-corner-details]')
+    await cornerDetails.waitFor({ timeout: 5_000 })
+    await cornerDetails.locator('summary').click()
     await run.locator('[data-corner]').waitFor({ timeout: 5_000 })
     expect(await run.locator('[data-corner-hist]').count()).toBeGreaterThan(0)
     expect(await run.locator('[data-corner-scatter]').count()).toBeGreaterThan(0)
@@ -111,15 +123,27 @@ describe('web e2e: rheplicant console view renders its panel grid', () => {
     await spectrum.waitFor({ timeout: 10_000 })
     expect(await spectrum.count()).toBe(1)
     expect(await spectrum.locator('[data-panel-title]').innerText()).toBe('Spectrum')
-    await spectrum.locator('[data-spectrum-cell]').first().waitFor({ timeout: 5_000 })
-    expect(await spectrum.locator('[data-spectrum-cell]').count()).toBeGreaterThan(0)
+    // The heatmap renders every cell (`[data-cell]`, the chart kit's HeatMap),
+    // not the old hand-rolled `[data-spectrum-cell]` rects.
+    await spectrum.locator('[data-cell]').first().waitFor({ timeout: 5_000 })
+    expect(await spectrum.locator('[data-cell]').count()).toBeGreaterThan(0)
 
     const identifiability = page.locator('[data-panel="identifiability"]')
     await identifiability.waitFor({ timeout: 10_000 })
     expect(await identifiability.count()).toBe(1)
     expect(await identifiability.locator('[data-panel-title]').innerText()).toBe('Identifiability')
-    await identifiability.locator('[data-singular-value]').first().waitFor({ timeout: 5_000 })
-    expect(await identifiability.locator('[data-singular-value]').count()).toBeGreaterThan(0)
+    // The singular-value spectrum renders as the chart kit's BarChart
+    // (`[data-bar]`), not the old hand-rolled `[data-singular-value]` rects.
+    await identifiability.locator('[data-bar]').first().waitFor({ timeout: 5_000 })
+    expect(await identifiability.locator('[data-bar]').count()).toBeGreaterThan(0)
+
+    // The new Chains panel (registered after Posterior) also occupies the
+    // console.panel grid, sourced from the same seeded run.
+    const chains = page.locator('[data-panel="chains"]')
+    await chains.waitFor({ timeout: 10_000 })
+    expect(await chains.count()).toBe(1)
+    expect(await chains.locator('[data-panel-title]').innerText()).toBe('Chains')
+    expect(await chains.locator('[data-chains-run][data-run-name="fit"]').count()).toBe(1)
   }, 60_000)
 
   it('stayed clean', async () => {
