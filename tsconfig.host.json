@@ -91,6 +91,7 @@
     "apps/web/tests/rheplicant-analysis.e2e.ts",
     "apps/web/tests/rheplicant-presets-mount.e2e.ts",
     "apps/web/tests/rheplicant-tools-mount.e2e.ts",
+    "apps/web/tests/rheplicant-task-file.e2e.ts",
     "apps/web/tests/rheplicant-ui-brand-load.e2e.ts",
     "apps/web/tests/rheplicant-ui-compute-load.e2e.ts",
     "apps/web/tests/rheplicant-ui-console-load.e2e.ts",

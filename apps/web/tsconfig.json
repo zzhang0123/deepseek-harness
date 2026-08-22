@@ -107,6 +107,7 @@
     "tests/rheplicant-console-loop.e2e.ts",
     "tests/rheplicant-presets-mount.e2e.ts",
     "tests/rheplicant-tools-mount.e2e.ts",
+    "tests/rheplicant-task-file.e2e.ts",
     "tests/rheplicant-ui-brand-load.e2e.ts",
     "tests/rheplicant-ui-compute-load.e2e.ts",
     "tests/rheplicant-ui-console-load.e2e.ts",
