@@ -1668,10 +1668,6 @@ importers:
         version: link:../../runtime-diagnostics/invariants
 
   packages/client/rheplicant-ui-analysis:
-    dependencies:
-      '@rheplicant/dsh-rheplicant-ui-kit':
-        specifier: workspace:^
-        version: link:../../rheplicant/ui-kit
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:^
@@ -1688,6 +1684,9 @@ importers:
       '@deepseek-ai/dsh-session':
         specifier: workspace:^
         version: link:../../core/session
+      '@rheplicant/dsh-rheplicant-ui-kit':
+        specifier: workspace:^
+        version: link:../../rheplicant/ui-kit
       '@types/react':
         specifier: ~18.3.1
         version: 18.3.31
@@ -1741,10 +1740,6 @@ importers:
         version: 18.3.1
 
   packages/client/rheplicant-ui-console:
-    dependencies:
-      '@rheplicant/dsh-rheplicant-ui-kit':
-        specifier: workspace:^
-        version: link:../../rheplicant/ui-kit
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:^
@@ -1761,6 +1756,9 @@ importers:
       '@deepseek-ai/dsh-invariants':
         specifier: workspace:^
         version: link:../../runtime-diagnostics/invariants
+      '@rheplicant/dsh-rheplicant-ui-kit':
+        specifier: workspace:^
+        version: link:../../rheplicant/ui-kit
       '@types/react':
         specifier: ~18.3.1
         version: 18.3.31
@@ -1790,10 +1788,6 @@ importers:
         version: 18.3.1
 
   packages/client/rheplicant-ui-identifiability:
-    dependencies:
-      '@rheplicant/dsh-rheplicant-ui-kit':
-        specifier: workspace:^
-        version: link:../../rheplicant/ui-kit
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:^
@@ -1813,6 +1807,9 @@ importers:
       '@deepseek-ai/dsh-invariants':
         specifier: workspace:^
         version: link:../../runtime-diagnostics/invariants
+      '@rheplicant/dsh-rheplicant-ui-kit':
+        specifier: workspace:^
+        version: link:../../rheplicant/ui-kit
       '@types/react':
         specifier: ~18.3.1
         version: 18.3.31
@@ -1821,10 +1818,6 @@ importers:
         version: 18.3.1
 
   packages/client/rheplicant-ui-posterior:
-    dependencies:
-      '@rheplicant/dsh-rheplicant-ui-kit':
-        specifier: workspace:^
-        version: link:../../rheplicant/ui-kit
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:^
@@ -1844,6 +1837,9 @@ importers:
       '@deepseek-ai/dsh-invariants':
         specifier: workspace:^
         version: link:../../runtime-diagnostics/invariants
+      '@rheplicant/dsh-rheplicant-ui-kit':
+        specifier: workspace:^
+        version: link:../../rheplicant/ui-kit
       '@types/react':
         specifier: ~18.3.1
         version: 18.3.31
@@ -1852,10 +1848,6 @@ importers:
         version: 18.3.1
 
   packages/client/rheplicant-ui-spectrum:
-    dependencies:
-      '@rheplicant/dsh-rheplicant-ui-kit':
-        specifier: workspace:^
-        version: link:../../rheplicant/ui-kit
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:^
@@ -1875,6 +1867,9 @@ importers:
       '@deepseek-ai/dsh-invariants':
         specifier: workspace:^
         version: link:../../runtime-diagnostics/invariants
+      '@rheplicant/dsh-rheplicant-ui-kit':
+        specifier: workspace:^
+        version: link:../../rheplicant/ui-kit
       '@types/react':
         specifier: ~18.3.1
         version: 18.3.31
