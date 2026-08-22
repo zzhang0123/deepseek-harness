@@ -20,24 +20,36 @@ const BAR_WIDTH = 10
 const BAR_GAP = 3
 const MAX_BAR_HEIGHT = 64
 
-/** Narrow an untyped diagnostics field down to a finite number array, or `undefined` if it isn't one. */
-function asNumberArray(value: unknown): readonly number[] | undefined {
-  if (!Array.isArray(value)) return undefined
-  return value.every((entry): entry is number => typeof entry === 'number') ? value : undefined
+/**
+ * Narrow an untyped diagnostics field down to a numeric array, or `undefined`
+ * if it isn't one. `null` entries are legal — the wire spells a non-finite
+ * singular value as JSON null — and must not disqualify the whole array.
+ */
+function asNumberArray(value: unknown): readonly (number | null)[] | undefined {
+  // An empty array means "no singular values" — treated the same as an
+  // absent field, so the bar chart never computes a negative SVG width.
+  if (!Array.isArray(value) || value.length === 0) return undefined
+  return value.every((entry): entry is number | null => typeof entry === 'number' || entry === null)
+    ? value
+    : undefined
 }
 
 /** The `singular_values` diagnostic for one run, or `undefined` when the run doesn't carry one. */
-function runSingularValues(run: AnalysisRun): readonly number[] | undefined {
+function runSingularValues(run: AnalysisRun): readonly (number | null)[] | undefined {
   return asNumberArray(run.diagnostics?.singular_values)
 }
 
-const SingularValues = memo(function SingularValues({ values }: { values: readonly number[] }) {
-  const maxLog = values.reduce((m, value) => Math.max(m, Math.log1p(value)), 0) || 1
+const SingularValues = memo(function SingularValues({ values }: { values: readonly (number | null)[] }) {
+  // A null (non-finite) singular value draws as the 1px floor bar — keeping
+  // its slot so bar i is always singular value i. The explicit <number> type
+  // argument keeps the accumulator `number`: reduce over a union-typed array
+  // otherwise locks the accumulator to `number | null`.
+  const maxLog = values.reduce<number>((m, value) => Math.max(m, Math.log1p(value ?? 0)), 0) || 1
   const width = values.length * (BAR_WIDTH + BAR_GAP) - BAR_GAP
   return (
     <svg width={width} height={MAX_BAR_HEIGHT} role="img" aria-label="Singular values" data-singular-values>
       {values.map((value, i) => {
-        const height = Math.max(1, (Math.log1p(value) / maxLog) * MAX_BAR_HEIGHT)
+        const height = Math.max(1, (Math.log1p(value ?? 0) / maxLog) * MAX_BAR_HEIGHT)
         return (
           <rect key={i} x={i * (BAR_WIDTH + BAR_GAP)} y={MAX_BAR_HEIGHT - height} width={BAR_WIDTH} height={height} fill={TOKEN.lit} data-singular-value />
         )

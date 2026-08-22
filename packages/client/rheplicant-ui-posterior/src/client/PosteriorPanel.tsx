@@ -18,11 +18,16 @@ interface PosteriorPanelProps {
 }
 
 /** An analysis run that has the chain draws this panel needs to draw a corner plot. */
-type PosteriorRun = AnalysisRun & { readonly chains: Record<string, number[]> }
+type PosteriorRun = AnalysisRun & { readonly chains: Record<string, (number | null)[]> }
 
 const BINS = 20
 const CELL = 96
 const PAD = 8
+
+/** Drop the `null` draws — the wire's spelling of a non-finite value. */
+function finiteValues(values: readonly (number | null)[]): number[] {
+  return values.filter((value): value is number => value !== null)
+}
 
 /** Bin a draw sequence into a ~20-bin 1D histogram. */
 function histogram(values: number[]): number[] {
@@ -53,7 +58,7 @@ function hasChains(run: AnalysisRun): run is PosteriorRun {
 }
 
 /** Corner plot: diagonal 1D histograms, upper triangle 2D scatter. */
-const Corner = memo(function Corner({ chains }: { chains: Record<string, number[]> }) {
+const Corner = memo(function Corner({ chains }: { chains: Record<string, (number | null)[]> }) {
   const entries = Object.entries(chains)
   const n = entries.length
   const size = PAD + n * CELL
@@ -61,7 +66,7 @@ const Corner = memo(function Corner({ chains }: { chains: Record<string, number[
   return (
     <svg width={size} height={size} data-corner role="img" aria-label="Corner plot">
       {entries.map(([latent, values], i) => {
-        const counts = histogram(values)
+        const counts = histogram(finiteValues(values))
         const maxCount = Math.max(...counts) || 1
         const barWidth = CELL / BINS
         const color = latentColor(i, n)
@@ -76,25 +81,33 @@ const Corner = memo(function Corner({ chains }: { chains: Record<string, number[
       })}
       {entries.map(([li, xs], i) => entries.map(([lj, ys], j) => {
         if (i >= j) return null
-        const xMin = Math.min(...xs)
-        const xMax = Math.max(...xs)
-        const yMin = Math.min(...ys)
-        const yMax = Math.max(...ys)
+        const xFinite = finiteValues(xs)
+        const yFinite = finiteValues(ys)
+        const xMin = Math.min(...xFinite)
+        const xMax = Math.max(...xFinite)
+        const yMin = Math.min(...yFinite)
+        const yMax = Math.max(...yFinite)
         const xRange = xMax - xMin || 1
         const yRange = yMax - yMin || 1
         const color = latentColor(i, n)
         return (
           <g key={`scatter-${li}-${lj}`} transform={`translate(${PAD + j * CELL}, ${PAD + i * CELL})`}>
-            {xs.map((x, k) => (
-              <circle
-                key={k}
-                cx={((x - xMin) / xRange) * CELL}
-                cy={CELL - (((ys[k] ?? 0) - yMin) / yRange) * CELL}
-                r={1.2}
-                fill={color}
-                data-corner-scatter
-              />
-            ))}
+            {xs.map((x, k) => {
+              const y = ys[k]
+              // A draw with a non-finite value in either coordinate has no
+              // point in this pane — skipped, not coerced to an axis edge.
+              if (x === null || y === null || y === undefined) return null
+              return (
+                <circle
+                  key={k}
+                  cx={((x - xMin) / xRange) * CELL}
+                  cy={CELL - ((y - yMin) / yRange) * CELL}
+                  r={1.2}
+                  fill={color}
+                  data-corner-scatter
+                />
+              )
+            })}
           </g>
         )
       }))}
@@ -112,7 +125,9 @@ const RunDiagnosticStats = memo(function RunDiagnosticStats({ run }: { run: Post
       {diagnostics.rhat !== undefined ? (
         <StatRow statKey="rhat" label="rhat" value={formatDiagnostic('rhat', diagnostics.rhat)} />
       ) : null}
-      {typeof nEff === 'number' ? (
+      {typeof nEff === 'number' || nEff === null ? (
+        // null is the wire's spelling of a non-finite n_eff — rendered `—`,
+        // not silently dropped.
         <StatRow statKey="n_eff" label="n_eff" value={formatDiagnostic('n_eff', nEff)} />
       ) : null}
       {typeof nEff === 'object' && nEff !== null

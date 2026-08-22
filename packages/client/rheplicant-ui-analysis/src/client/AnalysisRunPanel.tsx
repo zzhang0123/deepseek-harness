@@ -48,10 +48,9 @@ const SignalPath = memo(function SignalPath({ graph }: { graph: SignalPathGraph 
  * the authoritative numbers never hide inside a generated explanation.
  */
 /** Format a scalar-or-per-sweep diagnostic (`typeof` narrows where Array.isArray cannot on readonly arrays). */
-function formatScalarOrList(key: string, value: number | readonly number[]): string {
-  return typeof value === 'number'
-    ? formatDiagnostic(key, value)
-    : value.map(entry => formatDiagnostic(key, entry)).join(', ')
+function formatScalarOrList(key: string, value: number | null | readonly (number | null)[]): string {
+  if (typeof value === 'number' || value === null) return formatDiagnostic(key, value)
+  return value.map(entry => formatDiagnostic(key, entry)).join(', ')
 }
 
 const Diagnostics = memo(function Diagnostics({ diagnostics }: { diagnostics: RunDiagnostics }) {
@@ -92,7 +91,7 @@ const Diagnostics = memo(function Diagnostics({ diagnostics }: { diagnostics: Ru
         <>
           <dt>n_eff</dt>
           <dd data-diag-n-eff>
-            {typeof diagnostics.n_eff === 'number'
+            {typeof diagnostics.n_eff === 'number' || diagnostics.n_eff === null
               ? formatDiagnostic('n_eff', diagnostics.n_eff)
               : Object.entries(diagnostics.n_eff).map(([latent, value]) => `${latent}: ${formatDiagnostic('n_eff', value)}`).join(', ')}
           </dd>

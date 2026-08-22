@@ -21,8 +21,9 @@ export interface AnalysisRunChatData {
     readonly kind: string
     readonly status: 'ok' | 'failed'
     readonly diagnostics?: RunDiagnostics
-    readonly chains?: Record<string, number[]>
-    readonly spectrum?: number[][]
+    /** Passed through verbatim from the wire `RunEntry.chains` (see its key grammar; nulls = non-finite). */
+    readonly chains?: Record<string, (number | null)[]>
+    readonly spectrum?: (number | null)[][]
   }[]
   readonly tookMs?: number
   readonly graph?: SignalPathGraph
