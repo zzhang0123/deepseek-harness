@@ -33,6 +33,7 @@ import { closeHome, selectProject, useHome } from './home-store.ts'
 import {
   countByStatus, formatBytes, groupExecutionsByTask, taskSegmentOf,
 } from './home-selectors.ts'
+import { canNavigate, openProject } from './navigate.ts'
 import { useProjectOverview } from './use-project-overview.ts'
 import styles from './project-home.module.css'
 
@@ -70,13 +71,20 @@ interface ProjectHomeProps {
     items: readonly WorkspaceRow[]
     recentWorkspaceId: string | undefined
   }) => T) => T
+  /**
+   * The session list, read for one thing only: whether the session that
+   * produced an execution still exists, so the home can open THAT one rather
+   * than the project's blank session.
+   */
+  readonly useSessions: <T>(selector: (state: { ids: readonly string[] }) => T) => T
 }
 
-export const ProjectHome = memo(function ProjectHome({ useWorkspaces }: ProjectHomeProps) {
+export const ProjectHome = memo(function ProjectHome({ useWorkspaces, useSessions }: ProjectHomeProps) {
   const { open, workspaceId } = useHome()
   const [nonce, setNonce] = useState(0)
   const workspaces = useWorkspaces(state => state.items)
   const recent = useWorkspaces(state => state.recentWorkspaceId)
+  const sessionIds = useSessions(state => state.ids)
 
   // The chooser has no default SELECTION (§6.0), but landing on a blank page
   // when there is an obvious project to look at is not a choice, it is a
@@ -96,6 +104,21 @@ export const ProjectHome = memo(function ProjectHome({ useWorkspaces }: ProjectH
   }, [open])
 
   const refresh = useCallback(() => { setNonce(value => value + 1) }, [])
+  // A failed connect leaves the home open and unchanged, which is the only
+  // honest thing it can do: there is nowhere to have gone.
+  const [failure, setFailure] = useState<string | undefined>(undefined)
+  const live = useMemo(() => new Set(sessionIds.map(String)), [sessionIds])
+  const jumpTo = useCallback((executionId?: string, producedBy?: string) => {
+    if (chosen === undefined) return
+    setFailure(undefined)
+    // Only a session that still exists is worth aiming at; a pruned one would
+    // fail to open, and connecting the workspace is the honest fallback.
+    const inSession = producedBy !== undefined && live.has(producedBy) ? producedBy : undefined
+    void openProject(chosen, { executionId, inSession }).catch((error: unknown) => {
+      setFailure(error instanceof Error ? error.message : String(error))
+    })
+  }, [chosen, live])
+  const openable = canNavigate()
 
   // Guarded on `shownFor`, never on `overview` alone: an overview held over a
   // refresh belongs to the project it was fetched for, and rendering it under
@@ -112,6 +135,16 @@ export const ProjectHome = memo(function ProjectHome({ useWorkspaces }: ProjectH
     () => new Set(byTask.map(group => group.task)),
     [byTask],
   )
+  // executionId -> the session our sidecar recorded as its producer. A task
+  // row names only its newest execution's ID, so this is how it reaches the
+  // same session that execution's own row would.
+  const producerOf = useMemo(() => {
+    const found = new Map<string, string>()
+    for (const execution of current?.executions ?? []) {
+      if (execution.sessionId !== undefined) found.set(execution.executionId, execution.sessionId)
+    }
+    return found
+  }, [current])
 
   if (!open) return null
 
@@ -165,6 +198,11 @@ export const ProjectHome = memo(function ProjectHome({ useWorkspaces }: ProjectH
           )
           : (
             <div className={styles.body}>
+              {failure !== undefined && (
+                <p className={styles.warning} data-project-open-failed="">
+                  Could not open this project: {failure}
+                </p>
+              )}
               {current.truncated && (
                 <p className={styles.warning} data-project-truncated="">
                   This project is larger than one listing walk covers, so the tasks and
@@ -186,6 +224,26 @@ export const ProjectHome = memo(function ProjectHome({ useWorkspaces }: ProjectH
                         <li key={task.path} className={styles.row} data-project-task={task.path}>
                           <span className={styles.mono}>{task.path}</span>
                           <span className={styles.meta}>{formatBytes(task.bytes)}</span>
+                          {openable && (
+                            <button
+                              type="button"
+                              className={styles.open}
+                              data-project-open-task={task.path}
+                              onClick={() => {
+                                jumpTo(
+                                  task.newestExecutionId,
+                                  task.newestExecutionId === undefined
+                                    ? undefined
+                                    : producerOf.get(task.newestExecutionId),
+                                )
+                              }}
+                            >
+                              {/* A task with a history opens ON that history; one
+                                  without simply opens the project, because there
+                                  is no execution to point at. */}
+                              {task.newestExecutionId === undefined ? 'Open project' : 'Open latest'}
+                            </button>
+                          )}
                           {ranSegments.has(taskSegmentOf(task.path))
                             ? (
                               <Badge state="ok">
@@ -257,6 +315,18 @@ export const ProjectHome = memo(function ProjectHome({ useWorkspaces }: ProjectH
                                 <Badge state={EXECUTION_BADGE[execution.status]}>
                                   {execution.status}
                                 </Badge>
+                                {openable && (
+                                  <button
+                                    type="button"
+                                    className={styles.open}
+                                    data-project-open-execution={execution.executionId}
+                                    onClick={() => {
+                                      jumpTo(execution.executionId, execution.sessionId)
+                                    }}
+                                  >
+                                    Open
+                                  </button>
+                                )}
                               </li>
                             ))}
                           </ul>

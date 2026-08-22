@@ -12,8 +12,9 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProjectHome } from '../src/client/ProjectHome.tsx'
 import { closeHome, openHome, resetHome, selectProject } from '../src/client/home-store.ts'
+import { setNavigator } from '../src/client/navigate.ts'
 
-afterEach(() => { cleanup(); resetHome(); vi.unstubAllGlobals() })
+afterEach(() => { cleanup(); resetHome(); setNavigator(undefined); vi.unstubAllGlobals() })
 beforeEach(() => { vi.unstubAllGlobals() })
 
 const WORKSPACES = [
@@ -50,11 +51,13 @@ function serve(bodies: Record<string, Record<string, unknown> | null>): void {
   }))
 }
 
-/** Render the home over a fixed workspace list. */
-function mount(recent: string | undefined = 'ws-1') {
+/** Render the home over a fixed workspace list and session list. */
+function mount(recent: string | undefined = 'ws-1', sessionIds: readonly string[] = []) {
   const state = { items: WORKSPACES, recentWorkspaceId: recent }
+  const sessions = { ids: sessionIds }
   const useWorkspaces = <T,>(selector: (value: typeof state) => T): T => selector(state)
-  return render(<ProjectHome useWorkspaces={useWorkspaces} />)
+  const useSessions = <T,>(selector: (value: typeof sessions) => T): T => selector(sessions)
+  return render(<ProjectHome useWorkspaces={useWorkspaces} useSessions={useSessions} />)
 }
 
 describe('when it is closed', () => {
@@ -214,5 +217,182 @@ describe('opening and closing', () => {
     // No throw, no stale handler: the assertion is that this is inert.
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+})
+
+describe('opening a project from a row', () => {
+  /** Install a navigator that records calls, and undo it after the test. */
+  function navigator() {
+    const calls: string[] = []
+    setNavigator({
+      connect: (workspaceId) => {
+        calls.push(`connect:${workspaceId}`)
+        return Promise.resolve(`S-${workspaceId}`)
+      },
+      open: (sessionId) => { calls.push(`open:${sessionId}`) },
+      requestExecution: (s, e) => { calls.push(`request:${s}:${e}`) },
+    })
+    return calls
+  }
+
+  it('offers nothing to open when no navigator was installed', async () => {
+    // A composition with no conversation surface to send anyone to: the home
+    // is still a useful listing, it just stops pretending it can leave.
+    setNavigator(undefined)
+    serve({ 'ws-1': overview('rhino') })
+    openHome('ws-1')
+    const { container } = mount()
+    await waitFor(() => { expect(container.querySelector('[data-project-tasks]')).toBeTruthy() })
+    expect(container.querySelector('[data-project-open-execution]')).toBeNull()
+    expect(container.querySelector('[data-project-open-task]')).toBeNull()
+  })
+
+  it('opens an execution: connect, request, open, close', async () => {
+    const calls = navigator()
+    serve({ 'ws-1': overview('rhino') })
+    openHome('ws-1')
+    const { container } = mount()
+    await waitFor(() => { expect(container.querySelector('[data-project-open-execution]')).toBeTruthy() })
+    fireEvent.click(container.querySelector('[data-project-open-execution]')!)
+    await waitFor(() => { expect(calls).toContain('open:S-ws-1') })
+    expect(calls).toEqual(['connect:ws-1', 'request:S-ws-1:rhino-E1', 'open:S-ws-1'])
+    await waitFor(() => { expect(container.querySelector('[data-project-home]')).toBeNull() })
+  })
+
+  it('opens a task on its newest execution', async () => {
+    const calls = navigator()
+    serve({
+      'ws-1': overview('rhino', {
+        tasks: [{
+          path: 'rhino-fit.yaml', bytes: 1, modifiedAt: 'x',
+          executionCount: 2, newestExecutionId: 'rhino-E1',
+        }],
+      }),
+    })
+    openHome('ws-1')
+    const { container } = mount()
+    await waitFor(() => { expect(container.querySelector('[data-project-open-task]')).toBeTruthy() })
+    expect(screen.getByText('Open latest')).toBeTruthy()
+    fireEvent.click(container.querySelector('[data-project-open-task]')!)
+    await waitFor(() => { expect(calls).toContain('open:S-ws-1') })
+    expect(calls).toContain('request:S-ws-1:rhino-E1')
+  })
+
+  it('opens a never-run task WITHOUT requesting an execution', async () => {
+    // There is nothing to point the console at, and inventing one would show
+    // some other task's results under this task's name.
+    const calls = navigator()
+    serve({
+      'ws-1': overview('rhino', {
+        tasks: [{ path: 'lonely.yaml', bytes: 1, modifiedAt: 'x', executionCount: 0 }],
+        executions: [],
+      }),
+    })
+    openHome('ws-1')
+    const { container } = mount()
+    await waitFor(() => { expect(container.querySelector('[data-project-open-task]')).toBeTruthy() })
+    expect(screen.getByText('Open project')).toBeTruthy()
+    fireEvent.click(container.querySelector('[data-project-open-task]')!)
+    await waitFor(() => { expect(calls).toContain('open:S-ws-1') })
+    expect(calls.some(call => call.startsWith('request:'))).toBe(false)
+  })
+
+  it('says so and stays open when connecting fails', async () => {
+    setNavigator({
+      connect: () => Promise.reject(new Error('the host is offline')),
+      open: () => { throw new Error('must not open') },
+    })
+    serve({ 'ws-1': overview('rhino') })
+    openHome('ws-1')
+    const { container } = mount()
+    await waitFor(() => { expect(container.querySelector('[data-project-open-execution]')).toBeTruthy() })
+    fireEvent.click(container.querySelector('[data-project-open-execution]')!)
+    await waitFor(() => {
+      expect(container.querySelector('[data-project-open-failed]')).toBeTruthy()
+    })
+    expect(screen.getByText(/the host is offline/)).toBeTruthy()
+    expect(container.querySelector('[data-project-home]')).toBeTruthy()
+  })
+})
+
+describe('which session a row lands in', () => {
+  /** A navigator recording calls, torn down by the file-level afterEach. */
+  function navigator() {
+    const calls: string[] = []
+    setNavigator({
+      connect: (workspaceId) => {
+        calls.push(`connect:${workspaceId}`)
+        return Promise.resolve(`S-${workspaceId}`)
+      },
+      open: (sessionId) => { calls.push(`open:${sessionId}`) },
+      requestExecution: (s, e) => { calls.push(`request:${s}:${e}`) },
+    })
+    return calls
+  }
+
+  /** An overview whose single execution names the session that produced it. */
+  function producedBy(sessionId: string | undefined) {
+    const execution: Record<string, unknown> = {
+      executionId: 'rhino-E1',
+      task: 'rhino-fit',
+      status: 'ok',
+      path: 'results/rhino-fit/rhino-E1/',
+    }
+    if (sessionId !== undefined) execution.sessionId = sessionId
+    return overview('rhino', {
+      tasks: [{
+        path: 'rhino-fit.yaml', bytes: 1, modifiedAt: 'x',
+        executionCount: 1, newestExecutionId: 'rhino-E1',
+      }],
+      executions: [execution],
+    })
+  }
+
+  it('opens the producing session directly when it is still alive', async () => {
+    const calls = navigator()
+    serve({ 'ws-1': producedBy('S-ran-it') })
+    openHome('ws-1')
+    const { container } = mount('ws-1', ['S-ran-it'])
+    await waitFor(() => { expect(container.querySelector('[data-project-open-execution]')).toBeTruthy() })
+    fireEvent.click(container.querySelector('[data-project-open-execution]')!)
+    await waitFor(() => { expect(calls).toContain('open:S-ran-it') })
+    expect(calls).toEqual(['request:S-ran-it:rhino-E1', 'open:S-ran-it'])
+  })
+
+  it('connects the workspace when the producing session is GONE', async () => {
+    // A pruned session: aiming at it would fail to open. Connecting is the
+    // honest fallback, and the request waits for whatever console appears.
+    const calls = navigator()
+    serve({ 'ws-1': producedBy('S-pruned') })
+    openHome('ws-1')
+    const { container } = mount('ws-1', ['S-something-else'])
+    await waitFor(() => { expect(container.querySelector('[data-project-open-execution]')).toBeTruthy() })
+    fireEvent.click(container.querySelector('[data-project-open-execution]')!)
+    await waitFor(() => { expect(calls).toContain('open:S-ws-1') })
+    expect(calls[0]).toBe('connect:ws-1')
+  })
+
+  it('connects when the sidecar recorded no session at all', async () => {
+    const calls = navigator()
+    serve({ 'ws-1': producedBy(undefined) })
+    openHome('ws-1')
+    const { container } = mount('ws-1', ['S-ran-it'])
+    await waitFor(() => { expect(container.querySelector('[data-project-open-execution]')).toBeTruthy() })
+    fireEvent.click(container.querySelector('[data-project-open-execution]')!)
+    await waitFor(() => { expect(calls).toContain('open:S-ws-1') })
+    expect(calls[0]).toBe('connect:ws-1')
+  })
+
+  it('sends a TASK row to its newest execution\'s session too', async () => {
+    // The task row names only an execution id; the producing session comes
+    // from the executions list, so both rows land in the same place.
+    const calls = navigator()
+    serve({ 'ws-1': producedBy('S-ran-it') })
+    openHome('ws-1')
+    const { container } = mount('ws-1', ['S-ran-it'])
+    await waitFor(() => { expect(container.querySelector('[data-project-open-task]')).toBeTruthy() })
+    fireEvent.click(container.querySelector('[data-project-open-task]')!)
+    await waitFor(() => { expect(calls).toContain('open:S-ran-it') })
+    expect(calls).toEqual(['request:S-ran-it:rhino-E1', 'open:S-ran-it'])
   })
 })

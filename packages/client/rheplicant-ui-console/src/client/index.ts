@@ -15,6 +15,7 @@ import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { ConsoleView } from './ConsoleView.tsx'
+import { ConsoleNavigation } from './navigation-service.ts'
 import { GatesPanel } from './GatesPanel.tsx'
 import { createConsoleLayoutStore } from './layout-store.ts'
 import { registerLoopDefinitions } from './loop-definitions.ts'
@@ -40,10 +41,14 @@ export type {
   LoopContribution, LoopConversationViewNode, LoopGatesEntry, LoopRunEntry, LoopSnapshot, LoopValidateEntry,
 } from './loop-contract.ts'
 export { loopViewDefinition } from './loop-snapshot-builder.ts'
+export { ConsoleNavigation } from './navigation-service.ts'
 
 export const inject = ['slots', 'conversationEvents', 'conversationViews']
 
 export function apply(ctx: ClientContext): void {
+  // The console's cross-plugin face: "show THIS execution in THAT session".
+  // Registered first so a chooser that mounts alongside can already reach it.
+  ctx.plugin(ConsoleNavigation)
   registerLoopDefinitions(ctx)
   registerLoopConversationView(ctx)
   ctx.slots.inject('conversation.view', () => ctx.slots.register({

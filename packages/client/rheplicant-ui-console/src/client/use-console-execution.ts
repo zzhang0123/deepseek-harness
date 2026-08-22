@@ -10,10 +10,13 @@
  * @module @rheplicant/dsh-rheplicant-ui-console/client/use-console-execution
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
 import type { AnalysisRun } from '@rheplicant/dsh-rheplicant-ui-kit/client'
 import type { ConsoleExecutionView } from '@rheplicant/dsh-rheplicant-ui-kit/client'
+import {
+  clearExecutionRequest, peekExecutionRequest, subscribeExecutionRequests,
+} from './execution-requests.ts'
 import { EMPTY_LOOP_SNAPSHOT } from './loop-snapshot-builder.ts'
 import {
   fetchExecution,
@@ -79,6 +82,29 @@ export function useConsoleExecution(useSession: SessionReader): ConsoleExecution
   const select = useCallback((executionId: string) => {
     setSelectedId(executionId === newest ? undefined : executionId)
   }, [newest])
+
+  // Another plugin — the project home — may ask this session to show a
+  // particular execution. Subscribed rather than read once: the home renders in
+  // `shell.overlay`, which is on screen whether or not a session is open, so a
+  // pick can land while this console is already mounted and navigating nowhere.
+  const requested = useSyncExternalStore(
+    subscribeExecutionRequests,
+    () => peekExecutionRequest(sessionId),
+    () => undefined,
+  )
+  useEffect(() => {
+    if (requested === undefined) return
+    // Applied only once the execution is actually offerable. A request that
+    // arrives before the project listing does would otherwise be dropped as
+    // unknown, and the console would sit on the newest execution while the
+    // person waits for the one they clicked.
+    if (!ordered.some(row => row.executionId === requested)) return
+    setSelectedId(requested === newest ? undefined : requested)
+    // Consumed, not remembered: see `execution-requests.ts`. Leaving it set
+    // would make this session snap back to the same execution every time
+    // anything re-rendered.
+    clearExecutionRequest(sessionId)
+  }, [requested, ordered, newest, sessionId])
 
   const [projection, setProjection] = useState<
     { id: string; runs?: readonly AnalysisRun[]; problem?: 'unreadable' | 'unavailable' } | undefined

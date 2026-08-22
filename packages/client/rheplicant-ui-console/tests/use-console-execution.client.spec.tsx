@@ -8,10 +8,13 @@
  * about two of them.
  */
 
-import { renderHook, waitFor } from '@testing-library/react'
+import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
 import { useConsoleExecution } from '../src/client/use-console-execution.ts'
+import {
+  peekExecutionRequest, requestExecution, resetExecutionRequests,
+} from '../src/client/execution-requests.ts'
 import type { LoopExecutionRef, LoopSnapshot } from '../src/client/loop-contract.ts'
 
 const NEWER = '20260822T134501Z-3f9ac2b1-k7m2xq'
@@ -72,7 +75,13 @@ beforeEach(() => {
     } as Response
   }))
 })
-afterEach(() => { vi.unstubAllGlobals() })
+// `cleanup()` explicitly: this repo does not run vitest with `globals`, so
+// Testing Library's auto-cleanup hook is never registered and every
+// `renderHook` from an earlier test stays MOUNTED and subscribed. That is a
+// landmine for anything module-scoped — a leaked console still reads the
+// execution-request store, and whichever one reacts first consumes the
+// request, so the test's own hook can miss it entirely.
+afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 
 function mount(executions: readonly LoopExecutionRef[]) {
   const snapshot: LoopSnapshot = { executions, latestSeq: executions.length }
@@ -167,5 +176,62 @@ describe('selection', () => {
     await waitFor(() => { expect(result.current.selected?.executionId).toBe(NEWER) })
     result.current.select(OTHER)
     await waitFor(() => { expect(result.current.selected?.executionId).toBe(OTHER) })
+  })
+})
+
+describe('a request from another plugin (the project home)', () => {
+  beforeEach(() => {
+    answers['/rheplicant/project/executions'] = {
+      status: 200,
+      body: {
+        project: 'rhino-2026',
+        executions: [
+          { executionId: OTHER, task: 'tasks/fit', status: 'ok', path: `results/tasks/fit/${OTHER}/`, sessionId: 'S-other' },
+          { executionId: NEWER, task: 'tasks/fit', status: 'ok', path: `results/tasks/fit/${NEWER}/` },
+        ],
+      },
+    }
+    resetExecutionRequests()
+  })
+  afterEach(() => { resetExecutionRequests() })
+
+  it('shows the execution it was asked for, not the newest', async () => {
+    const { result } = mount([ref(NEWER)])
+    await waitFor(() => { expect(result.current.ordered).toHaveLength(2) })
+    expect(result.current.selected?.executionId).toBe(OTHER)
+
+    act(() => { requestExecution('S-1', NEWER) })
+    await waitFor(() => { expect(result.current.selected?.executionId).toBe(NEWER) })
+  })
+
+  it('consumes the request, so nothing re-applies it later', async () => {
+    const { result } = mount([ref(NEWER)])
+    await waitFor(() => { expect(result.current.ordered).toHaveLength(2) })
+    act(() => { requestExecution('S-1', NEWER) })
+    await waitFor(() => { expect(peekExecutionRequest('S-1')).toBeUndefined() })
+
+    // The person can still steer away afterwards; the request does not pin.
+    act(() => { result.current.select(OTHER) })
+    await waitFor(() => { expect(result.current.selected?.executionId).toBe(OTHER) })
+  })
+
+  it('ignores a request addressed to a different session', async () => {
+    const { result } = mount([ref(NEWER)])
+    await waitFor(() => { expect(result.current.ordered).toHaveLength(2) })
+    act(() => { requestExecution('S-elsewhere', NEWER) })
+    await waitFor(() => { expect(result.current.selected?.executionId).toBe(OTHER) })
+    // And it stays pending for the session it actually names.
+    expect(peekExecutionRequest('S-elsewhere')).toBe(NEWER)
+  })
+
+  it('waits rather than dropping a request for an execution not listed YET', async () => {
+    // A request can land before the project listing does. Applying it against
+    // an empty list would silently discard it and leave the person on the
+    // default, wondering why their click did nothing.
+    resetExecutionRequests()
+    requestExecution('S-1', OTHER)
+    const { result } = mount([ref(NEWER)])
+    await waitFor(() => { expect(result.current.selected?.executionId).toBe(OTHER) })
+    expect(peekExecutionRequest('S-1')).toBeUndefined()
   })
 })

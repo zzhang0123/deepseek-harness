@@ -133,6 +133,26 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* The row's action. Quiet until hovered: a list where every line shouts a
+   button is a list nobody reads. */
+.open {
+  flex: 0 0 auto;
+  padding: 0.1rem 0.45rem;
+  border: 1px solid transparent;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: var(--dsw-alias-text-tertiary);
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.row:hover .open,
+.open:focus-visible {
+  border-color: var(--dsw-rh-lit, var(--dsw-alias-border-l1));
+  color: var(--dsw-alias-text-primary);
+}
+
 /* An extension is a fact about a filename, not a verdict about a file — so it
    is a neutral chip and deliberately NOT a Badge, whose vocabulary is
    outcomes. */

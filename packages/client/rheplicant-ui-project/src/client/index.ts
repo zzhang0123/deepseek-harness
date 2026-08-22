@@ -34,17 +34,37 @@ import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import { HomeTrigger } from './HomeTrigger.tsx'
 import { ProjectHome } from './ProjectHome.tsx'
+import { setNavigator } from './navigate.ts'
 
 export { closeHome, openHome, readHome, resetHome, selectProject, toggleHome, useHome } from './home-store.ts'
 export type { HomeState } from './home-store.ts'
 export {
   countByStatus, formatBytes, groupExecutionsByTask, taskSegmentOf,
 } from './home-selectors.ts'
+export { canNavigate, openProject, setNavigator } from './navigate.ts'
+export type { Navigator } from './navigate.ts'
 export type { StatusCounts, TaskExecutionGroup } from './home-selectors.ts'
 
-export const inject = ['slots']
+export const inject = ['slots', 'sessions', 'workspaces']
 
 export function apply(ctx: ClientContext): void {
+  // `ctx.get`, not `inject`: this vendored cordis has no optional-inject form,
+  // so naming the console here would make the home refuse to mount in a
+  // composition without one. A home that lists a project but cannot hand an
+  // execution to a console is still worth having; a home that is not there is
+  // not. Same pattern ui-conversation uses for `chatFileMentions`.
+  const console_ = ctx.get('rheplicantConsole')
+  ctx.effect(() => {
+    setNavigator({
+      connect: workspaceId => ctx.workspaces.connectWorkspace(workspaceId as never)
+        .then(sessionId => String(sessionId)),
+      open: sessionId => { ctx.sessions.open(sessionId as never) },
+      requestExecution: console_ === undefined
+        ? undefined
+        : (sessionId, executionId) => { console_.requestExecution(sessionId, executionId) },
+    })
+    return () => { setNavigator(undefined) }
+  })
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({
     name: 'shell.overlay',
     id: 'rheplicant-project-home',
