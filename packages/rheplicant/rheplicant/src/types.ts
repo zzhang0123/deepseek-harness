@@ -505,3 +505,17 @@ export interface ProjectOverviewBody {
    */
   readonly truncated: boolean
 }
+
+/**
+ * One task document as the browser receives it.
+ *
+ * The bytes the operator authored, not the bytes an execution ran — see
+ * `ProjectRuntime.readTask`. The `path` is echoed back so a client holding
+ * several documents can tell which answer belongs to which request.
+ */
+export interface ProjectTaskDocumentBody {
+  readonly path: string
+  readonly text: string
+  readonly bytes: number
+  readonly modifiedAt: string
+}

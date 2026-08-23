@@ -11,7 +11,9 @@
 
 import { Context, Service } from '@deepseek-ai/cordis'
 
-import { scanProject, type ProjectContents } from './contents.ts'
+import {
+  readTaskDocument, scanProject, type ProjectContents, type TaskDocument,
+} from './contents.ts'
 import {
   listExecutions,
   readArtifact,
@@ -81,6 +83,23 @@ export class ProjectRuntime extends Service {
    */
   listContents(workspace: string): ProjectContents {
     return scanProject(workspace)
+  }
+
+  /**
+   * One task document's own bytes — what the operator authored, as it stands
+   * on disk right now.
+   *
+   * Distinct from `readArtifact`'s `config.input.yaml`, which is what a
+   * particular execution RAN. Holding both is what makes staleness (§4.2)
+   * visible instead of merely recorded.
+   *
+   * @param workspace - the project directory, which bounds the read.
+   * @param relativePath - the task's workspace-relative path.
+   * @returns the document's text and file facts.
+   * @throws ProjectReadError - on confinement, kind, size or decoding failure.
+   */
+  readTask(workspace: string, relativePath: string): TaskDocument {
+    return readTaskDocument(workspace, relativePath)
   }
 }
 

@@ -218,3 +218,42 @@
 .triggerLabel {
   white-space: nowrap;
 }
+
+/* The selected row, and the button that makes a row selectable. A row is a
+   target now, not a label. */
+.rowPick {
+  flex: 1 1 auto;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.rowPick:hover .mono,
+.rowPick:focus-visible .mono {
+  color: var(--dsw-rh-lit, var(--dsw-alias-text-primary));
+}
+
+.rowActive {
+  background: color-mix(in srgb, var(--dsw-rh-lit, #888) 12%, transparent);
+}
+
+/* The task document. Pre-wrapped and scroll-bounded: a config document is
+   read, not skimmed, but it must not push the panels off the page. */
+.document {
+  max-height: 22rem;
+  margin: 0;
+  padding: 0.5rem 0.6rem;
+  overflow: auto;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 0.375rem;
+  color: var(--dsw-alias-text-primary);
+  font-family: var(--dsw-alias-font-mono, ui-monospace, monospace);
+  font-size: 0.75rem;
+  line-height: 1.55;
+  white-space: pre;
+  tab-size: 2;
+}

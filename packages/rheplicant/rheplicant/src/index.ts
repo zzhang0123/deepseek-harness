@@ -42,6 +42,7 @@ export type {
   ProjectExecutionsBody,
   ProjectInputRow,
   ProjectOverviewBody,
+  ProjectTaskDocumentBody,
   ProjectTaskRow,
   RunCost,
   RunDiagnostics,

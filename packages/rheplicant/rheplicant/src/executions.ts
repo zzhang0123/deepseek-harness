@@ -332,7 +332,11 @@ function confine(workspace: string, candidate: string): string {
 }
 
 /**
- * Read one regular file, under the size ceiling, without following a link.
+ * Read one regular file, under a size ceiling, without following a link.
+ *
+ * Exported because it is the project's ONE hardened read: `contents.ts` serves
+ * task documents through it too, and a second implementation of these rules is
+ * a second place for them to drift.
  *
  * Open FIRST, then decide from the descriptor. The obvious order — `lstat`,
  * decide, then open — leaves a window in which the thing examined is not the
@@ -345,7 +349,7 @@ function confine(workspace: string, candidate: string): string {
  * tree would block this read forever waiting for a writer; with it the open
  * returns at once and `isFile()` rejects it.
  */
-function readRegularFile(path: string): Buffer {
+export function readRegularFile(path: string, limit: number = ARTIFACT_READ_LIMIT): Buffer {
   let fd: number
   try {
     fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK)
@@ -360,9 +364,9 @@ function readRegularFile(path: string): Buffer {
     if (!opened.isFile()) {
       throw new ProjectReadError(`${path} is not a regular file.`, 'ARTIFACT_UNREADABLE')
     }
-    if (opened.size > ARTIFACT_READ_LIMIT) {
+    if (opened.size > limit) {
       throw new ProjectReadError(
-        `${path} is ${opened.size} bytes, over the ${ARTIFACT_READ_LIMIT}-byte read limit.`,
+        `${path} is ${opened.size} bytes, over the ${limit}-byte read limit.`,
         'ARTIFACT_TOO_LARGE',
       )
     }

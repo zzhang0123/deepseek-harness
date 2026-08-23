@@ -36,6 +36,7 @@ import { basename, join, sep } from 'node:path'
 import {
   ARTIFACT_MEDIA_TYPES, MARKER_NAME, ProjectReadError, type ExecutionSummary,
 } from './executions.ts'
+import type { ProjectTaskDocumentBody } from './types.ts'
 import type {
   ProjectExecutionRow, ProjectExecutionsBody, ProjectOverviewBody, ProjectTaskRow,
 } from './types.ts'
@@ -286,6 +287,41 @@ export function apply(ctx: Context): void {
         executions: executions.map(summary => row(workspace, summary)),
         truncated: contents.truncated,
       } satisfies ProjectOverviewBody)
+    },
+  }))
+
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'exact',
+    path: `${ROUTE_PREFIX}/task`,
+    handler: (req, res) => {
+      const url = requestUrl(req)
+      const workspace = url === undefined ? undefined : workspaceFor(ctx, url)
+      if (url === undefined || workspace === undefined) {
+        json(res, 404, { error: 'unknown project', code: 'PROJECT_NOT_FOUND' })
+        return
+      }
+      // The path is caller-named, so every rule that bounds it lives in
+      // `readTaskDocument` — relative-only, a task extension, never inside
+      // `results/`, and the hardened open. This handler adds none of its own,
+      // deliberately: a second place to state the bound is a second place for
+      // it to drift.
+      try {
+        const document = ctx.rheplicantProject.readTask(workspace, url.searchParams.get('path') ?? '')
+        json(res, 200, {
+          path: document.path,
+          text: document.text,
+          bytes: document.bytes,
+          modifiedAt: document.modifiedAt,
+        } satisfies ProjectTaskDocumentBody)
+      } catch (error) {
+        const code = error instanceof ProjectReadError ? error.code : 'ARTIFACT_UNREADABLE'
+        // The message names a host path; the browser gets the code and a
+        // sentence that does not.
+        json(res, code === 'PATH_ESCAPES_PROJECT' || code === 'ARTIFACT_NOT_ALLOWED' ? 400 : 404, {
+          error: 'this task document could not be read',
+          code,
+        })
+      }
     },
   }))
 

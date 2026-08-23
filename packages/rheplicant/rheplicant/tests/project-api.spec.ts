@@ -1,10 +1,10 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { basename, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { apply, ROUTE_PREFIX } from '@rheplicant/dsh-rheplicant/project-api'
 import { listExecutions, readArtifact } from '@rheplicant/dsh-rheplicant/executions'
-import { scanProject } from '@rheplicant/dsh-rheplicant/contents'
+import { readTaskDocument, scanProject } from '@rheplicant/dsh-rheplicant/contents'
 
 const MARKER = '2878be26-4551-4183-ae96-43ea0f0e83f4'
 
@@ -48,7 +48,7 @@ function routes(
       },
     },
     workspaceRegistry: { list: () => workspaces },
-    rheplicantProject: { listExecutions, readArtifact, listContents: scanProject },
+    rheplicantProject: { listExecutions, readArtifact, listContents: scanProject, readTask: readTaskDocument },
     rheplicant: {
       readExecution: (resultsPath: string) => {
         readCalls.push(resultsPath)
@@ -431,5 +431,84 @@ describe('which parameter wins when a request carries both', () => {
     const call = routes({}, [{ id: 'ws-mine', path: workspace, sessionIds: [] }])
     expect((await call(`${ROUTE_PREFIX}/overview`, 'session=not-a-session-id&workspace=ws-mine')).status)
       .toBe(404)
+  })
+})
+
+describe('serving one task document', () => {
+  /** Write a task file into the workspace. */
+  function task(relative: string, body: string): void {
+    mkdirSync(join(workspace, dirname(relative)), { recursive: true })
+    writeFileSync(join(workspace, relative), body)
+  }
+
+  it('serves the document a caller names', async () => {
+    task('tasks/fit.yaml', 'schema_version: 1\n')
+    const call = routes({}, [{ id: 'ws-1', path: workspace, sessionIds: [] }])
+    const found = await call(`${ROUTE_PREFIX}/task`, 'workspace=ws-1&path=tasks%2Ffit.yaml')
+    expect(found.status).toBe(200)
+    expect(JSON.parse(found.body)).toMatchObject({
+      path: 'tasks/fit.yaml',
+      text: 'schema_version: 1\n',
+    })
+  })
+
+  it('refuses a traversal with 400, not a 404 that reads as "missing"', async () => {
+    // The two refusals are LAYERED, and the order shows in the code. The kind
+    // check runs first, so a traversal at a name that is not a task document
+    // never reaches the path logic at all — refused for what it is before
+    // where it points.
+    const call = routes({}, [{ id: 'ws-1', path: workspace, sessionIds: [] }])
+    const notADocument = await call(`${ROUTE_PREFIX}/task`, 'workspace=ws-1&path=..%2F..%2Fetc%2Fpasswd')
+    expect(notADocument.status).toBe(400)
+    expect(JSON.parse(notADocument.body).code).toBe('ARTIFACT_NOT_ALLOWED')
+
+    // A traversal that IS spelled as a task document reaches the confinement
+    // check, and is refused there.
+    const escaping = await call(`${ROUTE_PREFIX}/task`, 'workspace=ws-1&path=..%2Foutside.yaml')
+    expect(escaping.status).toBe(400)
+    expect(JSON.parse(escaping.body).code).toBe('PATH_ESCAPES_PROJECT')
+  })
+
+  it('refuses a file that is not a task document', async () => {
+    task('secrets.env', 'TOKEN=1')
+    const call = routes({}, [{ id: 'ws-1', path: workspace, sessionIds: [] }])
+    const found = await call(`${ROUTE_PREFIX}/task`, 'workspace=ws-1&path=secrets.env')
+    expect(found.status).toBe(400)
+    expect(JSON.parse(found.body).code).toBe('ARTIFACT_NOT_ALLOWED')
+  })
+
+  it('refuses a published config.input.yaml, which belongs to the artifact route', async () => {
+    execution('demo', 'EXEC-1', { 'config.input.yaml': 'schema_version: 1' })
+    const call = routes({}, [{ id: 'ws-1', path: workspace, sessionIds: [] }])
+    const found = await call(`${ROUTE_PREFIX}/task`,
+      'workspace=ws-1&path=results%2Fdemo%2FEXEC-1%2Fconfig.input.yaml')
+    expect(found.status).toBe(400)
+  })
+
+  it('never leaks the host path in the refusal', async () => {
+    const call = routes({}, [{ id: 'ws-1', path: workspace, sessionIds: [] }])
+    const found = await call(`${ROUTE_PREFIX}/task`, 'workspace=ws-1&path=absent.yaml')
+    expect(found.body).not.toContain(workspace)
+    expect(found.body).not.toContain(tmpdir())
+  })
+
+  it('refuses a request that names no project', async () => {
+    task('fit.yaml', 'x')
+    const call = routes({}, [{ id: 'ws-1', path: workspace, sessionIds: [] }])
+    expect((await call(`${ROUTE_PREFIX}/task`, 'path=fit.yaml')).status).toBe(404)
+  })
+
+  it('reaches the same document by session, so the console can ask too', async () => {
+    task('fit.yaml', 'schema_version: 1')
+    const call = routes({ 'S-1': workspace }, [])
+    const found = await call(`${ROUTE_PREFIX}/task`, 'session=S-1&path=fit.yaml')
+    expect(JSON.parse(found.body).text).toBe('schema_version: 1')
+  })
+
+  it('is never cached: a document changes under the browser', async () => {
+    task('fit.yaml', 'x')
+    const call = routes({}, [{ id: 'ws-1', path: workspace, sessionIds: [] }])
+    const found = await call(`${ROUTE_PREFIX}/task`, 'workspace=ws-1&path=fit.yaml')
+    expect(found.headers['cache-control']).toBe('no-store')
   })
 })

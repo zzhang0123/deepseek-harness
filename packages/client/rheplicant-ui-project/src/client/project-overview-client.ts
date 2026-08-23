@@ -103,3 +103,61 @@ export async function fetchProjectOverview(
 }
 
 export type { ProjectExecutionRow, ProjectInputRow, ProjectOverviewBody, ProjectTaskRow }
+
+/** One task document, as the host returns it. */
+export interface TaskDocumentBody {
+  readonly path: string
+  readonly text: string
+  readonly bytes: number
+  readonly modifiedAt: string
+}
+
+/**
+ * One task's document — the bytes the operator authored, as they stand now.
+ *
+ * Deliberately NOT the same thing as an execution's `config.input.yaml`, which
+ * is what a particular run used. Holding the two apart is what lets the
+ * workbench show that a task has been edited since it last ran (§4.2).
+ *
+ * @param workspaceId - the project the task belongs to.
+ * @param path - the task's workspace-relative path, from the listing.
+ * @param signal - abort when the selection changes.
+ * @returns the document, `'refused'` when the host would not serve that path,
+ *   and `undefined` when the route could not be reached at all. Three answers,
+ *   because they read differently: refused means the path is wrong, undefined
+ *   means we do not know.
+ */
+export async function fetchTaskDocument(
+  workspaceId: string,
+  path: string,
+  signal?: AbortSignal,
+): Promise<TaskDocumentBody | 'refused' | undefined> {
+  let response: Response
+  try {
+    response = await fetch(
+      `${ROUTE_PREFIX}/task?workspace=${encodeURIComponent(workspaceId)}`
+      + `&path=${encodeURIComponent(path)}`,
+      { ...(signal === undefined ? {} : { signal }), headers: { accept: 'application/json' } },
+    )
+  } catch {
+    return undefined
+  }
+  // The host answered and would not serve this path — a fact worth showing,
+  // and not the same as never having reached it.
+  if (response.status === 400 || response.status === 404) return 'refused'
+  if (!response.ok) return undefined
+  try {
+    const body: unknown = await response.json()
+    if (typeof body !== 'object' || body === null) return undefined
+    const row = body as Record<string, unknown>
+    if (typeof row.text !== 'string' || typeof row.path !== 'string') return undefined
+    return {
+      path: row.path,
+      text: row.text,
+      bytes: typeof row.bytes === 'number' ? row.bytes : row.text.length,
+      modifiedAt: typeof row.modifiedAt === 'string' ? row.modifiedAt : '',
+    }
+  } catch {
+    return undefined
+  }
+}

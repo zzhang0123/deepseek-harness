@@ -34,7 +34,9 @@ import {
   countByStatus, formatBytes, groupExecutionsByTask, taskSegmentOf,
 } from './home-selectors.ts'
 import { canNavigate, openProject } from './navigate.ts'
+import { selectInProject, useSelection } from './selection.ts'
 import { useProjectOverview } from './use-project-overview.ts'
+import { useTaskDocument } from './use-task-document.ts'
 import styles from './project-home.module.css'
 
 /**
@@ -93,6 +95,11 @@ export const ProjectHome = memo(function ProjectHome({ useWorkspaces, useSession
   // stays on screen, so it is visibly a starting point rather than a scope.
   const chosen = workspaceId ?? recent ?? workspaces[0]?.workspaceId
   const { loading, overview, shownFor } = useProjectOverview(chosen, open, nonce)
+  // The workbench renders the PROJECT's selection — the same one the console
+  // reads (`docs/project-model.md` §11.2), so the two never disagree about
+  // which task is in view.
+  const selection = useSelection(chosen)
+  const document_ = useTaskDocument(chosen, selection.taskPath, nonce)
 
   useEffect(() => {
     if (!open) return
@@ -221,8 +228,24 @@ export const ProjectHome = memo(function ProjectHome({ useWorkspaces, useSession
                   : (
                     <ul className={styles.rows} data-project-tasks="">
                       {current.tasks.map(task => (
-                        <li key={task.path} className={styles.row} data-project-task={task.path}>
-                          <span className={styles.mono}>{task.path}</span>
+                        <li
+                          key={task.path}
+                          className={`${styles.row} ${selection.taskPath === task.path ? styles.rowActive : ''}`}
+                          data-project-task={task.path}
+                          data-project-task-active={selection.taskPath === task.path ? '' : undefined}
+                        >
+                          {/* Selecting is IN PLACE. A row used to navigate,
+                              which is what made the workbench feel like a
+                              directory rather than a surface — and a project
+                              with no session open had nowhere to go anyway. */}
+                          <button
+                            type="button"
+                            className={styles.rowPick}
+                            data-project-select-task={task.path}
+                            onClick={() => { if (chosen !== undefined) selectInProject(chosen, { taskPath: task.path }) }}
+                          >
+                            <span className={styles.mono}>{task.path}</span>
+                          </button>
                           <span className={styles.meta}>{formatBytes(task.bytes)}</span>
                           {openable && (
                             <button
@@ -256,6 +279,45 @@ export const ProjectHome = memo(function ProjectHome({ useWorkspaces, useSession
                     </ul>
                   )}
               </Panel>
+
+              {selection.taskPath !== undefined && (
+                <Panel
+                  id="project-task-document"
+                  title={selection.taskPath}
+                  subtitle="as authored"
+                >
+                  {/* Guarded on `shownFor`: a document held across a change of
+                      task would appear under the new task's title, which is
+                      exactly the confusion §11 exists to remove. */}
+                  {document_.shownFor !== `${chosen ?? ''} ${selection.taskPath}`
+                    || document_.loading
+                    ? <EmptyState message="Reading the document…" />
+                    : document_.document !== undefined
+                      ? (
+                        <>
+                          <pre className={styles.document} data-project-document>
+                            {document_.document.text}
+                          </pre>
+                          <p className={styles.note}>
+                            {formatBytes(document_.document.bytes)} on disk. This is the task
+                            as AUTHORED; what a given execution actually ran is its own
+                            <code> config.input.yaml</code>, which is how an edited task shows
+                            up as stale rather than silently changing history.
+                          </p>
+                        </>
+                      )
+                      : (
+                        <EmptyState
+                          message={document_.refused
+                            ? 'This project would not serve that document'
+                            : 'The document could not be read from here'}
+                          hint={document_.refused
+                            ? 'The path is outside the project, inside its results tree, or not a task document.'
+                            : 'The host route that serves a task document could not be reached.'}
+                        />
+                      )}
+                </Panel>
+              )}
 
               <Panel id="project-inputs" title="Inputs" subtitle={`${current.inputs.length} data file${current.inputs.length === 1 ? '' : 's'}`}>
                 {current.inputs.length === 0
@@ -310,7 +372,18 @@ export const ProjectHome = memo(function ProjectHome({ useWorkspaces, useSession
                                 className={styles.row}
                                 data-project-execution={execution.executionId}
                               >
-                                <span className={styles.mono}>{execution.executionId}</span>
+                                <button
+                                  type="button"
+                                  className={styles.rowPick}
+                                  data-project-select-execution={execution.executionId}
+                                  onClick={() => {
+                                    if (chosen !== undefined) {
+                                      selectInProject(chosen, { executionId: execution.executionId })
+                                    }
+                                  }}
+                                >
+                                  <span className={styles.mono}>{execution.executionId}</span>
+                                </button>
                                 <span className={styles.meta}>{execution.path}</span>
                                 <Badge state={EXECUTION_BADGE[execution.status]}>
                                   {execution.status}

@@ -33,9 +33,10 @@
  * project", not "what does this task use".
  */
 
-import { lstatSync, readdirSync, type Dirent } from 'node:fs'
-import { extname, join } from 'node:path'
+import { lstatSync, readdirSync, realpathSync, type Dirent } from 'node:fs'
+import { extname, isAbsolute, join, resolve, sep } from 'node:path'
 
+import { ProjectReadError, readRegularFile } from './executions.ts'
 import { RESULTS_ROOT } from './project.ts'
 
 /**
@@ -200,5 +201,129 @@ function describe(absolute: string, relative: string): ProjectFile | undefined {
     path: relative,
     bytes: identity.size,
     modifiedAt: identity.mtime.toISOString(),
+  }
+}
+
+/**
+ * Ceiling on one task document.
+ *
+ * Far below the artifact limit on purpose: this serves a CONFIG DOCUMENT,
+ * something a person wrote and will read. A megabyte is already an
+ * implausible one, and the small ceiling is part of what keeps this route from
+ * being a general file read.
+ */
+export const MAX_TASK_BYTES = 1024 * 1024
+
+/** One task document's bytes and what they are. */
+export interface TaskDocument {
+  /** The workspace-relative path, echoed back as the caller spelled it. */
+  readonly path: string
+  readonly text: string
+  readonly bytes: number
+  /** ISO-8601 modification instant. */
+  readonly modifiedAt: string
+}
+
+/**
+ * Serve one task document by its workspace-relative path.
+ *
+ * This is a host read at a caller-named path, so it is a trust surface, and
+ * the bound is narrower than "inside the workspace":
+ *
+ * * **Relative only**, resolved against the workspace and refused if it
+ *   escapes — checked lexically AND again on the canonical path, because the
+ *   first check cannot see a symlink INSIDE the workspace pointing out of it.
+ * * **A task extension only.** The reachable set is exactly what `scanProject`
+ *   would call a task, so this route cannot be walked into a general file
+ *   read. That bound is the reason to check the extension here rather than
+ *   trust the listing the caller came from.
+ * * **Never inside `results/`.** A published `config.input.yaml` is an
+ *   ARTIFACT: it is served by `readArtifact` under the execution identity
+ *   check, and serving the same bytes here would route around that check.
+ * * The read itself is `executions.ts`'s hardened one — open first with
+ *   `O_NOFOLLOW | O_NONBLOCK`, decide from the descriptor — so a symlinked or
+ *   FIFO final component is refused rather than followed or blocked on.
+ *
+ * @param workspace - the project directory, which bounds the read.
+ * @param relativePath - the task's path as the listing reported it.
+ * @returns the document's text and its file facts.
+ * @throws ProjectReadError - on any confinement, kind, size or decoding failure.
+ */
+export function readTaskDocument(workspace: string, relativePath: string): TaskDocument {
+  if (relativePath === '' || isAbsolute(relativePath)) {
+    throw new ProjectReadError(
+      `a task path must be relative to the project; got ${JSON.stringify(relativePath)}.`,
+      'PATH_ESCAPES_PROJECT',
+    )
+  }
+  const extension = extname(relativePath).slice(1).toLowerCase()
+  if (!TASK_EXTENSIONS.has(extension)) {
+    throw new ProjectReadError(
+      `${relativePath} is not a task document; this route serves `
+      + `${[...TASK_EXTENSIONS].map(name => `.${name}`).join(' and ')} only.`,
+      'ARTIFACT_NOT_ALLOWED',
+    )
+  }
+  const root = resolve(workspace)
+  const target = resolve(root, relativePath)
+  if (!contains(root, target)) {
+    throw new ProjectReadError(
+      `${relativePath} resolves outside this project.`,
+      'PATH_ESCAPES_PROJECT',
+    )
+  }
+  if (contains(join(root, RESULTS_ROOT), target)) {
+    throw new ProjectReadError(
+      `${relativePath} is inside the results tree, so it is an execution's artifact `
+      + 'rather than a task; read it through the artifact route, which checks that the '
+      + 'execution still owns its directory.',
+      'ARTIFACT_NOT_ALLOWED',
+    )
+  }
+  // The canonical pass: a symlink INSIDE the project can point out of it, and
+  // the lexical check above cannot see that.
+  const real = canonical(target)
+  if (real === undefined) {
+    throw new ProjectReadError(`${relativePath} is unavailable.`, 'ARTIFACT_UNREADABLE')
+  }
+  if (!contains(canonical(root) ?? root, real)) {
+    throw new ProjectReadError(
+      `${relativePath} resolves through a symbolic link to somewhere outside this project.`,
+      'PATH_ESCAPES_PROJECT',
+    )
+  }
+  const bytes = readRegularFile(real, MAX_TASK_BYTES)
+  const text = bytes.toString('utf8')
+  // `toString('utf8')` substitutes invalid sequences silently, so the text
+  // served would differ from the bytes on disk. For a document someone will
+  // read and diff, refusing beats quietly altering.
+  if (!Buffer.from(text, 'utf8').equals(bytes)) {
+    throw new ProjectReadError(`${relativePath} is not valid UTF-8.`, 'ARTIFACT_UNREADABLE')
+  }
+  let identity
+  try {
+    identity = lstatSync(real)
+  } catch {
+    throw new ProjectReadError(`${relativePath} is unavailable.`, 'ARTIFACT_UNREADABLE')
+  }
+  return {
+    path: relativePath,
+    text,
+    bytes: bytes.byteLength,
+    modifiedAt: identity.mtime.toISOString(),
+  }
+}
+
+/** Whether `target` is `root` itself or sits beneath it. */
+function contains(root: string, target: string): boolean {
+  return target === root || target.startsWith(root + sep)
+}
+
+/** `fs.realpath`, or undefined when the path does not resolve. */
+function canonical(path: string): string | undefined {
+  try {
+    return realpathSync(path)
+  } catch {
+    return undefined
   }
 }

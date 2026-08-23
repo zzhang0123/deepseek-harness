@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProjectHome } from '../src/client/ProjectHome.tsx'
 import { closeHome, openHome, resetHome, selectProject } from '../src/client/home-store.ts'
 import { setNavigator } from '../src/client/navigate.ts'
-import { readSelection, resetSelections } from '../src/client/selection.ts'
+import { readSelection, resetSelections, selectInProject } from '../src/client/selection.ts'
 
 afterEach(() => {
   cleanup(); resetHome(); setNavigator(undefined); resetSelections(); vi.unstubAllGlobals()
@@ -43,9 +43,24 @@ function overview(project: string, over: Record<string, unknown> = {}): Record<s
 }
 
 /** Serve each workspace id its own body; `null` makes that project unreadable. */
-function serve(bodies: Record<string, Record<string, unknown> | null>): void {
+function serve(
+  bodies: Record<string, Record<string, unknown> | null>,
+  documents: Record<string, string> = {},
+): void {
   vi.stubGlobal('fetch', vi.fn((url: string) => {
-    const id = new URL(url, 'http://x').searchParams.get('workspace') ?? ''
+    const parsed = new URL(url, 'http://x')
+    const id = parsed.searchParams.get('workspace') ?? ''
+    if (parsed.pathname.endsWith('/task')) {
+      const text = documents[parsed.searchParams.get('path') ?? '']
+      if (text === undefined) {
+        return Promise.resolve({ ok: false, status: 400, json: () => Promise.resolve({}) })
+      }
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ path: parsed.searchParams.get('path'), text, bytes: text.length, modifiedAt: 'x' }),
+      })
+    }
     const payload = bodies[id]
     if (payload === undefined || payload === null) {
       return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) })
@@ -399,5 +414,98 @@ describe('which session a row lands in', () => {
     await waitFor(() => { expect(calls).toContain('open:S-ran-it') })
     expect(calls).toEqual(['open:S-ran-it'])
     expect(readSelection('ws-1').executionId).toBe('rhino-E1')
+  })
+})
+
+describe('the workbench: a task in view, with no session anywhere', () => {
+  it('shows no document until a task is selected', async () => {
+    serve({ 'ws-1': overview('rhino') }, { 'rhino-fit.yaml': 'schema_version: 1' })
+    openHome('ws-1')
+    const { container } = mount()
+    await waitFor(() => { expect(container.querySelector('[data-project-tasks]')).toBeTruthy() })
+    expect(container.querySelector('[data-project-document]')).toBeNull()
+  })
+
+  it('shows the selected task\'s document, read from the project not a session', async () => {
+    serve({ 'ws-1': overview('rhino') }, { 'rhino-fit.yaml': 'schema_version: 1\nruns: []\n' })
+    openHome('ws-1')
+    const { container } = mount()
+    await waitFor(() => { expect(container.querySelector('[data-project-select-task]')).toBeTruthy() })
+    fireEvent.click(container.querySelector('[data-project-select-task]')!)
+    await waitFor(() => { expect(container.querySelector('[data-project-document]')).toBeTruthy() })
+    expect(container.querySelector('[data-project-document]')?.textContent)
+      .toContain('schema_version: 1')
+  })
+
+  it('selects in place — a task row navigates nowhere', async () => {
+    const jumps: string[] = []
+    setNavigator({
+      connect: (w) => { jumps.push(`connect:${w}`); return Promise.resolve('S') },
+      open: (s) => { jumps.push(`open:${s}`) },
+    })
+    serve({ 'ws-1': overview('rhino') }, { 'rhino-fit.yaml': 'x' })
+    openHome('ws-1')
+    const { container } = mount()
+    await waitFor(() => { expect(container.querySelector('[data-project-select-task]')).toBeTruthy() })
+    fireEvent.click(container.querySelector('[data-project-select-task]')!)
+    await waitFor(() => { expect(container.querySelector('[data-project-document]')).toBeTruthy() })
+    expect(jumps).toEqual([])
+    expect(container.querySelector('[data-project-home]')).toBeTruthy()
+  })
+
+  it('marks which row is in view', async () => {
+    serve({ 'ws-1': overview('rhino') }, { 'rhino-fit.yaml': 'x' })
+    openHome('ws-1')
+    const { container } = mount()
+    await waitFor(() => { expect(container.querySelector('[data-project-select-task]')).toBeTruthy() })
+    fireEvent.click(container.querySelector('[data-project-select-task]')!)
+    await waitFor(() => {
+      expect(container.querySelector('[data-project-task-active]')).toBeTruthy()
+    })
+  })
+
+  it('an execution row selects the execution, also in place', async () => {
+    serve({ 'ws-1': overview('rhino') }, {})
+    openHome('ws-1')
+    const { container } = mount()
+    await waitFor(() => { expect(container.querySelector('[data-project-select-execution]')).toBeTruthy() })
+    fireEvent.click(container.querySelector('[data-project-select-execution]')!)
+    await waitFor(() => { expect(readSelection('ws-1').executionId).toBe('rhino-E1') })
+  })
+
+  it('says the document was REFUSED rather than showing an empty one', async () => {
+    // The host answering "not a task document" is a fact about the path, and
+    // it reads differently from never having reached the host.
+    serve({ 'ws-1': overview('rhino') }, {})
+    openHome('ws-1')
+    const { container } = mount()
+    await waitFor(() => { expect(container.querySelector('[data-project-select-task]')).toBeTruthy() })
+    fireEvent.click(container.querySelector('[data-project-select-task]')!)
+    await waitFor(() => {
+      expect(screen.getByText(/would not serve that document/)).toBeTruthy()
+    })
+  })
+
+  it('never shows one task\'s document under another task\'s title', async () => {
+    serve(
+      { 'ws-1': overview('rhino', {
+        tasks: [
+          { path: 'a.yaml', bytes: 1, modifiedAt: 'x', executionCount: 0 },
+          { path: 'b.yaml', bytes: 1, modifiedAt: 'x', executionCount: 0 },
+        ],
+      }) },
+      { 'a.yaml': 'I AM A', 'b.yaml': 'I AM B' },
+    )
+    openHome('ws-1')
+    const { container } = mount()
+    await waitFor(() => { expect(container.querySelector('[data-project-select-task="a.yaml"]')).toBeTruthy() })
+    fireEvent.click(container.querySelector('[data-project-select-task="a.yaml"]')!)
+    await waitFor(() => { expect(screen.getByText(/I AM A/)).toBeTruthy() })
+
+    act(() => { selectInProject('ws-1', { taskPath: 'b.yaml' }) })
+    // The instant after the switch A must already be gone, not lingering under
+    // B's title while B loads.
+    expect(screen.queryByText(/I AM A/)).toBeNull()
+    await waitFor(() => { expect(screen.getByText(/I AM B/)).toBeTruthy() })
   })
 })

@@ -5,7 +5,9 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import {
   INPUT_EXTENSIONS,
   MAX_SCAN_ENTRIES,
+  MAX_TASK_BYTES,
   TASK_EXTENSIONS,
+  readTaskDocument,
   scanProject,
 } from '@rheplicant/dsh-rheplicant/contents'
 import { MARKER_NAME } from '@rheplicant/dsh-rheplicant/executions'
@@ -153,5 +155,86 @@ describe('scanProject — the caps are announced, never silent', () => {
       file(`bulk/f${index}.yaml`)
     }
     expect(scanProject(workspace).tasks.length).toBeGreaterThan(0)
+  })
+})
+
+describe('readTaskDocument — serving one task file', () => {
+  it('returns the document a caller names, relative to the workspace', () => {
+    file('tasks/fit.yaml', 'schema_version: 1\n')
+    expect(readTaskDocument(workspace, 'tasks/fit.yaml')).toMatchObject({
+      path: 'tasks/fit.yaml',
+      text: 'schema_version: 1\n',
+      bytes: 18,
+    })
+  })
+
+  it('carries the modification time, so a reader can see it changed', () => {
+    file('demo.yaml', 'x')
+    expect(readTaskDocument(workspace, 'demo.yaml').modifiedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+  })
+
+  it('serves a task anywhere in the project, since the layout is the operator\'s', () => {
+    file('studies/2026/beam.yml', 'schema_version: 1')
+    expect(readTaskDocument(workspace, 'studies/2026/beam.yml').text).toBe('schema_version: 1')
+  })
+})
+
+describe('readTaskDocument — what it refuses', () => {
+  it('refuses an absolute path', () => {
+    const target = file('demo.yaml')
+    expect(() => readTaskDocument(workspace, target)).toThrow(/relative/i)
+  })
+
+  it('refuses a traversal out of the project', () => {
+    expect(() => readTaskDocument(workspace, '../outside.yaml')).toThrow(/outside/i)
+  })
+
+  it('refuses a traversal that only escapes after normalising', () => {
+    expect(() => readTaskDocument(workspace, 'tasks/../../outside.yaml')).toThrow(/outside/i)
+  })
+
+  it('refuses a symlink pointing out of the project', () => {
+    const outside = mkdtempSync(join(tmpdir(), 'rheplicant-outside-'))
+    writeFileSync(join(outside, 'secret.yaml'), 'secrets')
+    symlinkSync(join(outside, 'secret.yaml'), join(workspace, 'link.yaml'))
+    expect(() => readTaskDocument(workspace, 'link.yaml')).toThrow()
+  })
+
+  it('refuses a file that is not a task document', () => {
+    // The reachable set is bounded to what the listing calls a task, so this
+    // route cannot be turned into a general file read.
+    file('secrets.env', 'TOKEN=1')
+    expect(() => readTaskDocument(workspace, 'secrets.env')).toThrow(/not a task document/i)
+  })
+
+  it('refuses a yaml INSIDE the results tree', () => {
+    // A published `config.input.yaml` is an artifact, not a task: it is served
+    // under the execution identity check, and serving it here would route
+    // around that.
+    file('results/demo/EXEC-1/config.input.yaml', 'schema_version: 1')
+    expect(() => readTaskDocument(workspace, 'results/demo/EXEC-1/config.input.yaml'))
+      .toThrow(/results/i)
+  })
+
+  it('refuses a document larger than the ceiling', () => {
+    file('huge.yaml', 'x'.repeat(MAX_TASK_BYTES + 1))
+    expect(() => readTaskDocument(workspace, 'huge.yaml')).toThrow(/bytes/i)
+  })
+
+  it('refuses bytes that are not valid UTF-8, rather than replacing them', () => {
+    // `toString('utf8')` substitutes silently, so the text served would differ
+    // from the bytes on disk — for a document someone will diff, that is worse
+    // than refusing.
+    const target = join(workspace, 'bad.yaml')
+    writeFileSync(target, Buffer.from([0x61, 0xff, 0xfe, 0x62]))
+    expect(() => readTaskDocument(workspace, 'bad.yaml')).toThrow(/utf-8/i)
+  })
+
+  it('reports a missing document as missing, not as an error to chase', () => {
+    expect(() => readTaskDocument(workspace, 'absent.yaml')).toThrow(/unavailable|not found/i)
+  })
+
+  it('refuses an empty path', () => {
+    expect(() => readTaskDocument(workspace, '')).toThrow()
   })
 })
