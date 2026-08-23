@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   closeHome, openHome, readHome, resetHome, selectProject, toggleHome,
@@ -5,8 +6,8 @@ import {
 
 afterEach(() => { resetHome() })
 
-describe('the shared open state', () => {
-  it('starts closed with nothing selected', () => {
+describe('the shared section state', () => {
+  it('starts on the conversation with nothing selected', () => {
     expect(readHome()).toEqual({ open: false, workspaceId: undefined })
   })
 
@@ -70,5 +71,59 @@ describe('subscription hygiene', () => {
     const first = readHome()
     selectProject('ws-2')
     expect(readHome()).not.toBe(first)
+  })
+})
+
+
+describe('the section is remembered, the project is not (§20.2)', () => {
+  const KEY = 'rheplicant.project.section'
+
+  it('writes the section on a change and clears it on the way back', () => {
+    openHome()
+    expect(localStorage.getItem(KEY)).toBe('project')
+    closeHome()
+    expect(localStorage.getItem(KEY)).toBeNull()
+  })
+
+  it('does NOT remember which project was in view', () => {
+    // A persisted workspace id would outlive the workspace it names and pin the
+    // page to a project that is no longer there. `recentWorkspaceId` is the
+    // host's own live answer to the same question, and the page reads that.
+    openHome('ws-1')
+    expect(JSON.stringify(localStorage)).not.toContain('ws-1')
+  })
+
+  it('comes back on the section it was left on', async () => {
+    localStorage.setItem(KEY, 'project')
+    vi.resetModules()
+    const reloaded = await import('../src/client/home-store.ts')
+    expect(reloaded.readHome().open).toBe(true)
+    reloaded.resetHome()
+  })
+
+  it('comes back on the conversation when nothing was remembered', async () => {
+    localStorage.removeItem(KEY)
+    vi.resetModules()
+    const reloaded = await import('../src/client/home-store.ts')
+    expect(reloaded.readHome().open).toBe(false)
+  })
+
+  it('still works when storage refuses — a page that would not mount because it could not remember a tab is worse than one that forgets', async () => {
+    const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('storage disabled')
+    })
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('storage disabled')
+    })
+    try {
+      vi.resetModules()
+      const reloaded = await import('../src/client/home-store.ts')
+      expect(reloaded.readHome().open).toBe(false)
+      expect(() => { reloaded.openHome('ws-1') }).not.toThrow()
+      expect(reloaded.readHome().open).toBe(true)
+    } finally {
+      getItem.mockRestore()
+      setItem.mockRestore()
+    }
   })
 })

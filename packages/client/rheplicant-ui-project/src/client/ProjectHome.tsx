@@ -15,20 +15,34 @@
  *
  * `shell.overlay` is the additive root-scoped seat — a list, `replaceRisk:
  * none`, no occupants, described by its own contract as "the additive seat for
- * a frame-wide surface of your own". It gives the archive an actual page
+ * a frame-wide surface of your own". It gives the workbench an actual page
  * instead of a dropdown, and shadows nothing. The layer is click-through by
- * default, so this panel opts back into pointer events; that is why the
- * backdrop is drawn here rather than assumed.
+ * default, so this page opts back into pointer events for ITSELF and for
+ * nothing else — grabbing them for the whole layer would block the app
+ * underneath for every other entry too.
  *
- * The home is a CHOOSER, per §6.0: it has no default selection, and it never
- * renders analysis. Picking an execution here is how you find one; rendering
- * it is the console's job, in a session.
+ * **This is a SECTION, not a modal (§20.2).** It used to draw its own backdrop,
+ * bind Escape and declare `role="dialog"`, and all three were ours — the slot
+ * asked for none of them. A modal says "deal with me first"; the project is not
+ * an interruption to the conversation, it is the peer of it, and the frame
+ * behind stays lit and usable. So: no backdrop, no Escape, a `region`
+ * landmark rather than a dialog, and a switch rather than a close.
+ *
+ * The page is right-aligned within the layer on purpose. The sidebar is the
+ * left column of the frame underneath, and leaving the slack on that side is
+ * what keeps it visible and clickable while this section is up. The gutter is
+ * sized to the shell's DEFAULT sidebar and can only ever be a default —
+ * `ui-layout` writes the column width as an inline `grid-template-columns` on
+ * the frame rather than publishing a custom property, so no rule here can
+ * follow a resize. Which is why the switch back also lives in this page's own
+ * header: that one is reachable whatever the geometry.
  *
  * @module @rheplicant/dsh-rheplicant-ui-project/client/ProjectHome
  */
 
 import { memo, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Badge, EmptyState, Panel } from '@rheplicant/dsh-rheplicant-ui-kit/client'
+import type { PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
+import { Badge, EmptyState, Panel, type PanelLayoutView } from '@rheplicant/dsh-rheplicant-ui-kit/client'
 import { closeHome, selectProject, useHome } from './home-store.ts'
 import {
   countByStatus, formatBytes, groupExecutionsByTask, taskSegmentOf,
@@ -49,6 +63,10 @@ import { TaskModel } from './TaskModel.tsx'
 import { TaskRuns } from './TaskRuns.tsx'
 import { useDocumentProjection } from './use-document-projection.ts'
 import { useExecutedDocument } from './use-executed-document.ts'
+import { KNOWN_PANELS } from './known-panels.ts'
+import { panelsWithNoExit } from './panel-relevance.ts'
+import { PanelsMenu } from './PanelsMenu.tsx'
+import type { createWorkbenchLayoutStore } from './layout-store.ts'
 import type { TaskPanelOwnerProps } from './index.ts'
 import styles from './project-home.module.css'
 
@@ -80,15 +98,26 @@ interface WorkspaceRow {
   readonly path: string
 }
 
-/** What this occupant reads off the root-scope standard kit. */
-interface ProjectHomeProps {
-  readonly useWorkspaces: <T>(selector: (state: {
-    items: readonly WorkspaceRow[]
-    recentWorkspaceId: string | undefined
-  }) => T) => T
-  /** Renders this entry's own `task.panel` grid. */
-  readonly renderSlot: (key: 'task.panel', owner: TaskPanelOwnerProps) => ReactNode
-}
+/**
+ * What this occupant reads off the root-scope standard kit.
+ *
+ * `useStore`/`actions` are baked in by the framework because THIS entry's own
+ * registration declares `store: createWorkbenchLayoutStore` — the same channel
+ * `AppFrame` receives its layout store through. Their types derive from the
+ * handle's own return type rather than a hand-written twin, so the declared
+ * write set in `layout-store.ts` cannot drift out of sync with what a caller
+ * here can actually invoke.
+ */
+type ProjectHomeProps =
+  & {
+    useWorkspaces: <T>(selector: (state: {
+      items: readonly WorkspaceRow[]
+      recentWorkspaceId: string | undefined
+    }) => T) => T
+    /** Renders this entry's own `task.panel` grid. */
+    renderSlot: (key: 'task.panel', owner: TaskPanelOwnerProps) => ReactNode
+  }
+  & PropsStore<ReturnType<typeof createWorkbenchLayoutStore>>
 
 /**
  * The session share handed to a panel in the workbench: none.
@@ -110,7 +139,7 @@ const readNoSession = <T,>(selector: (snapshot: ConversationSnapshot) => T): T =
   selector(NO_SESSION as unknown as ConversationSnapshot)
 
 export const ProjectHome = memo(function ProjectHome(
-  { useWorkspaces, renderSlot }: ProjectHomeProps,
+  { useWorkspaces, renderSlot, useStore, actions }: ProjectHomeProps,
 ) {
   const { open, workspaceId } = useHome()
   const [nonce, setNonce] = useState(0)
@@ -147,15 +176,6 @@ export const ProjectHome = memo(function ProjectHome(
   // philosophy asks to be "always present on screen" was missing for exactly
   // the task somebody is still authoring.
   const projected = useDocumentProjection(chosen, selection.taskPath, nonce)
-
-  useEffect(() => {
-    if (!open) return
-    const onKey = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') closeHome()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => { window.removeEventListener('keydown', onKey) }
-  }, [open])
 
   const refresh = useCallback(() => { setNonce(value => value + 1) }, [])
   // A failed connect leaves the home open and unchanged, which is the only
@@ -215,19 +235,51 @@ export const ProjectHome = memo(function ProjectHome(
     [current, reportForTask],
   )
 
+  // --- Panel layout (§20.4) ------------------------------------------------
+  const collapsed = useStore(state => state.collapsed)
+  const hidden = useStore(state => state.hidden)
+  const collapsedSet = useMemo(() => new Set(collapsed), [collapsed])
+  const hiddenSet = useMemo(() => new Set(hidden), [hidden])
+  const layout: PanelLayoutView = useMemo(() => ({
+    collapsed: collapsedSet,
+    hidden: hiddenSet,
+    toggleCollapsed: actions.toggleCollapsed,
+    hide: actions.hide,
+    show: actions.show,
+  }), [collapsedSet, hiddenSet, actions])
+  const toggleHidden = useCallback((id: string) => {
+    if (hiddenSet.has(id)) actions.show(id)
+    else actions.hide(id)
+  }, [hiddenSet, actions])
+
+  // Which panels this task declares no exit for. Read off the projection's
+  // `runs.declared[].products`, which is upstream's own `RUN_KIND_SELECTORS`
+  // on the wire — see `known-panels.ts` for why a PRODUCT and not a run kind.
+  const projectedRuns = projected.shownFor === `${chosen ?? ''} ${selection.taskPath ?? ''}`
+    && !projected.loading
+    ? projected.projection?.runs
+    : undefined
+  const withoutExit = useMemo(
+    () => panelsWithNoExit(KNOWN_PANELS, projectedRuns),
+    [projectedRuns],
+  )
+  const withoutExitSet = useMemo(() => new Set(withoutExit), [withoutExit])
+  // A SUGGESTION, never a set: `suggestCollapsed` skips any panel a human has
+  // touched, in either direction. Without that, switching tasks would re-close
+  // a panel somebody deliberately opened — the same "propose, never select"
+  // discipline §11.2 applies to the execution axis.
+  useEffect(() => {
+    if (withoutExit.length > 0) actions.suggestCollapsed(withoutExit)
+  }, [withoutExit, actions])
+
 
   if (!open) return null
 
   return (
     <div className={styles.layer} data-project-home="">
-      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
-      <div
-        className={styles.backdrop}
-        data-project-home-backdrop=""
-        onClick={closeHome}
-        aria-hidden="true"
-      />
-      <section className={styles.page} role="dialog" aria-label="Project home">
+      {/* A `region` landmark, not a dialog: this is one of the frame's two
+          peer sections, and nothing behind it is disabled or dimmed. */}
+      <section className={styles.page} aria-label="Project">
         <header className={styles.head}>
           <div className={styles.title}>
             <span className={styles.eyebrow}>project</span>
@@ -249,11 +301,22 @@ export const ProjectHome = memo(function ProjectHome(
               </option>
             ))}
           </select>
+          <PanelsMenu
+            panels={KNOWN_PANELS}
+            hidden={hiddenSet}
+            withoutExit={withoutExitSet}
+            onToggleHidden={toggleHidden}
+            onReset={actions.reset}
+          />
           <button type="button" className={styles.action} onClick={refresh} data-project-refresh="">
             Refresh
           </button>
-          <button type="button" className={styles.action} onClick={closeHome} data-project-close="">
-            Close
+          {/* A SWITCH, not a close (§20.2). The sidebar foot carries the same
+              switch, but it sits under this page whenever the frame is narrow
+              enough for the page to reach it — so the one that is always
+              reachable lives here. */}
+          <button type="button" className={styles.action} onClick={closeHome} data-project-switch="">
+            Conversation
           </button>
         </header>
 
@@ -643,15 +706,16 @@ export const ProjectHome = memo(function ProjectHome(
                   )}
               </Panel>
 
-              {/* The same occupants the console carries, driven by the same
-                  selection. `layout` is absent: panel collapse/hide is the
-                  console shell's own store, and a panel without it renders
-                  un-collapsed, which its own contract already documents. */}
+              {/* The only panel grid there is, since §20.4. The owner object
+                  is identical for every occupant — the one channel that
+                  reaches them all — so the layout rides it beside the
+                  execution, and each panel self-applies its own row. */}
               {selection.executionId !== undefined && (
                 <div className={styles.panels} data-project-panels>
                   {renderSlot('task.panel', {
                     useSession: readNoSession,
                     execution: executionView,
+                    layout,
                   })}
                 </div>
               )}

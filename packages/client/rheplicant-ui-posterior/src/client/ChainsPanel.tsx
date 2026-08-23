@@ -4,7 +4,7 @@ import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/clien
 import {
   type AnalysisRun,
   BandChart,
-  type ConsolePanelLayoutView,
+  type PanelLayoutView,
   EmptyState,
   Panel,
   type PanelStatus,
@@ -26,8 +26,8 @@ const PANEL_ID = 'chains'
 
 interface ChainsPanelProps {
   useSession: <T>(selector: (snapshot: ConversationSnapshot) => T) => T
-  /** Console layout state (owner prop — see ui-console's ConsoleView doc comment). Absent when not rendered through the console shell: renders un-collapsed, always visible. */
-  layout?: ConsolePanelLayoutView
+  /** Panel layout state (owner prop — see ui-project's ProjectHome doc comment). Absent when not rendered through a panel grid: renders un-collapsed, always visible. */
+  layout?: PanelLayoutView
   /** The execution the console is showing (owner prop). Absent outside the console shell. */
   execution?: ConsoleExecutionView
 }

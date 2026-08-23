@@ -121,11 +121,11 @@ export function groupByTask(contributions: readonly LoopContribution[]): readonl
  * applies to an execution it cannot read: an answer about the wrong task is
  * worse than no answer.
  *
- * @param snapshot - the loop projection, absent outside a rheplicant session.
- * @returns the sole task, or undefined when there are none or several.
+ * **The implementation lives in ui-kit**, re-exported here so this package's
+ * surface is unchanged. `SignalPathPanel` (ui-analysis) needs the same rule,
+ * and importing it FROM here as a value made that package's client bundle
+ * unbuildable — the purity gate refuses cross-plugin value imports, and the
+ * failure was invisible because `test:web:built` serves the last bundle a
+ * package emitted. ui-kit is the layer that may be inlined into both.
  */
-export function soleTask(
-  snapshot: { readonly tasks: readonly LoopTask[] } | undefined,
-): LoopTask | undefined {
-  return snapshot?.tasks.length === 1 ? snapshot.tasks[0] : undefined
-}
+export { soleTask } from '@rheplicant/dsh-rheplicant-ui-kit/client'

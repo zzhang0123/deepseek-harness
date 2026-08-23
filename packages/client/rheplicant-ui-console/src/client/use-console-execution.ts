@@ -1,23 +1,24 @@
 /**
- * The console's one source of "which execution are we showing, and what is in
- * it" — shared by the header that names it and the panels that render it.
+ * Which execution this conversation is looking at.
  *
- * `docs/project-model.md` §6.1, §6.2. Both halves have to agree: a header
- * naming one execution above panels drawing another is the exact confusion
- * this console exists to remove, so the selection and its data are owned in one
- * place and handed down.
+ * `docs/project-model.md` §6.1. The selection belongs to the PROJECT (§11.2),
+ * so this reads and writes the project's; the session's remaining job is to
+ * say which executions it produced and which project it is in.
+ *
+ * **It used to project the selected execution's DATA as well**, for the panels
+ * the console tab carried. §20.4 moved those panels to the workbench, which
+ * does its own read (`use-workbench-execution.ts`) — so keeping the projection
+ * here would be a second host round-trip per selection, in every open console
+ * tab, for a body nothing renders.
  *
  * @module @rheplicant/dsh-rheplicant-ui-console/client/use-console-execution
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
-import type { AnalysisRun } from '@rheplicant/dsh-rheplicant-ui-kit/client'
-import type { ConsoleExecutionView } from '@rheplicant/dsh-rheplicant-ui-kit/client'
 import { EMPTY_LOOP_SNAPSHOT } from './loop-snapshot-builder.ts'
 import { chooseExecution, proposeExecution, useProjectSelection } from './selection-bridge.ts'
 import {
-  fetchExecution,
   fetchProjectExecutions,
   type ProjectExecutionsBody,
 } from './project-api-client.ts'
@@ -43,8 +44,6 @@ export interface ConsoleExecutionState {
   readonly pinned: boolean
   /** Choose an execution; passing the newest id returns to following it. */
   readonly select: (executionId: string) => void
-  /** What every console panel receives through the slot's owner props. */
-  readonly executionView: ConsoleExecutionView
 }
 
 type SessionReader = <T>(selector: (snapshot: ConversationSnapshot) => T) => T
@@ -66,7 +65,7 @@ type WorkspaceReader = <T>(selector: (state: WorkspaceListLike) => T) => T
  * @param useSession - the standard `conversation.view` session reader.
  * @param useWorkspaces - the standard workspace-list reader, used only to
  *   resolve this session's project.
- * @returns the selection, the list, and the panels' execution view.
+ * @returns the selection and the list.
  */
 export function useConsoleExecution(
   useSession: SessionReader,
@@ -114,66 +113,6 @@ export function useConsoleExecution(
     chooseExecution(workspaceId, executionId)
   }, [workspaceId])
 
-  // No "request" machinery any more. P6 needed one because a selection was
-  // addressed to a SESSION and had to be carried across a navigation; a
-  // project-owned selection is simply already there when this mounts.
-
-  const [projection, setProjection] = useState<
-    {
-      id: string
-      runs?: readonly AnalysisRun[]
-      // Carried alongside `runs` so the Gates and Signal-path panels address
-      // the SELECTED execution rather than whatever the session log holds.
-      gates?: readonly unknown[]
-      graph?: unknown
-      problem?: 'unreadable' | 'unavailable'
-    } | undefined
-  >(undefined)
-  const selectedExecutionId = selected?.executionId
-  const published = selected?.path !== undefined
-  useEffect(() => {
-    if (selectedExecutionId === undefined || !published) {
-      setProjection(undefined)
-      return
-    }
-    const controller = new AbortController()
-    void fetchExecution(sessionId, selectedExecutionId, controller.signal).then((answer) => {
-      if (controller.signal.aborted) return
-      if (answer === undefined) setProjection({ id: selectedExecutionId, problem: 'unavailable' })
-      else if (answer === 'unreadable') setProjection({ id: selectedExecutionId, problem: 'unreadable' })
-      else {
-        setProjection({
-          id: selectedExecutionId,
-          runs: (answer.runs ?? []) as AnalysisRun[],
-          gates: answer.gates ?? [],
-          ...(answer.graph === undefined ? {} : { graph: answer.graph }),
-        })
-      }
-    })
-    return () => { controller.abort() }
-  }, [sessionId, selectedExecutionId, published])
-
-  const executionView = useMemo<ConsoleExecutionView>(() => {
-    if (selected === undefined) return {}
-    const base = {
-      executionId: selected.executionId,
-      foreign: !selected.fromThisSession,
-    }
-    // An unpublished run has no tree to read; its data is on its own event and
-    // the log path is not a fallback but the ONLY correct source.
-    if (!published) return base
-    if (projection?.id !== selected.executionId) return { ...base, problem: 'loading' as const }
-    if (projection.runs !== undefined) {
-      return {
-        ...base,
-        runs: projection.runs,
-        gates: projection.gates ?? [],
-        ...(projection.graph === undefined ? {} : { graph: projection.graph }),
-      }
-    }
-    return { ...base, problem: projection.problem }
-  }, [selected, published, projection])
-
   return {
     ordered,
     selected,
@@ -186,7 +125,6 @@ export function useConsoleExecution(
     // on something this project no longer lists has already fallen back.
     pinned: selection.pinned.execution && known,
     select,
-    executionView,
   }
 }
 

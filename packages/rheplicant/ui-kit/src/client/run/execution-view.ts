@@ -1,6 +1,6 @@
 /**
  * The execution a console panel is showing, handed down the owner-props
- * channel — the same way `ConsolePanelLayoutView` reaches every occupant.
+ * channel — the same way `PanelLayoutView` reaches every occupant.
  *
  * `docs/project-model.md` §5, §6.2. A panel renders ONE execution, and until
  * now the only execution it could render was whichever the current session's
@@ -138,6 +138,34 @@ export function graphToRender(
   // An answer ABOUT A NAMED EXECUTION, even a negative one, is not a licence
   // to draw a different execution's model.
   if (view?.problem === 'unreadable' || view?.problem === 'loading') return undefined
+  if (view?.runs !== undefined) return undefined
+  return fromLog
+}
+
+/**
+ * The post-flight gate findings a panel should render: the selected
+ * execution's when the console supplied them, and the session log's otherwise.
+ *
+ * The same three-state discipline {@link graphToRender} applies, and for the
+ * same reason: a finding is an accusation about a specific run, and attaching
+ * one execution's refusal to another's name is worse than showing none.
+ *
+ * An EMPTY array from the view is a complete answer — this execution recorded
+ * no findings — and is returned as such rather than falling through to the
+ * log, which would resurrect an older run's refusal under a clean run's name.
+ *
+ * @param view - the owner-props execution view, absent outside a panel grid.
+ * @param fromLog - the findings the session log carries, if any.
+ * @returns the findings to render, or undefined to render none.
+ */
+export function gatesToRender(
+  view: ConsoleExecutionView | undefined,
+  fromLog: readonly unknown[] | undefined,
+): readonly unknown[] | undefined {
+  if (view?.gates !== undefined) return view.gates
+  if (view?.problem === 'unreadable' || view?.problem === 'loading') return undefined
+  // A view carrying runs is a complete answer about this execution even when
+  // it names no findings.
   if (view?.runs !== undefined) return undefined
   return fromLog
 }

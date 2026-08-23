@@ -1,21 +1,10 @@
-/* The console shell: full-bleed base surface behind the panel grid. */
+/* The console tab: full-bleed base surface under the header and the activity
+   rail. The panel grid that used to sit below them is the workbench's now
+   (docs/project-model.md §20.4), and its rules went with it. */
 .view {
   background: var(--dsw-alias-bg-base);
   min-height: 100%;
-}
-
-.header {
-  display: flex;
-  justify-content: flex-end;
-  padding: 0.75rem 0.75rem 0;
-}
-
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 0.75rem;
-  padding: 0.75rem;
-  align-items: start;
+  padding-block-start: 0.75rem;
 }
 
 /* The session-activity strip. The label is not decoration: without it the

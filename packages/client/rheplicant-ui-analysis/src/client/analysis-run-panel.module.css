@@ -14,3 +14,23 @@
 .mcmcLatent {
   margin: 0.125rem 0;
 }
+
+/* "Open in the project view" — a quiet text-weight action, not a call to
+   action: the node's job is still to show the result, and this is the way out
+   of it rather than the point of it. */
+.openInProject {
+  margin-top: 0.375rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 0.375rem;
+  background: transparent;
+  color: var(--dsw-alias-text-secondary);
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.openInProject:hover {
+  border-color: var(--dsw-rh-lit, var(--dsw-alias-border-l1));
+  color: var(--dsw-alias-text-primary);
+}

@@ -105,6 +105,7 @@
     "tests/rheplicant-analysis.e2e.ts",
     "tests/rheplicant-console-charts.e2e.ts",
     "tests/rheplicant-console-loop.e2e.ts",
+    "tests/rheplicant-open-in-project.e2e.ts",
     "tests/rheplicant-presets-mount.e2e.ts",
     "tests/rheplicant-tools-mount.e2e.ts",
     "tests/rheplicant-task-file.e2e.ts",

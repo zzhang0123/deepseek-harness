@@ -1,26 +1,29 @@
 /**
- * Signal-path console panel: the second `console.panel` occupant this
+ * Signal-path panel: the second `task.panel` occupant this
  * package registers (mirrors ui-posterior's two-registrations-one-plugin
  * pattern). Reads the loop projection's latest run graph — never re-runs
  * compute — and renders the SAME `SignalPath` component the
  * `rheplicant-analysis` Chat node uses, plus a legend row naming the four
- * graph node kinds by their token colors. Self-applies the console layout
+ * graph node kinds by their token colors. Self-applies the grid layout
  * (owner prop — see ui-console's ConsoleView doc comment), the same way
  * `PosteriorPanel`/`ChainsPanel`/`GatesPanel` do.
  * @module @rheplicant/dsh-rheplicant-ui-analysis/client/SignalPathPanel
  */
 import { memo } from 'react'
 import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
+// Type-only: loads the `rheplicant-loop` ConversationViewSnapshotMap merge, so
+// `views.get('rheplicant-loop')` narrows. Erased at build, so it never reaches
+// the bundle purity gate — unlike the VALUE import of `soleTask` that used to
+// sit beside it, which made this package's client bundle refuse to build.
 import type {} from '@deepseek-ai/dsh-client-rheplicant-ui-console/client'
-import { soleTask } from '@deepseek-ai/dsh-client-rheplicant-ui-console/client'
 import {
-  type ConsoleExecutionView, type ConsolePanelLayoutView, EmptyState, Panel,
-  type PanelStatus, TOKEN, graphToRender,
+  type ConsoleExecutionView, type PanelLayoutView, EmptyState, Panel,
+  type PanelStatus, TOKEN, graphToRender, soleTask,
 } from '@rheplicant/dsh-rheplicant-ui-kit/client'
 import { SignalPath } from './SignalPath.tsx'
 import styles from './signal-path-panel.module.css'
 
-/** This panel's own `console.panel` id — the key it reads/writes in `layout`. */
+/** This panel's own `task.panel` id — the key it reads/writes in `layout`. */
 const PANEL_ID = 'signal-path'
 
 interface SignalPathPanelProps {
@@ -31,8 +34,8 @@ interface SignalPathPanelProps {
    * console shell, where the session log is the only source there is.
    */
   execution?: ConsoleExecutionView
-  /** Console layout state (owner prop — see ui-console's ConsoleView doc comment). Absent when not rendered through the console shell (e.g. a unit test): renders un-collapsed, always visible. */
-  layout?: ConsolePanelLayoutView
+  /** Panel layout state (owner prop — see ui-project's ProjectHome doc comment). Absent when not rendered through a panel grid (e.g. a unit test): renders un-collapsed, always visible. */
+  layout?: PanelLayoutView
 }
 
 const LEGEND: readonly { readonly kind: string; readonly label: string; readonly color: string }[] = [

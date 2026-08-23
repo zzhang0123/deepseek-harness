@@ -82,3 +82,12 @@
   border-color: var(--dsw-alias-border-l2);
   color: var(--dsw-alias-label-primary);
 }
+
+/* Why a panel arrived collapsed: the task declares no exit writing what it
+   draws (docs/project-model.md §20.4). A quiet aside, not a warning — nothing
+   is wrong, this task simply did not reach for that exit. */
+.note {
+  margin-inline-start: auto;
+  color: var(--dsw-alias-text-tertiary);
+  font-size: 0.6875rem;
+}

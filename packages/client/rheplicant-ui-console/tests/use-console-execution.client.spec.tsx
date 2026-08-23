@@ -121,24 +121,14 @@ describe('when the project can be read', () => {
     expect(result.current.selected?.executionId).toBe(OTHER)
   })
 
-  it('hands the panels the runs it read off the tree', async () => {
-    answers['/rheplicant/project/execution'] = {
-      status: 200,
-      body: { runs: [{ name: 'fit', kind: 'nuts', status: 'ok', chains: { depth: [1, 2] } }] },
-    }
+  it('never reads an execution\'s DATA — that is the workbench\'s read, not this one', async () => {
+    // §20.4 moved the panels to the workbench, which does its own projection.
+    // Keeping this one would be a second host round-trip per selection, in
+    // every open console tab, for a body nothing renders.
     const { result } = mount([ref(NEWER)])
-    await waitFor(() => { expect(result.current.executionView.runs).toHaveLength(1) })
-    expect(result.current.executionView.executionId).toBe(OTHER)
-    expect(result.current.executionView.foreign).toBe(true)
-  })
-
-  it('reports an execution the project says is gone as UNREADABLE, not empty', async () => {
-    // Falling back to the log here would draw a different execution's data
-    // under this one's name.
-    answers['/rheplicant/project/execution'] = { status: 409 }
-    const { result } = mount([ref(NEWER)])
-    await waitFor(() => { expect(result.current.executionView.problem).toBe('unreadable') })
-    expect(result.current.executionView.runs).toBeUndefined()
+    await waitFor(() => { expect(result.current.selected).toBeDefined() })
+    const calls = (globalThis.fetch as unknown as { mock: { calls: string[][] } }).mock.calls
+    expect(calls.some(call => String(call[0]).includes('/execution?'))).toBe(false)
   })
 })
 
@@ -150,21 +140,6 @@ describe('when the project cannot be reached', () => {
     expect(result.current.projectName).toBe('rhino-2026')
   })
 
-  it('marks the execution view UNAVAILABLE so panels use the log', async () => {
-    const { result } = mount([ref(NEWER)])
-    await waitFor(() => { expect(result.current.executionView.problem).toBe('unavailable') })
-  })
-})
-
-describe('an execution that published nothing', () => {
-  it('is never fetched, because there is no tree to read', async () => {
-    const { result } = mount([ref(NEWER, { resultsPath: undefined })])
-    await waitFor(() => { expect(result.current.selected).toBeDefined() })
-    expect(result.current.executionView.problem).toBeUndefined()
-    expect(result.current.executionView.runs).toBeUndefined()
-    const calls = (globalThis.fetch as unknown as { mock: { calls: string[][] } }).mock.calls
-    expect(calls.some(call => String(call[0]).includes('/execution?'))).toBe(false)
-  })
 })
 
 describe('selection', () => {

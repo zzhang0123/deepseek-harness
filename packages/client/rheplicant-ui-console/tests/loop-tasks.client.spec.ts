@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { groupByTask } from '../src/client/loop-tasks.ts'
+import { registerLoopDefinitions } from '../src/client/loop-definitions.ts'
 import type { LoopContribution } from '../src/client/loop-contract.ts'
 
 const DOC = { schema_version: 1 } as never
@@ -90,5 +91,68 @@ describe('the executions', () => {
 describe('a conversation with no rheplicant work at all', () => {
   it('is no groups, which is a different thing from an empty loop', () => {
     expect(groupByTask([])).toEqual([])
+  })
+})
+
+describe('the three Definitions carry the task, not just the run (§19)', () => {
+  // The gap `groupByTask`'s own specs could not see: they take contributions
+  // directly, so a producer that DROPS `taskPath` still groups perfectly in a
+  // unit test and files every validate under "inline work" in the product.
+  // Measured before the fix: one conversation validating and then running one
+  // task drew TWO rails — the §19 fabrication inverted.
+  const DOCUMENT = { runs: [] }
+
+  function contributionFor(type: 'validate' | 'gates' | 'run', taskPath?: string): LoopContribution {
+    const event = {
+      type: `rheplicant/${type}`,
+      seq: 1,
+      data: {
+        document: DOCUMENT,
+        transport: 'local',
+        ...(type === 'run'
+          ? { outcome: { runs: [] }, executionId: 'E1' }
+          : { report: type === 'validate' ? { valid: true, errors: [], warnings: [] } : { checks: [], runs: [], warnings: [] } }),
+        ...(taskPath === undefined ? {} : { taskPath }),
+      },
+    }
+    const definition = definitionFor(type)
+    return definition.start(
+      {} as never,
+      { event } as never,
+    ) as LoopContribution
+  }
+
+  function definitionFor(type: 'validate' | 'gates' | 'run'): {
+    start: (context: never, match: never) => unknown
+  } {
+    const registered: { start: (context: never, match: never) => unknown }[] = []
+    registerLoopDefinitions({
+      conversationEvents: { register: (d: never) => { registered.push(d as never) } },
+    } as never)
+    // Registration order is validate, gates, run — asserted here so a
+    // reordering cannot silently point this test at the wrong Definition.
+    const index = { validate: 0, gates: 1, run: 2 }[type]
+    return registered[index]!
+  }
+
+  it.each(['validate', 'gates', 'run'] as const)('%s keeps the task path it was given', (type) => {
+    expect(contributionFor(type, 'tasks/fit.yaml').taskPath).toBe('tasks/fit.yaml')
+  })
+
+  it.each(['validate', 'gates', 'run'] as const)('%s omits the field entirely for inline work', (type) => {
+    expect('taskPath' in contributionFor(type)).toBe(false)
+  })
+
+  it('groups one task\'s validate, gates and run into ONE loop', () => {
+    const grouped = groupByTask([
+      contributionFor('validate', 'tasks/fit.yaml'),
+      { ...contributionFor('gates', 'tasks/fit.yaml'), seq: 2 },
+      { ...contributionFor('run', 'tasks/fit.yaml'), seq: 3 },
+    ])
+    expect(grouped).toHaveLength(1)
+    expect(grouped[0]?.taskPath).toBe('tasks/fit.yaml')
+    expect(grouped[0]?.validate).toBeDefined()
+    expect(grouped[0]?.gates).toBeDefined()
+    expect(grouped[0]?.run).toBeDefined()
   })
 })

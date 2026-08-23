@@ -1,23 +1,24 @@
-/* The project home: a frame-wide archive page over shell.overlay, plus the
-   sidebar-foot control that opens it. */
+/* The project section: a frame-wide workbench page over shell.overlay, plus the
+   sidebar-foot control that switches to it.
+
+   Not a modal (docs/project-model.md §20.2). There is no backdrop, nothing
+   behind is dimmed or disabled, and the page carries no elevation of its own —
+   it reads as one of the frame's two peer sections, which is what it is. */
 
 /* shell.overlay is click-through by contract — every entry opts back into
    pointer events for itself. A layer that grabbed them unconditionally would
-   block the app underneath for every OTHER entry too. */
+   block the app underneath for every OTHER entry too, and here it would also
+   swallow clicks on the sidebar the page deliberately leaves standing. */
 .layer {
   position: absolute;
   inset: 0;
   pointer-events: none;
   display: flex;
   align-items: stretch;
-  justify-content: center;
-}
-
-.backdrop {
-  position: absolute;
-  inset: 0;
-  pointer-events: auto;
-  background: color-mix(in srgb, var(--dsw-alias-bg-base, #000) 72%, transparent);
+  /* Right-aligned, not centred: the frame's sidebar is its LEFT column, so
+     putting every spare pixel on that side is what keeps the sidebar visible
+     and clickable while this section is up. */
+  justify-content: flex-end;
 }
 
 .page {
@@ -25,12 +26,21 @@
   pointer-events: auto;
   display: flex;
   flex-direction: column;
-  width: min(72rem, 100%);
-  margin: 2.5rem 1.5rem;
-  border: 1px solid var(--dsw-alias-border-l1);
-  border-radius: 0.75rem;
-  background: var(--dsw-alias-bg-elevated, var(--dsw-alias-bg-base));
-  box-shadow: 0 1.5rem 4rem rgb(0 0 0 / 45%);
+  /* The gutter this leaves on the left is where the sidebar shows through.
+     19rem is the shell's DEFAULT sidebar (280px) plus a hair — and it can only
+     ever be a default, because the column is resizable and `ui-layout` writes
+     its width as an inline `grid-template-columns` on the frame rather than
+     publishing a custom property. Measured at 1280px: the page takes 976px and
+     the whole sidebar shows; drag the column wider and it starts to be covered
+     again. The `max()` floor stops a narrow window from squeezing the page
+     into a strip to protect a sidebar there is no room for anyway — which is
+     the case where the switch back in this page's own header is the one that
+     matters, and why that control exists rather than relying on the trigger. */
+  width: min(76rem, max(44rem, 100% - 19rem));
+  /* A column of the app, not a card floating over it: full height, one seam on
+     the side it meets the frame, no radius and no shadow. */
+  border-left: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-base);
   overflow: hidden;
 }
 
@@ -185,8 +195,8 @@
   font-weight: 500;
 }
 
-/* The sidebar-foot trigger, sized to sit beside the shipped Settings row in
-   both the wide column and the 56px rail. */
+/* The sidebar-foot section switch, sized to sit beside the shipped Settings row
+   in both the wide column and the 56px rail. */
 .trigger {
   display: inline-flex;
   align-items: center;
@@ -206,8 +216,12 @@
   background: color-mix(in srgb, var(--dsw-alias-border-l1) 40%, transparent);
 }
 
-.trigger[aria-expanded='true'] {
+/* Pressed = the project section is the one on screen. A toggle button's own
+   state, which is what a section switch is; it was `aria-expanded` while this
+   revealed a modal (§20.2). */
+.trigger[aria-pressed='true'] {
   color: var(--dsw-rh-lit, var(--dsw-alias-text-primary));
+  background: color-mix(in srgb, var(--dsw-alias-border-l1) 40%, transparent);
 }
 
 .triggerMark {

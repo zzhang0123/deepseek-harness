@@ -1,9 +1,9 @@
 // Web e2e: the ui-document client bundle is served and registered in the
 // browser roster alongside the other rheplicant client plugins, and the
-// Document view itself (the conversation.view tab + the console.panel
-// occupant) renders the exact recorded document plus the generated grammar
-// reference from one seeded `rheplicant/run` event. Scaffold pattern copied
-// from `rheplicant-console-charts.e2e.ts`.
+// Document TAB renders the exact recorded document plus the generated grammar
+// reference from one seeded `rheplicant/run` event. Its `console.panel`
+// occupant went with the console's grid (§20.4) — the last assertion checks
+// it is gone, and that the tab it duplicated is still here.
 import type { Browser, Page } from 'playwright'
 import { chromium } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
@@ -133,21 +133,14 @@ describe('web e2e: rheplicant Document view renders the exact document + grammar
     await optionalSection.waitFor({ timeout: 5_000 })
     expect(await optionalSection.getAttribute('data-required')).toBe('false')
 
-    // --- The console has a `document` occupant too (exact document only,
-    // no grammar reference — that stays tab-only). ---
+    // --- This package's `console.panel` occupant is GONE with the grid it
+    // sat in (§20.4), and nothing was lost: it rendered the exact document
+    // alone, which is the first half of the tab asserted above. ---
     await page.getByRole('tab', { name: 'Console', exact: true }).click()
     const consoleView = page.locator('[data-rheplicant-console]')
     await consoleView.waitFor({ timeout: 15_000 })
-    await consoleView.locator('[data-console-grid]').waitFor({ timeout: 5_000 })
-
-    const documentPanel = page.locator('[data-panel="document"]')
-    await documentPanel.waitFor({ timeout: 10_000 })
-    expect(await documentPanel.locator('[data-panel-title]').innerText()).toBe('Document')
-    const panelText = documentPanel.locator('[data-document-text]')
-    await panelText.waitFor({ timeout: 5_000 })
-    expect(await panelText.innerText()).toContain('global_signal')
-    // The grammar reference is tab-only — it must NOT appear in the panel.
-    expect(await documentPanel.locator('[data-document-grammar]').count()).toBe(0)
+    expect(await page.locator('[data-panel="document"]').count()).toBe(0)
+    expect(await page.locator('[data-console-grid]').count()).toBe(0)
   }, 60_000)
 
   it('stayed clean', async () => {

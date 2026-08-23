@@ -5,7 +5,7 @@ import {
   type AnalysisRun,
   type ChainGroup,
   type ChainSeries,
-  type ConsolePanelLayoutView,
+  type PanelLayoutView,
   CornerGrid,
   EmptyState,
   Histogram,
@@ -30,8 +30,8 @@ const PANEL_ID = 'posterior'
 
 interface PosteriorPanelProps {
   useSession: <T>(selector: (snapshot: ConversationSnapshot) => T) => T
-  /** Console layout state (owner prop — see ui-console's ConsoleView doc comment). Absent when not rendered through the console shell: renders un-collapsed, always visible. */
-  layout?: ConsolePanelLayoutView
+  /** Panel layout state (owner prop — see ui-project's ProjectHome doc comment). Absent when not rendered through a panel grid: renders un-collapsed, always visible. */
+  layout?: PanelLayoutView
   /** The execution the console is showing (owner prop). Absent outside the console shell. */
   execution?: ConsoleExecutionView
 }

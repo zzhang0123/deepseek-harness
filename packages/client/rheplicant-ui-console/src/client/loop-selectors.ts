@@ -3,7 +3,7 @@
  * four-pass breakdown) from one `LoopSnapshot`. Kept separate from
  * `LoopRail.tsx` so the honesty rules — what the wire can and cannot support
  * per stage — are readable and reviewable on their own, the same split
- * `run-selectors.ts` draws for the console panels.
+ * `run-selectors.ts` draws for the workbench panels.
  *
  * WIRE HONESTY NOTES (why some states can never appear, or only appear under
  * a narrower condition than a first reading of the four-pass rule suggests):

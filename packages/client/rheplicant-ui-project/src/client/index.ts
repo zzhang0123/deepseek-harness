@@ -27,7 +27,7 @@
 import type {
   ClientContext, ConversationSnapshot,
 } from '@deepseek-ai/dsh-client-runtime/client'
-import type { ConsoleExecutionView } from '@rheplicant/dsh-rheplicant-ui-kit/client'
+import type { ConsoleExecutionView, PanelLayoutView } from '@rheplicant/dsh-rheplicant-ui-kit/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
 
 // Type-only: these load the SlotMap augmentations that DECLARE the two seats
@@ -36,10 +36,12 @@ import type {} from '@deepseek-ai/dsh-client-ui-slots'
 // `register` refuses them at compile time, which is the map doing its job.
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
+import { createWorkbenchLayoutStore } from './layout-store.ts'
 import { HomeTrigger } from './HomeTrigger.tsx'
 import { ProjectHome } from './ProjectHome.tsx'
 import { setNavigator } from './navigate.ts'
 import { SelectionRuntime } from './selection-service.ts'
+import { WorkbenchRuntime } from './workbench-service.ts'
 
 /**
  * What the workbench hands each panel.
@@ -55,6 +57,15 @@ export interface TaskPanelOwnerProps {
   readonly useSession: <T>(selector: (snapshot: ConversationSnapshot) => T) => T
   /** The selected execution, in the same shape the console builds. */
   readonly execution: ConsoleExecutionView
+  /**
+   * Which panels are collapsed or hidden (§20.4).
+   *
+   * The one channel that reaches every occupant: `renderSlot`'s second
+   * argument is identical for every row of a list slot, so an occupant reads
+   * its OWN state out of this by its OWN known id and self-applies it. A panel
+   * that ignores it is simply unmanaged — no error, always visible.
+   */
+  readonly layout: PanelLayoutView
 }
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -71,18 +82,25 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
   }
 }
 
-export { closeHome, openHome, readHome, resetHome, selectProject, toggleHome, useHome } from './home-store.ts'
+export {
+  closeHome, openHome, readHome, resetHome, selectProject, subscribeHome, toggleHome, useHome,
+} from './home-store.ts'
 export type { HomeState } from './home-store.ts'
 export {
   countByStatus, formatBytes, groupExecutionsByTask, taskSegmentOf,
 } from './home-selectors.ts'
 export { canNavigate, openProject, setNavigator } from './navigate.ts'
+export { KNOWN_PANELS } from './known-panels.ts'
+export type { KnownPanel } from './known-panels.ts'
+export { panelsWithNoExit } from './panel-relevance.ts'
+export { createWorkbenchLayoutStore } from './layout-store.ts'
 export {
   clearSelection, proposeSelection, readSelection, resetSelections, selectInProject,
   subscribeSelection, useSelection,
 } from './selection.ts'
 export type { ProjectSelection, SelectionPatch, SelectionPins } from './selection.ts'
 export { SelectionRuntime } from './selection-service.ts'
+export { WorkbenchRuntime } from './workbench-service.ts'
 export type { Navigator } from './navigate.ts'
 export type { StatusCounts, TaskExecutionGroup } from './home-selectors.ts'
 
@@ -93,6 +111,12 @@ export function apply(ctx: ClientContext): void {
   // workbench) to read. Registered before anything else this plugin does, so a
   // consumer resolving it lazily finds it as soon as this row is mounted.
   ctx.plugin(SelectionRuntime)
+  // Whether this surface is the section on screen, published for anything that
+  // wants to SEND someone here — today the chat result node (§20.3). A second
+  // service rather than a member of the first: see `workbench-service.ts` for
+  // why "what the project is showing" and "what the frame is showing" must not
+  // be the same switch.
+  ctx.plugin(WorkbenchRuntime)
   ctx.effect(() => {
     setNavigator({
       connect: workspaceId => ctx.workspaces.connectWorkspace(workspaceId as never)
@@ -105,6 +129,13 @@ export function apply(ctx: ClientContext): void {
     name: 'shell.overlay',
     id: 'rheplicant-project-home',
     label: () => 'Project home',
+    // The panel layout, on the one entry that indisputably owns the grid
+    // (§20.4). Store-instance scope pins to the slot an entry registers INTO,
+    // and `shell.overlay` is root-scoped — so this is one layout for the app,
+    // where the console's was one per session. Which is what it should always
+    // have been: hiding a panel says how you want to read results, not which
+    // conversation you were in when you said so.
+    store: createWorkbenchLayoutStore,
     // The workbench's own panel grid. A SECOND slot rather than reusing
     // `console.panel` because a child key may be declared exactly once
     // (`ui-slots`: "declaring an already-declared child key throws") and only

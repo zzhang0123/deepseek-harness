@@ -30,7 +30,11 @@ export type { RunProvenance } from './format/provenance.ts'
 
 export { selectAnalysisRuns } from './run/run-selectors.ts'
 
-export { runsToRender, executionEmptyReason, graphToRender } from './run/execution-view.ts'
+export { runsToRender, executionEmptyReason, gatesToRender, graphToRender } from './run/execution-view.ts'
+// The same discipline as `runsToRender`, on the other input: a log fallback is
+// valid only when the log is unambiguous (§19.1). Here because two plugins need
+// it and ui-kit is the layer that may be inlined into both.
+export { soleTask } from './run/sole-task.ts'
 export type { ConsoleExecutionView, ExecutionViewProblem } from './run/execution-view.ts'
 export type { AnalysisRun, AnalysisRunDiagnostics, AnalysisRunProduct } from './run/run-selectors.ts'
 
@@ -75,4 +79,4 @@ export type { BandChartProps } from './chart/BandChart.tsx'
 export { CornerGrid } from './chart/CornerGrid.tsx'
 export type { CornerGridProps } from './chart/CornerGrid.tsx'
 
-export type { ConsolePanelLayoutView } from './panel/layout.ts'
+export type { PanelLayoutView } from './panel/layout.ts'

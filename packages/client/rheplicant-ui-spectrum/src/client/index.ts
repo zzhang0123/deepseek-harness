@@ -1,7 +1,7 @@
 /**
- * Browser plugin for the spectrum panel. Injects into the `console.panel` slot
- * declared by ui-console — the separate-viz-plugin contract: this package reads
- * nothing but the log, and does not re-run compute.
+ * Browser plugin for the spectrum panel. Injects into the `task.panel` slot
+ * declared by ui-project — the separate-viz-plugin contract: this package reads
+ * nothing but the project's own selection, and does not re-run compute.
  * @module @rheplicant/dsh-rheplicant-ui-spectrum/client
  */
 
@@ -14,16 +14,11 @@ import type {} from '@deepseek-ai/dsh-client-rheplicant-ui-project/client'
 export const inject = ['slots']
 
 export function apply(ctx: ClientContext): void {
-  ctx.slots.inject('console.panel', () => ctx.slots.register({
-    name: 'console.panel',
-    id: 'spectrum',
-    label: () => 'Spectrum',
-  }, SpectrumPanel))
-  // The SAME occupants, in the workbench's own grid. Two registrations rather
-  // than one because a child key may be declared exactly once and only its
-  // declarer can render it (`docs/project-model.md` §11.3), so the two seats
-  // are two slots. The component is identical: a panel is driven by owner
-  // props, so it cannot tell which seat it is in.
+  // The workbench's grid is the ONLY seat now (`docs/project-model.md` §20.4).
+  // There used to be a second registration into ui-console's `console.panel`,
+  // and the pair was the duplication §20 set out to end: two seats meant every
+  // future panel needed two registrations, and Model, Exits and the document
+  // diff already existed on one side only.
   ctx.slots.inject('task.panel', () => ctx.slots.register({
     name: 'task.panel',
     id: 'spectrum',

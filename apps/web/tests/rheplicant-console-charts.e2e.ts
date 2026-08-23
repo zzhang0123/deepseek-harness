@@ -1,19 +1,31 @@
-// Web e2e: the rheplicant console panels rebuilt on the shared chart kit
-// (ChartSurface/Axis/Tooltip/TracePlot/Histogram/BarChart/HeatMap/BandChart)
-// render real chart-kit DOM from one seeded `rheplicant/run` event — a nuts
-// run whose `chains` exercise the full wire grammar (two scalar series, one
-// fanned component pair, one credible-band triplet), an identifiability run,
-// and an mmodes run with a null cell. The console tab only renders once a
-// session is open, so the scenario seeds and opens one first.
+// Web e2e: the console tab's loop rail folds a run's PER-LATENT `mcmc`
+// diagnostics into its Diagnostics stage, at the same r_hat threshold the
+// scalar check uses, and names the offending latent.
 //
-// The `fit` run's diagnostics ALSO carry a per-latent `mcmc` bag (two
-// latents: `depth` fine, `centre` over the r_hat warn threshold at 1.42) —
-// regression coverage for surfacing per-latent MCMC diagnostics that used to
-// be invisible (only the top-level scalar rhat/n_eff ever reached the UI).
-// This exercises both halves of that fix in one seeded run: the per-latent
-// StatRow pair rendering (Chains + Posterior panels) AND the loop rail's
-// Diagnostics stage folding `mcmc` into its r_hat check at the SAME
-// threshold the scalar check uses, naming the offending latent.
+// **This file used to assert the chart panels too**, driven off the same
+// seeded run through the console's `console.panel` grid. §20.4 removed that
+// grid: the panels live in the project surface alone now, and that surface
+// reads the published TREE rather than a session log — so a seeded,
+// never-published run has no browser surface to draw on. Those assertions
+// moved, verbatim in their values, to jsdom specs beside the components they
+// were really about:
+//
+// * `packages/rheplicant/ui-posterior/tests/chart-kit.client.spec.tsx` — the
+//   full chain grammar (scalar series, fanned pair, credible band), the
+//   provenance caption, the per-latent StatRow pairs and their verdict dots,
+//   and the corner-plot disclosure.
+// * `.../ui-identifiability/tests/IdentifiabilityPanel.client.spec.tsx` — the
+//   singular-value bars, the rank cutoff, and `weakest_identified`.
+// * `.../ui-spectrum/tests/SpectrumPanel.client.spec.tsx` — the heatmap cells
+//   and the non-finite one.
+//
+// One assertion did not survive and is recorded in the first of those files:
+// the chart-kit tooltip on hover needs real layout, which jsdom has none of.
+//
+// What stays here is what is still SESSION-shaped: the rail. The `fit` run's
+// scalar r_hat (1.004) is fine on its own, so the Diagnostics stage is not
+// `ok` only because `centre`'s per-latent r_hat (1.42) is over threshold —
+// which is the whole point of folding `mcmc` into that check.
 import type { Browser, Page } from 'playwright'
 import { chromium } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
@@ -49,7 +61,7 @@ const SEED_FIXTURE = [
   '',
 ].join('\n')
 
-describe('web e2e: rheplicant console panels render the chart kit', () => {
+describe('web e2e: the console tab reads per-latent mcmc diagnostics', () => {
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page
@@ -70,7 +82,7 @@ describe('web e2e: rheplicant console panels render the chart kit', () => {
     await scaffold?.close()
   })
 
-  it('renders Chains/Posterior/Identifiability/Spectrum on the chart kit', async () => {
+  it('warns the Diagnostics stage on a per-latent r_hat, naming the latent', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-rheplicant-console-charts'))
 
     // Open the seeded session: expand the workspace group, then click the session.
@@ -80,178 +92,27 @@ describe('web e2e: rheplicant console panels render the chart kit', () => {
     const sessionRow = page.locator('[role="treeitem"]').nth(1)
     await sessionRow.waitFor({ timeout: 10_000 })
     await sessionRow.click()
-
-    // Confirm the seeded session opened (its user prompt renders).
     await page.getByText('Open the console view.', { exact: true }).waitFor({ timeout: 10_000 })
 
-    // The Console view is a conversation.view tab; select it.
     await page.getByRole('tab', { name: 'Console', exact: true }).click()
-
     const consoleView = page.locator('[data-rheplicant-console]')
     await consoleView.waitFor({ timeout: 15_000 })
-    await consoleView.locator('[data-console-grid]').waitFor({ timeout: 5_000 })
 
-    // --- Chains panel (new): registered after Posterior in the same plugin. ---
-    const chains = page.locator('[data-panel="chains"]')
-    await chains.waitFor({ timeout: 10_000 })
-    expect(await chains.locator('[data-panel-title]').innerText()).toBe('Chains')
-
-    const chainsRun = chains.locator('[data-chains-run][data-run-name="fit"]')
-    await chainsRun.waitFor({ timeout: 10_000 })
-
-    // The fanned component pair (`beam[0]`/`beam[1]`) groups as one 'series'
-    // chain group with two series — a multi-series TracePlot with a legend.
-    const beamGroup = chainsRun.locator('[data-chain-group="beam"]')
-    await beamGroup.waitFor({ timeout: 5_000 })
-    const beamTrace = beamGroup.locator('[data-chart-kind="trace"]')
-    await beamTrace.waitFor({ timeout: 5_000 })
-    expect(await beamTrace.locator('[data-series]').count()).toBeGreaterThanOrEqual(2)
-    expect(await beamTrace.locator('[data-tick]').count()).toBeGreaterThan(0)
-    // The legend renders as a sibling of the chart surface (TracePlot's own
-    // wrapping div), not a descendant of `[data-chart-kind="trace"]`.
-    expect(await beamGroup.locator('[data-legend-item]').count()).toBeGreaterThanOrEqual(1)
-
-    // Hovering the trace svg surfaces the shared chart-kit tooltip.
-    await beamTrace.hover()
-    await beamTrace.locator('[data-chart-tip]').waitFor({ timeout: 5_000 })
-
-    // The credible-band triplet (`wide.mean`/`wide.q05`/`wide.q95`) groups as
-    // one 'band' chain group, rendered by BandChart.
-    const wideGroup = chainsRun.locator('[data-chain-group="wide"]')
-    await wideGroup.waitFor({ timeout: 5_000 })
-    const wideBand = wideGroup.locator('[data-chart-kind="band"]')
-    await wideBand.waitFor({ timeout: 5_000 })
-    expect(await wideBand.locator('[data-band]').count()).toBeGreaterThan(0)
-    expect(await wideBand.locator('[data-mean-line]').count()).toBeGreaterThan(0)
-
-    // Per-run diagnostics (rhat/n_eff/divergences) fold into StatRow chips.
-    // The scalar rhat row is scoped to a DIRECT child of the run card
-    // (`:scope >`) because the per-latent mcmc rows below ALSO carry
-    // `data-stat="rhat"` (scoped instead by their own `[data-mcmc-latent]`
-    // wrapper) — without `:scope >` this locator would match all three and
-    // Playwright's strict mode would refuse to resolve it.
-    expect(await chainsRun.locator(':scope > [data-stat="rhat"] [data-stat-value]').innerText()).toContain('1.004')
-    expect(await chainsRun.locator('[data-stat="n_eff"] [data-stat-value]').innerText()).toContain('980')
-    // ADAPTED: `divergences` moved from 2 to 0 in this fixture so the new
-    // mcmc-driven loop-rail assertion below (bad per-latent r_hat, verdict
-    // `warn`) isn't shadowed by a pre-existing `divergences > 0` (which
-    // would short-circuit `runDiagVerdict` to `error` before it ever reads
-    // rhat/mcmc — see `loop-selectors.ts`'s `runDiagVerdict`).
-    expect(await chainsRun.locator('[data-stat="divergences"] [data-stat-value]').innerText()).toContain('0')
-
-    // The run's provenance caption names its wall-clock time, transport, and
-    // seq (3) — the field that lets two identical-outcome runs read as
-    // distinct cards rather than one repeated.
-    const chainsProvenance = chainsRun.locator('[data-run-provenance]')
-    await chainsProvenance.waitFor({ timeout: 5_000 })
-    expect(await chainsProvenance.getAttribute('data-run-seq')).toBe('3')
-    expect(await chainsProvenance.innerText()).toContain('local')
-    expect(await chainsProvenance.innerText()).toContain('seq 3')
-
-    // Per-latent MCMC diagnostics (`RunDiagnostics.mcmc`): one r_hat/n_eff
-    // StatRow pair per latent, wrapped in its own `[data-mcmc-latent]`. The
-    // fine latent (`depth`) renders no warn dot; the bad one (`centre`,
-    // r_hat 1.42 > the 1.01 threshold) does.
-    // `formatDiagnostic('n_eff', …)` rounds to the nearest integer (n_eff is
-    // in `INTEGER_KEYS`), so 82.6 → "83" and 91.3 → "91".
-    const depthLatent = chainsRun.locator('[data-mcmc-latent="depth"]')
-    await depthLatent.waitFor({ timeout: 5_000 })
-    expect(await depthLatent.locator('[data-stat="rhat"] [data-stat-value]').innerText()).toContain('0.991')
-    expect(await depthLatent.locator('[data-stat="n-eff"] [data-stat-value]').innerText()).toContain('83')
-    expect(await depthLatent.locator('[data-stat="rhat"] [data-stat-verdict]').count()).toBe(0)
-
-    const centreLatent = chainsRun.locator('[data-mcmc-latent="centre"]')
-    await centreLatent.waitFor({ timeout: 5_000 })
-    expect(await centreLatent.locator('[data-stat="rhat"] [data-stat-value]').innerText()).toContain('1.42')
-    expect(await centreLatent.locator('[data-stat="n-eff"] [data-stat-value]').innerText()).toContain('91')
-    expect(await centreLatent.locator('[data-stat="rhat"] [data-stat-verdict]').getAttribute('data-stat-verdict')).toBe('warn')
-    // Its n_eff cell carries no verdict — only r_hat is ever flagged.
-    expect(await centreLatent.locator('[data-stat="n-eff"] [data-stat-verdict]').count()).toBe(0)
-
-    // --- Posterior panel: marginals by default, corner behind a disclosure. ---
-    const posterior = page.locator('[data-panel="posterior"]')
-    await posterior.waitFor({ timeout: 10_000 })
-    const posteriorRun = posterior.locator('[data-posterior-run][data-run-name="fit"]')
-    await posteriorRun.waitFor({ timeout: 10_000 })
-
-    const marginal = posteriorRun.locator('[data-marginal]').first()
-    await marginal.waitFor({ timeout: 5_000 })
-    expect(await posteriorRun.locator('[data-marginal]').count()).toBeGreaterThanOrEqual(1)
-    expect(await marginal.locator('[data-bin]').count()).toBeGreaterThan(0)
-
-    // Same provenance caption and per-latent MCMC rows render here too — the
-    // shared `mcmcRows`/`formatRunProvenance` ui-kit derivation, not a
-    // separate reimplementation.
-    const posteriorProvenance = posteriorRun.locator('[data-run-provenance]')
-    await posteriorProvenance.waitFor({ timeout: 5_000 })
-    expect(await posteriorProvenance.getAttribute('data-run-seq')).toBe('3')
-    const posteriorCentreLatent = posteriorRun.locator('[data-mcmc-latent="centre"]')
-    await posteriorCentreLatent.waitFor({ timeout: 5_000 })
-    expect(await posteriorCentreLatent.locator('[data-stat="rhat"] [data-stat-verdict]').getAttribute('data-stat-verdict')).toBe('warn')
-    expect(await posteriorRun.locator('[data-mcmc-latent="depth"] [data-stat="rhat"] [data-stat-verdict]').count()).toBe(0)
-
-    // The corner plot is collapsed behind a disclosure by default: the
-    // `<details>` is closed and its content is present in the DOM but not
-    // rendered (native `<details>` semantics — `count()` still finds it, so
-    // assert on visibility, not presence).
-    // ADAPTED: PosteriorPanel now renders ui-kit's `CornerGrid` (commit
-    // e7cf415) instead of the old hand-rolled scatter/histogram corner plot —
-    // `[data-corner]` no longer exists; the real DOM is one
-    // `<svg data-corner-grid>` with one `[data-corner-cell="row,col"]` per
-    // lower-triangle 2D density pane and one `[data-corner-diagonal="index"]`
-    // per 1D marginal on the diagonal.
-    const cornerDetails = posteriorRun.locator('[data-corner-details]')
-    await cornerDetails.waitFor({ timeout: 5_000 })
-    expect(await cornerDetails.evaluate(el => (el as HTMLDetailsElement).open)).toBe(false)
-    expect(await cornerDetails.locator('[data-corner-grid]').isVisible()).toBe(false)
-    await cornerDetails.locator('summary').click()
-    const cornerGrid = cornerDetails.locator('[data-corner-grid]')
-    await cornerGrid.waitFor({ timeout: 5_000 })
-    expect(await cornerDetails.evaluate(el => (el as HTMLDetailsElement).open)).toBe(true)
-    expect(await cornerGrid.locator('[data-corner-cell]').count()).toBeGreaterThan(0)
-    expect(await cornerGrid.locator('[data-corner-diagonal]').count()).toBeGreaterThan(0)
-
-    // --- LoopRail: the Diagnostics stage reads `mcmc` too, not just the
-    // scalar rhat. The `fit` run's scalar rhat (1.004) is fine on its own —
-    // this stage is NOT `ok` only because `centre`'s per-latent r_hat (1.42)
-    // is over threshold, and the detail line names that latent, not just the
-    // run.
     const rail = page.locator('[data-loop-rail]')
     await rail.waitFor({ timeout: 10_000 })
-    const diagnosticsStageEl = rail.locator('[data-loop-stage="diagnostics"]')
-    await diagnosticsStageEl.waitFor({ timeout: 5_000 })
-    expect(await diagnosticsStageEl.getAttribute('data-stage-state')).toBe('warn')
-    const diagnosticsDetail = await diagnosticsStageEl.innerText()
-    expect(diagnosticsDetail).toContain('centre')
-    expect(diagnosticsDetail).toContain('1.42')
-
-    // --- Identifiability panel: BarChart over the singular-value spectrum. ---
-    const identifiability = page.locator('[data-panel="identifiability"]')
-    await identifiability.waitFor({ timeout: 10_000 })
-    const identRun = identifiability.locator('[data-identifiability-run][data-run-name="ident"]')
-    await identRun.waitFor({ timeout: 10_000 })
-    const identChart = identRun.locator('[data-singular-values]')
-    await identChart.waitFor({ timeout: 5_000 })
-    expect(await identChart.locator('[data-bar]').count()).toBe(5)
-    // A vertical SVG `<line>` has a zero-width bounding box, so Playwright's
-    // visibility heuristic reports it "hidden" even though it renders — wait
-    // for DOM presence rather than the (default) visible state.
-    await identChart.locator('[data-cutoff]').waitFor({ state: 'attached', timeout: 5_000 })
-    expect(await identChart.locator('[data-cutoff]').count()).toBe(1)
-    expect(await identRun.locator('[data-stat="rank"] [data-stat-value]').innerText()).toContain('3')
-    expect(await identRun.locator('[data-stat="nullity"] [data-stat-value]').innerText()).toContain('2')
-    expect(await identRun.locator('[data-stat="weakest_identified"] [data-stat-value]').innerText()).toContain('0.25')
-
-    // --- Spectrum panel: HeatMap over the m-mode power spectrum. ---
-    const spectrum = page.locator('[data-panel="spectrum"]')
-    await spectrum.waitFor({ timeout: 10_000 })
-    const spectrumRun = spectrum.locator('[data-spectrum-run][data-run-name="mmode"]')
-    await spectrumRun.waitFor({ timeout: 10_000 })
-    await spectrumRun.locator('[data-cell]').first().waitFor({ timeout: 5_000 })
-    expect(await spectrumRun.locator('[data-cell]').count()).toBe(16)
-    expect(await spectrumRun.locator('[data-cell-null]').count()).toBe(1)
-    expect(await spectrumRun.locator('[data-ramp]').count()).toBe(1)
+    const diagnosticsStage = rail.locator('[data-loop-stage="diagnostics"]')
+    await diagnosticsStage.waitFor({ timeout: 5_000 })
+    expect(await diagnosticsStage.getAttribute('data-stage-state')).toBe('warn')
+    const detail = await diagnosticsStage.innerText()
+    expect(detail).toContain('centre')
+    expect(detail).toContain('1.42')
   }, 60_000)
+
+  it('carries no panel grid — the panels belong to the project surface now (§20.4)', async () => {
+    expect(await page.locator('[data-console-grid]').count()).toBe(0)
+    expect(await page.locator('[data-panels-menu]').count()).toBe(0)
+    expect(await page.locator('[data-panel="posterior"]').count()).toBe(0)
+  })
 
   it('stayed clean', async () => {
     expect(tripwire.pageErrors).toEqual([])

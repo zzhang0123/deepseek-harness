@@ -3,9 +3,8 @@
  * the hand-rolled serializer can render it faithfully, pretty JSON as a
  * labelled fallback otherwise — see `yaml.ts`), a caption naming which
  * durable event it came from and its transport, and a copy-to-clipboard
- * action. Shared by the `console.panel` occupant and the `conversation.view`
- * tab (the tab adds the grammar reference below it; the panel renders this
- * alone).
+ * action. Used by the `conversation.view` tab, which adds the grammar
+ * reference below it.
  * @module @rheplicant/dsh-rheplicant-ui-document/client/DocumentSource
  */
 import { memo, useCallback, useMemo, useState } from 'react'

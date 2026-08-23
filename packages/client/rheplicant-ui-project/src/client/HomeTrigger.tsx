@@ -1,5 +1,5 @@
 /**
- * The sidebar-foot control that opens the project home.
+ * The sidebar-foot control that switches between the two peer sections.
  *
  * `sidebar.footer.action` is a root-scoped LIST slot with `replaceRisk: none`,
  * so this is added beside the shipped Settings row rather than shadowing
@@ -7,6 +7,19 @@
  * `conversation.hero.workspace`, which is a single-occupant popover already
  * owned by the shipped WorkspacePicker (see `docs/project-model.md` §6.0's
  * implementation note).
+ *
+ * **A switch, not an opener (§20.2).** While the project section was a modal
+ * this was a disclosure — `aria-expanded`, "Project home", press to reveal. It
+ * is now one of two peer places you can be, so it reports `aria-pressed`: a
+ * toggle button that is either on or off, which is what a section switch is and
+ * what a screen reader needs to hear. `aria-expanded` would say a region was
+ * being revealed beneath it, which was never true and is now not even the
+ * shape of the thing.
+ *
+ * §20.1 costs the ALTERNATIVE seat — the sidebar's primary navigation, which
+ * would need an additive edit to a shipped package — at about a week. The foot
+ * is the plugin-only answer, and whether it proves wrong is a question for use,
+ * not for a document.
  *
  * @module @rheplicant/dsh-rheplicant-ui-project/client/HomeTrigger
  */
@@ -28,13 +41,14 @@ export const HomeTrigger = memo(function HomeTrigger({ wide }: HomeTriggerProps)
       type="button"
       className={styles.trigger}
       data-project-home-trigger=""
+      data-project-section={open ? 'project' : 'conversation'}
       // The rail has no room for the label, so the accessible name has to come
       // from somewhere that is not the visible text in that state — and giving
       // it unconditionally keeps one name across both, rather than one that
       // changes when the column resizes.
-      aria-label="Project home"
-      aria-expanded={open}
-      title="Project home"
+      aria-label="Project"
+      aria-pressed={open}
+      title="Project"
       onClick={toggleHome}
     >
       <span aria-hidden="true" className={styles.triggerMark}>◈</span>

@@ -16,18 +16,33 @@ import { memo } from 'react'
 import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
 import type { CheckCost, GateFinding } from '@rheplicant/dsh-rheplicant'
 import {
-  Badge, type ConsolePanelLayoutView, EmptyState, Panel, type PanelStatus, StatRow, formatDiagnostic,
+  Badge, type ConsoleExecutionView, type PanelLayoutView, EmptyState, Panel,
+  type PanelStatus, StatRow, executionEmptyReason, formatDiagnostic, gatesToRender,
 } from '@rheplicant/dsh-rheplicant-ui-kit/client'
 import { soleTask } from './loop-tasks.ts'
 import styles from './gates-panel.module.css'
 
-/** This panel's own `console.panel` id — the key it reads/writes in `layout`. */
+/** This panel's own `task.panel` id — the key it reads/writes in `layout`. */
 const PANEL_ID = 'gates'
 
 interface GatesPanelProps {
   useSession: <T>(selector: (snapshot: ConversationSnapshot) => T) => T
-  /** Console layout state (owner prop — see ConsoleView's doc comment). Absent when not rendered through the console shell (e.g. a unit test): renders un-collapsed, always visible. */
-  layout?: ConsolePanelLayoutView
+  /**
+   * The execution being shown (owner prop), so the POST-FLIGHT findings below
+   * belong to the execution this surface is addressing rather than to whatever
+   * the open conversation last ran.
+   *
+   * This panel read the session log alone until §20.4 made the workbench's
+   * grid the only seat — and the workbench hands its panels an EMPTY
+   * conversation on purpose (§11.5), so reading the log there answered "no
+   * gates evidence yet" for every execution, including ones whose tree records
+   * a refusal. The priced CHECKS below still come from the log, because they
+   * are a `rheplicant/gates` fact and no execution's tree carries them; the
+   * panel says so rather than leaving the absence unexplained.
+   */
+  execution?: ConsoleExecutionView
+  /** Panel layout state (owner prop — see ProjectHome's doc comment). Absent when not rendered through a panel grid (e.g. a unit test): renders un-collapsed, always visible. */
+  layout?: PanelLayoutView
 }
 
 const CHECK_LABEL: Record<CheckCost['check'], string> = {
@@ -135,8 +150,8 @@ const ALWAYS_ON_CHECKS: readonly { readonly id: string; readonly summary: string
 /**
  * One always-on row: a compressed one-line summary, with the full original
  * wording behind a `<details data-always-on-details>` disclosure — the same
- * plain-`<details>` idiom `PosteriorPanel`'s corner plot and `PanelsMenu`
- * already use for exactly this shape (a summary line plus more beneath it).
+ * plain-`<details>` idiom `PosteriorPanel`'s corner plot already uses for
+ * exactly this shape (a summary line plus more beneath it).
  */
 const AlwaysOnRow = memo(function AlwaysOnRow({ id, summary, detail }: { id: string; summary: string; detail: string }) {
   return (
@@ -150,7 +165,7 @@ const AlwaysOnRow = memo(function AlwaysOnRow({ id, summary, detail }: { id: str
   )
 })
 
-export const GatesPanel = memo(function GatesPanel({ useSession, layout }: GatesPanelProps) {
+export const GatesPanel = memo(function GatesPanel({ useSession, layout, execution }: GatesPanelProps) {
   // Hooks run unconditionally (React's rules) — the hidden check happens
   // AFTER, at the return, so a panel toggled hidden/shown never skips a hook
   // call between renders.
@@ -162,9 +177,15 @@ export const GatesPanel = memo(function GatesPanel({ useSession, layout }: Gates
   // selection and always knows what it is.
   const sole = useSession(snapshot => soleTask(snapshot.views.get('rheplicant-loop')))
   const gates = sole?.gates
-  const findings = sole?.run?.outcome.gates
+  // The SELECTED execution's findings, with the log as the fallback only where
+  // nothing has been claimed about an execution — the same three-state rule
+  // `graphToRender` applies next door, and for the same reason: a finding is
+  // an accusation about a specific run.
+  const findings = gatesToRender(execution, sole?.run?.outcome.gates) as
+    readonly GateFinding[] | undefined
   if (layout?.hidden.has(PANEL_ID) === true) return null
   const checks = gates?.report.checks ?? []
+  const problem = executionEmptyReason(execution)
   const hasEvidence = gates !== undefined || (findings !== undefined && findings.length > 0)
   const anyRefuse = checks.some(check => effectiveState(check) === 'refuse') || (findings ?? []).some(f => f.severity === 'refuse')
   const anyWarnLike = checks.some(check => effectiveState(check) === 'warn' || isSkipLike(effectiveState(check)))
@@ -182,9 +203,20 @@ export const GatesPanel = memo(function GatesPanel({ useSession, layout }: Gates
       })}
     >
       {!hasEvidence ? (
-        <EmptyState message="No gates evidence yet" hint="Ask the agent for a rheplicant_gates or rheplicant_run call" />
+        <EmptyState
+          message={problem ?? 'No gates evidence yet'}
+          hint={problem ?? 'Ask the agent for a rheplicant_gates or rheplicant_run call'}
+        />
       ) : (
         <>
+          {checks.length === 0 && (
+            <p data-gate-checks-absent className={styles.checksAbsent}>
+              The priced checks a document declares come from a
+              {' '}<code>rheplicant_gates</code> call in a conversation, not from
+              an execution&apos;s results — so they appear beside a conversation
+              that made one, and not here.
+            </p>
+          )}
           {checks.length > 0 ? (
             <div data-gate-checks className={styles.checks}>
               {checks.map(check => <CheckCard key={check.check} check={check} />)}

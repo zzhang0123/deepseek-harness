@@ -67,7 +67,6 @@ function mount(ordered: HeaderExecution[], over: Partial<ConsoleExecutionState> 
     projectReadable: true,
     pinned: false,
     select,
-    executionView: {},
     ...over,
   }
   render(<ProjectHeader execution={state} />)

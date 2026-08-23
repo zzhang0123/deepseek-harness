@@ -38,8 +38,19 @@ const loopValidateDefinition: ConversationNodeDefinition<LoopValidateContributio
     if (match.event.type !== 'rheplicant/validate') {
       throw new Error('rheplicant-loop-validate start requires rheplicant/validate')
     }
-    const { document, transport, report } = match.event.data
-    return { kind: 'validate', seq: match.event.seq, document, transport, report }
+    const { document, transport, report, taskPath } = match.event.data
+    return {
+      kind: 'validate',
+      seq: match.event.seq,
+      document,
+      transport,
+      report,
+      // A loop belongs to a task (§19). `tool-validate` has emitted this since
+      // P1; dropping it here filed every validate under "inline work", so one
+      // conversation validating and then running ONE task drew TWO rails —
+      // the same fabrication §19 removed, wearing the opposite costume.
+      ...(typeof taskPath === 'string' ? { taskPath } : {}),
+    }
   },
   update: context => context.state,
   buildViewNode: context => context.state === undefined ? null : loopNode(context, context.state),
@@ -53,8 +64,16 @@ const loopGatesDefinition: ConversationNodeDefinition<LoopGatesContribution> = {
     if (match.event.type !== 'rheplicant/gates') {
       throw new Error('rheplicant-loop-gates start requires rheplicant/gates')
     }
-    const { document, transport, report } = match.event.data
-    return { kind: 'gates', seq: match.event.seq, document, transport, report }
+    const { document, transport, report, taskPath } = match.event.data
+    return {
+      kind: 'gates',
+      seq: match.event.seq,
+      document,
+      transport,
+      report,
+      // See `loopValidateDefinition`: the same field, dropped the same way.
+      ...(typeof taskPath === 'string' ? { taskPath } : {}),
+    }
   },
   update: context => context.state,
   buildViewNode: context => context.state === undefined ? null : loopNode(context, context.state),

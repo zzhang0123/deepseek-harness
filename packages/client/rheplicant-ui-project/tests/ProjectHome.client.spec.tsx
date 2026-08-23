@@ -8,10 +8,11 @@
  * as the other is the class of bug this design exists to prevent.
  */
 
+import { useSyncExternalStore, type ComponentProps } from 'react'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProjectHome } from '../src/client/ProjectHome.tsx'
-import { closeHome, openHome, resetHome, selectProject } from '../src/client/home-store.ts'
+import { openHome, resetHome, selectProject } from '../src/client/home-store.ts'
 import { setNavigator } from '../src/client/navigate.ts'
 import { readSelection, resetSelections, selectInProject } from '../src/client/selection.ts'
 
@@ -95,18 +96,86 @@ function serve(
 }
 
 /** What the workbench handed its `task.panel` grid on the last render. */
-let panelOwner: { useSession: unknown; execution: Record<string, unknown> } | undefined
+let panelOwner: {
+  useSession: unknown
+  execution: Record<string, unknown>
+  layout: { collapsed: ReadonlySet<string>; hidden: ReadonlySet<string> }
+} | undefined
+
+/**
+ * A stand-in for the engine store the framework bakes in from this entry's own
+ * registration. Real state, so a collapse actually collapses; recreated per
+ * mount, so one test's layout never leaks into the next.
+ */
+interface LayoutDouble {
+  collapsed: string[]
+  hidden: string[]
+  decided: string[]
+}
+let layoutState: LayoutDouble = { collapsed: [], hidden: [], decided: [] }
+let layoutListeners: (() => void)[] = []
+
+function writeLayout(next: LayoutDouble): void {
+  layoutState = next
+  for (const listener of [...layoutListeners]) listener()
+}
+
+/** Reset the double. Called by every `mount`. */
+function resetLayout(): void {
+  layoutState = { collapsed: [], hidden: [], decided: [] }
+  layoutListeners = []
+}
+
+const layoutActions = {
+  toggleCollapsed: (id: string) => {
+    writeLayout({
+      ...layoutState,
+      collapsed: layoutState.collapsed.includes(id)
+        ? layoutState.collapsed.filter(x => x !== id)
+        : [...layoutState.collapsed, id],
+      decided: layoutState.decided.includes(id) ? layoutState.decided : [...layoutState.decided, id],
+    })
+  },
+  hide: (id: string) => {
+    if (layoutState.hidden.includes(id)) return
+    writeLayout({ ...layoutState, hidden: [...layoutState.hidden, id] })
+  },
+  show: (id: string) => {
+    writeLayout({ ...layoutState, hidden: layoutState.hidden.filter(x => x !== id) })
+  },
+  suggestCollapsed: (ids: readonly string[]) => {
+    const undecided = ids.filter(id =>
+      !layoutState.decided.includes(id) && !layoutState.collapsed.includes(id))
+    if (undecided.length === 0) return
+    writeLayout({ ...layoutState, collapsed: [...layoutState.collapsed, ...undecided] })
+  },
+  reset: () => { writeLayout({ collapsed: [], hidden: [], decided: [] }) },
+}
 
 /** Render the home over a fixed workspace list and session list. */
 function mount(recent: string | undefined = 'ws-1') {
+  resetLayout()
   const state = { items: WORKSPACES, recentWorkspaceId: recent }
   const useWorkspaces = <T,>(selector: (value: typeof state) => T): T => selector(state)
   const renderSlot = (_key: 'task.panel', owner: never) => {
     panelOwner = owner
     return <div data-task-panels="" />
   }
+  const useStore = <T,>(selector: (value: LayoutDouble) => T): T =>
+    useSyncExternalStore(
+      (listener) => {
+        layoutListeners.push(listener)
+        return () => { layoutListeners = layoutListeners.filter(l => l !== listener) }
+      },
+      () => selector(layoutState),
+      () => selector(layoutState),
+    )
   return render(
-    <ProjectHome useWorkspaces={useWorkspaces} renderSlot={renderSlot as never} />,
+    <ProjectHome
+      {...({
+        useWorkspaces, renderSlot, useStore, actions: layoutActions,
+      } as unknown as ComponentProps<typeof ProjectHome>)}
+    />,
   )
 }
 
@@ -232,41 +301,42 @@ describe('opening and closing', () => {
     await waitFor(() => { expect(screen.getByText('beam')).toBeTruthy() })
   })
 
-  it('closes on the Close control', async () => {
+  // §20.2: the three modal behaviours below were OURS, not the slot's, and all
+  // three are gone. What replaces each assertion is the same claim inverted,
+  // because "it is no longer a modal" is exactly the thing that can regress.
+
+  it('draws no backdrop — nothing behind this section is dimmed or blocked', async () => {
     serve({ 'ws-1': overview('rhino') })
     openHome('ws-1')
     const { container } = mount()
     await waitFor(() => { expect(container.querySelector('[data-project-home]')).toBeTruthy() })
-    fireEvent.click(container.querySelector('[data-project-close]')!)
-    expect(container.querySelector('[data-project-home]')).toBeNull()
+    expect(container.querySelector('[data-project-home-backdrop]')).toBeNull()
   })
 
-  it('closes on the backdrop', async () => {
-    serve({ 'ws-1': overview('rhino') })
-    openHome('ws-1')
-    const { container } = mount()
-    await waitFor(() => { expect(container.querySelector('[data-project-home]')).toBeTruthy() })
-    fireEvent.click(container.querySelector('[data-project-home-backdrop]')!)
-    expect(container.querySelector('[data-project-home]')).toBeNull()
-  })
-
-  it('closes on Escape', async () => {
+  it('ignores Escape — a section is a place you are, not a thing you dismiss', async () => {
     serve({ 'ws-1': overview('rhino') })
     openHome('ws-1')
     const { container } = mount()
     await waitFor(() => { expect(container.querySelector('[data-project-home]')).toBeTruthy() })
     fireEvent.keyDown(window, { key: 'Escape' })
-    expect(container.querySelector('[data-project-home]')).toBeNull()
+    expect(container.querySelector('[data-project-home]')).toBeTruthy()
   })
 
-  it('stops listening for Escape once closed', async () => {
+  it('is a region landmark, never a dialog', async () => {
     serve({ 'ws-1': overview('rhino') })
     openHome('ws-1')
     mount()
-    act(() => { closeHome() })
-    // No throw, no stale handler: the assertion is that this is inert.
-    fireEvent.keyDown(window, { key: 'Escape' })
+    await waitFor(() => { expect(screen.getByRole('region', { name: 'Project' })).toBeTruthy() })
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('switches back to the conversation from its own header', async () => {
+    serve({ 'ws-1': overview('rhino') })
+    openHome('ws-1')
+    const { container } = mount()
+    await waitFor(() => { expect(container.querySelector('[data-project-home]')).toBeTruthy() })
+    fireEvent.click(container.querySelector('[data-project-switch]')!)
+    expect(container.querySelector('[data-project-home]')).toBeNull()
   })
 })
 
@@ -973,5 +1043,101 @@ describe('the exits a task reaches for', () => {
     await waitFor(() => { expect(container.querySelector('[data-exit-unknown]')).toBeTruthy() })
     expect(container.querySelector('[data-exit-unknown]')!.textContent).toContain('made-up')
     expect(container.querySelector('[data-exit-used]')).toBeNull()
+  })
+})
+
+
+describe('the panel layout the workbench owns (§20.4)', () => {
+  /** A projection whose declared runs write the given product selectors. */
+  function withRuns(...products: readonly string[][]) {
+    return {
+      path: 'rhino-fit.yaml',
+      digest: 'x',
+      svg: '<svg data-diagram=""></svg>',
+      walkOrder: [],
+      model: { totalNodes: 0, nodes: [] },
+      runs: {
+        exitsTotal: 18,
+        catalogue: [],
+        declared: products.map((selectors, index) => ({
+          index, name: `r${index}`, kind: 'nuts', known: true, products: selectors,
+        })),
+        reserved: [],
+      },
+    }
+  }
+
+  const NUTS = ['arrays', 'draws', 'parameters', 'chains', 'recovery', 'run_diagnostics']
+  const FORWARD = ['arrays', 'aux', 'taps']
+
+  async function open(projection?: Record<string, unknown>) {
+    serve(
+      { 'ws-1': overview('rhino') },
+      { 'rhino-fit.yaml': 'model: {}\n' },
+      {}, {},
+      projection === undefined ? {} : { 'rhino-fit.yaml': projection },
+    )
+    openHome('ws-1')
+    selectInProject('ws-1', { taskPath: 'rhino-fit.yaml', executionId: 'rhino-E1' })
+    const rendered = mount()
+    await waitFor(() => { expect(rendered.container.querySelector('[data-project-panels]')).toBeTruthy() })
+    return rendered
+  }
+
+  it('hands every panel the layout, through the one channel that reaches them all', async () => {
+    await open(withRuns(NUTS))
+    await waitFor(() => { expect(panelOwner?.layout).toBeDefined() })
+    expect(panelOwner?.layout.collapsed).toBeInstanceOf(Set)
+    expect(panelOwner?.layout.hidden).toBeInstanceOf(Set)
+  })
+
+  it('hides a panel from the Panels menu and restores it', async () => {
+    const { container } = await open(withRuns(NUTS))
+    const item = container.querySelector('[data-panels-menu-item="spectrum"] input') as HTMLInputElement
+    expect(item.checked).toBe(true)
+    fireEvent.click(item)
+    await waitFor(() => { expect(panelOwner?.layout.hidden.has('spectrum')).toBe(true) })
+    fireEvent.click(container.querySelector('[data-panels-menu-item="spectrum"] input')!)
+    await waitFor(() => { expect(panelOwner?.layout.hidden.has('spectrum')).toBe(false) })
+  })
+
+  it('collapses a panel whose product no declared run writes', async () => {
+    // A forward-only document writes no `chains`, so the two chain panels
+    // arrive folded — and the Exits catalogue above explains why, once.
+    await open(withRuns(FORWARD))
+    await waitFor(() => { expect(panelOwner?.layout.collapsed.has('posterior')).toBe(true) })
+    expect(panelOwner?.layout.collapsed.has('chains')).toBe(true)
+  })
+
+  it('leaves those panels open when a declared run DOES write their product', async () => {
+    await open(withRuns(NUTS))
+    await waitFor(() => { expect(panelOwner?.layout).toBeDefined() })
+    expect(panelOwner?.layout.collapsed.has('posterior')).toBe(false)
+    expect(panelOwner?.layout.collapsed.has('chains')).toBe(false)
+  })
+
+  it('collapses nothing when the document could not be projected at all', async () => {
+    // `unknown` is not `unmet`: folding a panel shut because nobody could ask
+    // is the mistake §12 refused on the definition checklist.
+    await open(undefined)
+    await waitFor(() => { expect(panelOwner?.layout).toBeDefined() })
+    expect(panelOwner?.layout.collapsed.size).toBe(0)
+  })
+
+  it('never collapses a panel that draws no run product', async () => {
+    await open(withRuns(FORWARD))
+    await waitFor(() => { expect(panelOwner?.layout.collapsed.has('posterior')).toBe(true) })
+    expect(panelOwner?.layout.collapsed.has('gates')).toBe(false)
+    expect(panelOwner?.layout.collapsed.has('signal-path')).toBe(false)
+  })
+
+  it('says in the menu WHY a panel arrived collapsed', async () => {
+    const { container } = await open(withRuns(FORWARD))
+    await waitFor(() => {
+      expect(container.querySelector('[data-panels-menu-item="posterior"][data-panel-without-exit]'))
+        .toBeTruthy()
+    })
+    expect(container.querySelector('[data-panels-menu-item="gates"][data-panel-without-exit]'))
+      .toBeNull()
   })
 })

@@ -1,13 +1,15 @@
 /**
- * Browser plugin for the rheplicant console. Registers a "Console"
- * conversation.view tab and DECLARES a child slot `console.panel` (a list grid)
- * that other plugins — posterior, spectrum, … — inject into. This is the
- * self-extensible slot mechanism: no DSH change, the slot is claimed here.
- * Also registers the `rheplicant-loop` conversation-view target (the loop
- * projection LoopRail and GatesPanel read) and its own `gates` console.panel
- * occupant — registered here, ahead of every dependent viz package's own
- * `apply()`, so Gates renders first in the panel list without needing an
- * explicit `order`.
+ * Browser plugin for the rheplicant console: a "Console" `conversation.view`
+ * tab holding the project header and this conversation's activity rail, plus
+ * the `rheplicant-loop` conversation-view target both read, plus the `gates`
+ * occupant of the workbench's grid.
+ *
+ * **This package used to DECLARE `console.panel`**, a child grid every viz
+ * plugin injected into, and §20.4 removed it: the same occupants were
+ * registered twice — here and in ui-project's `task.panel` — and the panels
+ * belong to the project, not to whichever conversation happens to be open. The
+ * declaration is gone rather than left in place and unrendered, so a new panel
+ * has one seat to choose and no way to end up in the wrong one.
  * @module @rheplicant/dsh-rheplicant-ui-console/client
  */
 
@@ -18,16 +20,9 @@ import type {} from '@deepseek-ai/dsh-client-rheplicant-ui-project/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { ConsoleView } from './ConsoleView.tsx'
 import { GatesPanel } from './GatesPanel.tsx'
-import { createConsoleLayoutStore } from './layout-store.ts'
 import { setSelectionSource } from './selection-bridge.ts'
 import { registerLoopDefinitions } from './loop-definitions.ts'
 import { registerLoopConversationView } from './loop-snapshot-builder.ts'
-
-declare module '@deepseek-ai/dsh-client-ui-slots' {
-  interface SlotMap {
-    'console.panel': { kind: 'list'; scope: 'session' }
-  }
-}
 
 // Re-exported so the `rheplicant-loop` ConversationViewSnapshotMap
 // augmentation (declared in `loop-contract.ts`) is reachable from a
@@ -62,26 +57,16 @@ export function apply(ctx: ClientContext): void {
   setSelectionSource(() => ctx.get('rheplicantSelection'))
   registerLoopDefinitions(ctx)
   registerLoopConversationView(ctx)
+  // No `children:` and no `store:` any more: this tab declares no grid, so it
+  // has no panel layout to own either (§20.4). The workbench's own
+  // registration owns both now.
   ctx.slots.inject('conversation.view', () => ctx.slots.register({
     name: 'conversation.view',
     id: 'console',
     order: 5,
     label: () => 'Console',
-    store: createConsoleLayoutStore,
-    children: {
-      'console.panel': { kind: 'list', scope: 'session' },
-    },
   }, ConsoleView))
-  ctx.slots.inject('console.panel', () => ctx.slots.register({
-    name: 'console.panel',
-    id: 'gates',
-    label: () => 'Gates',
-  }, GatesPanel))
-  // The SAME occupants, in the workbench's own grid. Two registrations rather
-  // than one because a child key may be declared exactly once and only its
-  // declarer can render it (`docs/project-model.md` §11.3), so the two seats
-  // are two slots. The component is identical: a panel is driven by owner
-  // props, so it cannot tell which seat it is in.
+  // Gates renders in the WORKBENCH's grid, the only seat there is.
   ctx.slots.inject('task.panel', () => ctx.slots.register({
     name: 'task.panel',
     id: 'gates',

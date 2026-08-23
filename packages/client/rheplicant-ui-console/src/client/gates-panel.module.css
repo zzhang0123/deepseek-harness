@@ -90,3 +90,13 @@
   color: var(--dsw-alias-label-secondary);
   font-size: 0.75rem;
 }
+
+/* Why the priced-check cards are absent, when this surface has no conversation
+   to read them from. Stated on screen rather than left as an empty space —
+   an unexplained absence reads as "this document declares no checks". */
+.checksAbsent {
+  margin: 0 0 0.5rem;
+  color: var(--dsw-alias-text-tertiary);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}

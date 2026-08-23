@@ -1,8 +1,9 @@
 /** Keyed renderer for the `rheplicant-analysis` Chat node: one row per run, each with its diagnostics panel. */
-import { memo } from 'react'
+import { memo, useCallback } from 'react'
 import type { ChatNodeViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { GateFinding, RunDiagnostics } from '@rheplicant/dsh-rheplicant'
 import { Badge, formatDiagnostic, formatRunProvenance, mcmcRows } from '@rheplicant/dsh-rheplicant-ui-kit/client'
+import { canOpenInProject, openInProject } from './project-bridge.ts'
 import { SignalPath } from './SignalPath.tsx'
 import styles from './analysis-run-panel.module.css'
 
@@ -171,9 +172,68 @@ const RunProvenanceCaption = memo(function RunProvenanceCaption(
   )
 })
 
+/**
+ * Just enough of the workspace list to say which project a session is in. The
+ * same lookup `useConsoleExecution` does, and for the same reason: a session
+ * belongs to at most one workspace, so this is a lookup, not a choice.
+ */
+interface WorkspaceListLike {
+  items: readonly { workspaceId: string; sessionIds: readonly string[] }[]
+}
+
+/**
+ * "Open in the project view" — the one edge out of a result and into the
+ * archive (`docs/project-model.md` §20.3).
+ *
+ * One control per NODE rather than per run: every run in one node came from
+ * one `rheplicant/run` event, so they share an execution and a task, and a
+ * control per row would be the same action repeated down the card.
+ *
+ * It renders only when it would actually do something — the execution is
+ * named, the session's project is known, and both project services are
+ * reachable. A button that quietly did nothing would be worse than no button,
+ * because it looks like it worked.
+ */
+const OpenInProject = memo(function OpenInProject(
+  { workspaceId, taskPath, executionId }: {
+    workspaceId: string
+    taskPath: string | undefined
+    executionId: string
+  },
+) {
+  const onClick = useCallback(() => {
+    openInProject(workspaceId, { taskPath, executionId })
+  }, [workspaceId, taskPath, executionId])
+  return (
+    <button
+      type="button"
+      className={styles.openInProject}
+      data-open-in-project={executionId}
+      data-open-in-project-task={taskPath}
+      onClick={onClick}
+    >
+      Open in the project view
+    </button>
+  )
+})
+
 /** Render one analysis run's step list with per-run status and diagnostics. */
-export const AnalysisRunPanel = memo(function AnalysisRunPanel({ node }: ChatNodeViewProps<'rheplicant-analysis'>) {
+export const AnalysisRunPanel = memo(function AnalysisRunPanel(
+  { node, sessionId, useWorkspaces }: ChatNodeViewProps<'rheplicant-analysis'> & {
+    useWorkspaces?: <T>(selector: (state: WorkspaceListLike) => T) => T
+  },
+) {
   const { runs, tookMs, graph, gates } = node.data
+  // Every run here shares the event's execution identity (see
+  // `AnalysisRunChatData.runs[].executionId`), so the first one that carries it
+  // speaks for the node.
+  const addressed = runs.find(run => run.executionId !== undefined)
+  const here = String(sessionId)
+  const workspaceId = useWorkspaces?.(state =>
+    state.items.find(row => row.sessionIds.some(id => String(id) === here))?.workspaceId)
+  const deepen = addressed?.executionId !== undefined
+    && workspaceId !== undefined
+    && canOpenInProject()
   return (
     <section data-rheplicant-analysis>
       {graph !== undefined ? <SignalPath graph={graph} /> : null}
@@ -189,6 +249,13 @@ export const AnalysisRunPanel = memo(function AnalysisRunPanel({ node }: ChatNod
         ))}
       </ul>
       {tookMs !== undefined ? <footer data-took-ms>{tookMs} ms</footer> : null}
+      {deepen && (
+        <OpenInProject
+          workspaceId={workspaceId}
+          taskPath={addressed.taskPath}
+          executionId={addressed.executionId}
+        />
+      )}
     </section>
   )
 })
