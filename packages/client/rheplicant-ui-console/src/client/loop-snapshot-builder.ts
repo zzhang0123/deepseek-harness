@@ -13,30 +13,16 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { ConversationViewBuilder, ConversationViewDefinition } from '@deepseek-ai/dsh-client-runtime/client'
-import type {
-  LoopConversationViewNode, LoopExecutionRef, LoopGatesEntry, LoopRunContribution, LoopRunEntry,
-  LoopSnapshot, LoopValidateEntry,
-} from './loop-contract.ts'
+import { groupByTask } from './loop-tasks.ts'
+import type { LoopConversationViewNode, LoopSnapshot } from './loop-contract.ts'
 
 /**
  * One run contribution projected to what the header and picker need: scalars
  * already on the event, and nothing else.
  */
-function executionRef(data: LoopRunContribution): LoopExecutionRef {
-  return {
-    executionId: data.executionId as string,
-    ...(data.outcome.resultsPath === undefined ? {} : { resultsPath: data.outcome.resultsPath }),
-    ...(data.taskPath === undefined ? {} : { taskPath: data.taskPath }),
-    transport: data.transport,
-    // One failed run makes the execution failed: a card that says "ok" while a
-    // run inside it errored is the exact wrongness this console exists to kill.
-    status: data.outcome.runs.some(entry => entry.status === 'failed') ? 'failed' : 'ok',
-    seq: data.seq,
-  }
-}
 
 /** Stable empty target used until a Session has assembled any loop records. */
-export const EMPTY_LOOP_SNAPSHOT: LoopSnapshot = { executions: [], latestSeq: -1 }
+export const EMPTY_LOOP_SNAPSHOT: LoopSnapshot = { tasks: [], executions: [], latestSeq: -1 }
 
 /** Per-Session incremental builder folding validate/gates/run contributions into one loop state. */
 export class LoopSnapshotBuilder implements ConversationViewBuilder<LoopConversationViewNode, LoopSnapshot> {
@@ -70,38 +56,24 @@ export class LoopSnapshotBuilder implements ConversationViewBuilder<LoopConversa
   }
 
   /**
-   * Fold the sorted contributions into the final loop state: later facts of
-   * one kind overwrite earlier ones as the walk proceeds in ascending
-   * `anchorSeq` order, so the result always holds the latest of each kind.
+   * Group the sorted contributions BY TASK.
+   *
+   * This used to fold to "the latest of each kind" across the whole
+   * conversation, which fabricated one loop out of unrelated tasks — see
+   * `loop-tasks.ts`. The grouping lives there so it can be tested without a
+   * builder, and so this class keeps its one job: incremental caching.
    */
   private snapshot(): LoopSnapshot {
-    let validate: LoopValidateEntry | undefined
-    let gates: LoopGatesEntry | undefined
-    let run: LoopRunEntry | undefined
-    const executions: LoopExecutionRef[] = []
-    let latestSeq = -1
-    for (const contribution of this.contributions) {
-      const data = contribution.data
-      latestSeq = data.seq
-      if (data.kind === 'validate') {
-        validate = { report: data.report, document: data.document, transport: data.transport, seq: data.seq }
-      } else if (data.kind === 'gates') {
-        gates = { report: data.report, document: data.document, transport: data.transport, seq: data.seq }
-      } else {
-        run = { outcome: data.outcome, document: data.document, transport: data.transport, seq: data.seq }
-        // The walk is ascending, so pushing here yields oldest-first with no
-        // second sort. An event without an id predates execution identity and
-        // has nothing to select BY, so it contributes to `run` but not here.
-        if (data.executionId !== undefined) executions.push(executionRef(data))
-      }
-    }
-    if (validate === undefined && gates === undefined && run === undefined) return this.empty
+    const tasks = groupByTask(this.contributions.map(node => node.data))
+    if (tasks.length === 0) return this.empty
     return {
-      ...(validate === undefined ? {} : { validate }),
-      ...(gates === undefined ? {} : { gates }),
-      ...(run === undefined ? {} : { run }),
-      executions,
-      latestSeq,
+      tasks,
+      // Flattened across tasks, oldest first: the execution picker offers
+      // everything this conversation produced, and each row already carries
+      // its own `taskPath`.
+      executions: tasks.flatMap(task => task.executions)
+        .sort((left, right) => left.seq - right.seq),
+      latestSeq: Math.max(...tasks.map(task => task.latestSeq)),
     }
   }
 

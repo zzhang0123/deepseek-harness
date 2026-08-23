@@ -43,6 +43,9 @@ export type {
   LoopContribution, LoopConversationViewNode, LoopGatesEntry, LoopRunEntry, LoopSnapshot, LoopValidateEntry,
 } from './loop-contract.ts'
 export { loopViewDefinition } from './loop-snapshot-builder.ts'
+// The sole-task rule, so a panel outside this package applies the same one:
+// a log fallback is valid only when the log is unambiguous.
+export { soleTask, type LoopTask } from './loop-tasks.ts'
 export {
   chooseExecution, proposeExecution, resetLocalSelection, setSelectionSource, useProjectSelection,
 } from './selection-bridge.ts'

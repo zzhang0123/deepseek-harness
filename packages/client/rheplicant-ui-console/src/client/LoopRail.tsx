@@ -21,6 +21,7 @@ import { memo } from 'react'
 import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
 import { loopStages, type PassInfo, type StageInfo } from './loop-selectors.ts'
 import { EMPTY_LOOP_SNAPSHOT } from './loop-snapshot-builder.ts'
+import type { LoopTask } from './loop-tasks.ts'
 import styles from './loop-rail.module.css'
 
 interface LoopRailProps {
@@ -88,12 +89,35 @@ const Stage = memo(function Stage({ stage }: { stage: StageInfo }) {
   )
 })
 
+/**
+ * One task's loop, labelled by the task it belongs to.
+ *
+ * The label is not decoration. Unlabelled rows for two tasks read as one
+ * loop, which is the fabrication this grouping exists to stop.
+ */
+const TaskLoop = memo(function TaskLoop({ task }: { task: LoopTask }) {
+  return (
+    <div className={styles.taskLoop} data-loop-task={task.taskPath ?? ''}>
+      <span className={styles.taskLabel}>
+        {task.taskPath ?? 'not filed under a task'}
+      </span>
+      <nav className={styles.rail} data-loop-rail aria-label={`Workflow loop for ${task.taskPath ?? 'inline work'}`}>
+        {loopStages(task).map(stage => <Stage key={stage.id} stage={stage} />)}
+      </nav>
+    </div>
+  )
+})
+
 export const LoopRail = memo(function LoopRail({ useSession }: LoopRailProps) {
   const snapshot = useSession(session => session.views.get('rheplicant-loop')) ?? EMPTY_LOOP_SNAPSHOT
-  const stages = loopStages(snapshot)
+  // ONE RAIL PER TASK. A conversation is free to touch several, and folding
+  // them into one row put task A's Validate beside task B's Run under a
+  // single heading — a loop assembled out of unrelated work.
   return (
-    <nav className={styles.rail} data-loop-rail aria-label="Workflow loop">
-      {stages.map(stage => <Stage key={stage.id} stage={stage} />)}
-    </nav>
+    <div className={styles.loops} data-loop-rails="">
+      {snapshot.tasks.map(task => (
+        <TaskLoop key={task.taskPath ?? ' inline'} task={task} />
+      ))}
+    </div>
   )
 })

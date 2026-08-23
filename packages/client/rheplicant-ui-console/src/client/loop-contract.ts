@@ -12,6 +12,7 @@
 
 import type { ConversationLocation, ConversationViewNode } from '@deepseek-ai/dsh-client-runtime/client'
 import type { ComputeDocument, GatesReport, RunOutcome, Transport, ValidationReport } from '@rheplicant/dsh-rheplicant'
+import type { LoopTask } from './loop-tasks.ts'
 
 /** One matched `rheplicant/validate` event, independently assembled. */
 export interface LoopValidateContribution {
@@ -20,6 +21,15 @@ export interface LoopValidateContribution {
   readonly document: ComputeDocument
   readonly transport: Transport
   readonly report: ValidationReport
+  /**
+   * The task file as the model named it; absent for an inline document.
+   *
+   * Carried on all three kinds so the projection can group by it. It was on
+   * `run` alone until 2026-08-23, while the durable event has carried it on
+   * all three since P1 (`TaskIdentity`) — so the conflation that produced was
+   * not a missing fact but a discarded one.
+   */
+  readonly taskPath?: string
 }
 
 /** One matched `rheplicant/gates` event, independently assembled. */
@@ -29,6 +39,8 @@ export interface LoopGatesContribution {
   readonly document: ComputeDocument
   readonly transport: Transport
   readonly report: GatesReport
+  /** See {@link LoopValidateContribution.taskPath}. */
+  readonly taskPath?: string
 }
 
 /** One matched `rheplicant/run` event, independently assembled. */
@@ -111,10 +123,17 @@ export interface LoopExecutionRef {
  * earlier execution without leaving the conversation.
  */
 export interface LoopSnapshot {
-  readonly validate?: LoopValidateEntry
-  readonly gates?: LoopGatesEntry
-  readonly run?: LoopRunEntry
-  /** Every execution this session produced, oldest first. */
+  /**
+   * One entry per TASK this conversation touched, most recently active first.
+   *
+   * Was a single folded `validate`/`gates`/`run` triple until 2026-08-23,
+   * which kept "the latest of each kind" with no task discrimination — so a
+   * conversation that validated task A and then ran task B rendered A's
+   * Validate beside B's Run as one coherent loop. A loop belongs to a task,
+   * and this makes that structural rather than hoped for. See `loop-tasks.ts`.
+   */
+  readonly tasks: readonly LoopTask[]
+  /** Every execution this session produced, across all tasks, oldest first. */
   readonly executions: readonly LoopExecutionRef[]
   /** The greatest `seq` across every fact folded in, or -1 when none has landed yet. */
   readonly latestSeq: number

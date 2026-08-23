@@ -12,6 +12,7 @@
 import { memo } from 'react'
 import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-rheplicant-ui-console/client'
+import { soleTask } from '@deepseek-ai/dsh-client-rheplicant-ui-console/client'
 import {
   type ConsoleExecutionView, type ConsolePanelLayoutView, EmptyState, Panel,
   type PanelStatus, TOKEN, graphToRender,
@@ -66,7 +67,13 @@ export const SignalPathPanel = memo(function SignalPathPanel({ useSession, layou
   // — which this did until a real end-to-end run exposed it — draws the open
   // conversation's model under a foreign execution's header, and renders
   // nothing at all in the workbench, which has no conversation.
-  const fromLog = useSession(snapshot => snapshot.views.get('rheplicant-loop')?.run?.outcome.graph)
+  // The log fallback, and only when the log is UNAMBIGUOUS. A conversation
+  // that touched several tasks has several loops, and the log cannot say
+  // which one's model this is — a diagram is the most confidently-read thing
+  // on the page, so guessing here is the most expensive guess available.
+  const fromLog = useSession(
+    snapshot => soleTask(snapshot.views.get('rheplicant-loop'))?.run?.outcome.graph,
+  )
   const graph = graphToRender(execution, fromLog) as typeof fromLog
   if (layout?.hidden.has(PANEL_ID) === true) return null
   const status: PanelStatus = graph === undefined ? 'idle' : 'ok'

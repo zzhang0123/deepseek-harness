@@ -102,3 +102,21 @@
   border-color: var(--dsw-alias-border-l1);
   opacity: 0.6;
 }
+
+/* One rail per task (§19). A conversation may touch several, and the label is
+   what stops two rails reading as one loop. */
+.loops {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.taskLoop {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.taskLabel {
+  font-family: var(--dsw-font-mono, ui-monospace, monospace);
+  font-size: 0.6875rem;
+  color: var(--dsw-alias-text-tertiary);
+}

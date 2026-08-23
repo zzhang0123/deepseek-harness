@@ -18,6 +18,7 @@ import type { CheckCost, GateFinding } from '@rheplicant/dsh-rheplicant'
 import {
   Badge, type ConsolePanelLayoutView, EmptyState, Panel, type PanelStatus, StatRow, formatDiagnostic,
 } from '@rheplicant/dsh-rheplicant-ui-kit/client'
+import { soleTask } from './loop-tasks.ts'
 import styles from './gates-panel.module.css'
 
 /** This panel's own `console.panel` id — the key it reads/writes in `layout`. */
@@ -153,8 +154,15 @@ export const GatesPanel = memo(function GatesPanel({ useSession, layout }: Gates
   // Hooks run unconditionally (React's rules) — the hidden check happens
   // AFTER, at the return, so a panel toggled hidden/shown never skips a hook
   // call between renders.
-  const gates = useSession(snapshot => snapshot.views.get('rheplicant-loop')?.gates)
-  const findings = useSession(snapshot => snapshot.views.get('rheplicant-loop')?.run?.outcome.gates)
+  // The LOG fallback, and it is only valid when the log is unambiguous. A
+  // conversation that touched several tasks has several loops, and the log
+  // cannot say which one this panel is showing — so it declines rather than
+  // guessing, the same rule `runsToRender` applies to an unreadable
+  // execution. The execution view above is unaffected: it is addressed by
+  // selection and always knows what it is.
+  const sole = useSession(snapshot => soleTask(snapshot.views.get('rheplicant-loop')))
+  const gates = sole?.gates
+  const findings = sole?.run?.outcome.gates
   if (layout?.hidden.has(PANEL_ID) === true) return null
   const checks = gates?.report.checks ?? []
   const hasEvidence = gates !== undefined || (findings !== undefined && findings.length > 0)

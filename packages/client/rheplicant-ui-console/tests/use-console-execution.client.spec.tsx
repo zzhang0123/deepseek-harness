@@ -87,7 +87,10 @@ afterEach(() => { cleanup(); resetLocalSelection(); setSelectionSource(undefined
 const WORKSPACES = { items: [{ workspaceId: 'ws-1', sessionIds: ['S-1'] }] }
 
 function mount(executions: readonly LoopExecutionRef[]) {
-  const snapshot: LoopSnapshot = { executions, latestSeq: executions.length }
+  // `tasks` is empty on purpose: this hook reads the flattened execution
+  // list, which is exactly the field that must keep working when a
+  // conversation touched several tasks.
+  const snapshot: LoopSnapshot = { tasks: [], executions, latestSeq: executions.length }
   const views = new Map<string, unknown>([['rheplicant-loop', snapshot]])
   const session = { views, sessionId: 'S-1', chat: { nodes: new Map() }, nodes: [] } as unknown as ConversationSnapshot
   return renderHook(() => useConsoleExecution(

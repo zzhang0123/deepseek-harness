@@ -44,7 +44,8 @@
 
 import type { CheckCost, RunEntry } from '@rheplicant/dsh-rheplicant'
 import { RHAT_WARN_ABOVE, formatDiagnostic, formatMs, mcmcLatents } from '@rheplicant/dsh-rheplicant-ui-kit/client'
-import type { LoopGatesEntry, LoopRunEntry, LoopSnapshot, LoopValidateEntry } from './loop-contract.ts'
+import type { LoopGatesEntry, LoopRunEntry, LoopValidateEntry } from './loop-contract.ts'
+import type { LoopTask } from './loop-tasks.ts'
 
 export type StageId = 'author' | 'validate' | 'gates' | 'run' | 'diagnostics'
 export type StageState = 'ok' | 'warn' | 'error' | 'pending' | 'idle'
@@ -77,15 +78,22 @@ function sectionCount(document: Record<string, unknown>): number {
   return Object.keys(document).length
 }
 
-/** The document carried by whichever of validate/gates/run is most recent. */
-function latestDocument(snapshot: LoopSnapshot): Record<string, unknown> | undefined {
+/**
+ * The document carried by whichever of ONE TASK's validate/gates/run is most
+ * recent.
+ *
+ * Scoped to a task since 2026-08-23. Across a whole conversation this picked
+ * "the latest document of any kind", which for a session touching several
+ * tasks was somebody else's document under this task's heading.
+ */
+function latestDocument(snapshot: LoopTask): Record<string, unknown> | undefined {
   const entries: LoopEntry[] = [snapshot.validate, snapshot.gates, snapshot.run]
     .filter((entry): entry is LoopEntry => entry !== undefined)
   if (entries.length === 0) return undefined
   return entries.reduce((latest, entry) => (entry.seq > latest.seq ? entry : latest)).document
 }
 
-export function authorStage(snapshot: LoopSnapshot): StageInfo {
+export function authorStage(snapshot: LoopTask): StageInfo {
   const document = latestDocument(snapshot)
   if (document === undefined) return { id: 'author', label: 'Author', state: 'idle', detail: NOT_YET_RECORDED }
   const count = sectionCount(document)
@@ -126,7 +134,7 @@ function postFlightPass(run: LoopRunEntry | undefined): PassInfo {
   return { id: 'post-flight', state: 'ok' }
 }
 
-export function validateStage(snapshot: LoopSnapshot): StageInfo {
+export function validateStage(snapshot: LoopTask): StageInfo {
   const validate = snapshot.validate
   const { axes, built } = axesBuiltPasses(snapshot.run)
   const passes: readonly PassInfo[] = [preFlightPass(validate), axes, built, postFlightPass(snapshot.run)]
@@ -174,7 +182,7 @@ function worstCheckState(checks: readonly CheckCost[]): string | undefined {
   return worst
 }
 
-export function gatesStage(snapshot: LoopSnapshot): StageInfo {
+export function gatesStage(snapshot: LoopTask): StageInfo {
   const gates = snapshot.gates
   if (gates === undefined) {
     return { id: 'gates', label: 'Gates', state: 'idle', detail: NOT_YET_RECORDED, panelTarget: 'gates', stale: false }
@@ -194,7 +202,7 @@ export function gatesStage(snapshot: LoopSnapshot): StageInfo {
   return { id: 'gates', label: 'Gates', state, detail, panelTarget: 'gates', stale }
 }
 
-export function runStage(snapshot: LoopSnapshot): StageInfo {
+export function runStage(snapshot: LoopTask): StageInfo {
   const run = snapshot.run
   if (run === undefined || run.outcome.runs.length === 0) {
     return { id: 'run', label: 'Run', state: 'idle', detail: NOT_YET_RECORDED, panelTarget: 'posterior' }
@@ -268,7 +276,7 @@ function formatOffender(offender: DiagOffender): string {
   return `${offender.name}: ${metricLabel}=${value === undefined ? '—' : formatDiagnostic(offender.metric, value)}`
 }
 
-export function diagnosticsStage(snapshot: LoopSnapshot): StageInfo {
+export function diagnosticsStage(snapshot: LoopTask): StageInfo {
   const run = snapshot.run
   const diagnosed = run === undefined ? [] : run.outcome.runs.filter(entry => entry.diagnostics !== undefined)
   if (diagnosed.length === 0) {
@@ -290,6 +298,6 @@ export function diagnosticsStage(snapshot: LoopSnapshot): StageInfo {
 }
 
 /** Every stage in fixed display order: Author, Validate, Gates, Run, Diagnostics. */
-export function loopStages(snapshot: LoopSnapshot): readonly StageInfo[] {
+export function loopStages(snapshot: LoopTask): readonly StageInfo[] {
   return [authorStage(snapshot), validateStage(snapshot), gatesStage(snapshot), runStage(snapshot), diagnosticsStage(snapshot)]
 }
