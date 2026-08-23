@@ -6272,6 +6272,22 @@ importers:
         specifier: workspace:^
         version: link:../../../vendor/cordis
 
+  packages/rheplicant/tool-gates:
+    dependencies:
+      '@deepseek-ai/dsh-tools':
+        specifier: workspace:^
+        version: link:../../core/tools
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
+      '@rheplicant/dsh-rheplicant':
+        specifier: workspace:^
+        version: link:../rheplicant
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+
   packages/rheplicant/tool-run:
     dependencies:
       '@deepseek-ai/dsh-tools':
@@ -6290,6 +6306,22 @@ importers:
       '@deepseek-ai/dsh-jobs':
         specifier: workspace:^
         version: link:../../jobs/jobs
+
+  packages/rheplicant/tool-validate:
+    dependencies:
+      '@deepseek-ai/dsh-tools':
+        specifier: workspace:^
+        version: link:../../core/tools
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
+      '@rheplicant/dsh-rheplicant':
+        specifier: workspace:^
+        version: link:../rheplicant
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
 
   packages/rheplicant/transport:
     dependencies:
