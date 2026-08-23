@@ -67,3 +67,18 @@ describe('the spectrum panel', () => {
     expect(run.querySelectorAll('[data-ramp]').length).toBe(1)
   })
 })
+
+
+describe('a historical event carrying an explicit null', () => {
+  /**
+   * Four `"spectrum": null` runs were measured in one real session log. The
+   * crash it caused was `Cannot read properties of null (reading 'length')` —
+   * `HeatMap` reading a grid that is not there — and it took the whole slot
+   * down with it.
+   */
+  it('renders its empty state instead of crashing', () => {
+    expect(() => { draw([{ name: 'mmode', kind: 'mmodes', status: 'ok', spectrum: null }]) }).not.toThrow()
+    expect(document.querySelectorAll('[data-spectrum-run]').length).toBe(0)
+    expect(document.querySelector('[data-panel="spectrum"]')).toBeTruthy()
+  })
+})

@@ -50,6 +50,20 @@ export interface AnalysisRunChatData {
   readonly tookMs?: number
   readonly graph?: SignalPathGraph
   readonly gates?: readonly GateFinding[]
+  /**
+   * Whether this execution reached a results folder.
+   *
+   * Derived here rather than carried on the wire: `RunOutcome.resultsPath` is
+   * already on the event (`receipt()` strips the run ARRAYS, never the path),
+   * so this is a projection, not a new field.
+   *
+   * It decides two things a reader can see. A published execution's arrays
+   * live in its folder and the project surface draws them, so this node offers
+   * a way there; an unpublished one has no folder at all, so its arrays ride
+   * this event — the only copy there is (§20.6, P4d) — and this node draws
+   * them, because nothing else can.
+   */
+  readonly published: boolean
 }
 
 declare module '@deepseek-ai/dsh-client-ui-conversation/client' {
@@ -118,6 +132,7 @@ export const analysisRunDefinition: ConversationNodeDefinition<AnalysisState> = 
       ...(outcome.tookMs !== undefined ? { tookMs: outcome.tookMs } : {}),
       ...(outcome.graph === undefined ? {} : { graph: outcome.graph }),
       ...(outcome.gates === undefined ? {} : { gates: outcome.gates }),
+      published: outcome.resultsPath !== undefined,
     }
     return {
       key: context.key,

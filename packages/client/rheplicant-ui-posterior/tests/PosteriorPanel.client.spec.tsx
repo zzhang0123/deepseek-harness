@@ -94,3 +94,20 @@ describe('the posterior panel, driven by the execution it is given', () => {
     expect(document.querySelectorAll('[data-posterior-run]').length).toBe(0)
   })
 })
+
+
+describe('a historical event carrying an explicit null', () => {
+  /**
+   * Real session logs on a developer machine carry `"chains": null` — the
+   * shape the service emitted before it stopped sending explicit nulls for an
+   * optional field. An `undefined`-only guard lets it through, `Object.entries`
+   * throws, and a throw inside a slot renderer takes the whole slot down. A
+   * previous session patched this into `node_modules` and the next repack
+   * overwrote it; this pins it at the source.
+   */
+  it('renders its empty state instead of crashing', () => {
+    expect(() => { draw([{ name: 'fit', kind: 'nuts', status: 'ok', chains: null }]) }).not.toThrow()
+    expect(document.querySelectorAll('[data-posterior-run]').length).toBe(0)
+    expect(document.querySelector('[data-panel="posterior"]')).toBeTruthy()
+  })
+})

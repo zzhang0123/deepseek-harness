@@ -116,7 +116,6 @@ describe('web e2e: rheplicant analysis node renders from the log', () => {
     expect(await gatesEl.locator('[data-gate]').first().getAttribute('data-gate-check')).toBe('C12')
     expect(await gatesEl.locator('[data-gate]').first().innerText()).toContain('departure')
 
-    // A sampler run still renders (its chains moved to the posterior corner plot).
     const fit = panel.locator('[data-run-name="fit"]')
     await fit.waitFor({ timeout: 5_000 })
     expect(await fit.getAttribute('data-run-status')).toBe('ok')
@@ -124,6 +123,37 @@ describe('web e2e: rheplicant analysis node renders from the log', () => {
     // The surrounding turn's closing assistant message renders too.
     expect(await page.getByText('The forward run completed.', { exact: true }).count()).toBe(1)
   }, 60_000)
+
+  it('draws the sampler run\'s chains here, because this run published nothing', async () => {
+    // `docs/project-model.md` §20.6. This seed's outcome names no
+    // `resultsPath`, so `receipt()` left its arrays on the event and there is
+    // no results folder for the project surface to read — this node is the
+    // only copy there is. A published run's node carries no arrays at all,
+    // which is what keeps the two surfaces from ever showing the same run.
+    const draws = page.locator('[data-scratch-draws="fit"]')
+    await draws.waitFor({ timeout: 10_000 })
+    // Closed by default: this is a transcript, and a chart that opened itself
+    // would push the conversation off the screen.
+    expect(await draws.evaluate(el => (el as HTMLDetailsElement).open)).toBe(false)
+    await draws.locator('summary').click()
+    await draws.locator('[data-chain-group="g"]').waitFor({ timeout: 5_000 })
+    expect(await draws.locator('[data-chain-group="amp"] [data-chart-kind="trace"]').count()).toBe(1)
+    expect((await draws.innerText()).toLowerCase()).toContain('published nothing')
+  })
+
+  it('offers no way into the project view, which has no folder to open', async () => {
+    // The other half of the same fact. Sending someone to the project surface
+    // for an unpublished execution would land them on "the results are in this
+    // execution's folder, which this console could not read" — of a run that
+    // has no folder at all.
+    expect(await page.locator('[data-open-in-project]').count()).toBe(0)
+  })
+
+  it('draws nothing for a run that produced no arrays', async () => {
+    // `sim` is a forward run: it published nothing either, and it has nothing
+    // to draw. Absent is the honest render, not an empty chart frame.
+    expect(await page.locator('[data-scratch-draws="sim"]').count()).toBe(0)
+  })
 
   it('issued zero model calls and stayed clean', async () => {
     expect(tripwire.pageErrors).toEqual([])

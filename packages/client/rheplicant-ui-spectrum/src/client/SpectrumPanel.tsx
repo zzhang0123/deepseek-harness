@@ -33,8 +33,16 @@ interface SpectrumPanelProps {
 /** An analysis run that has the spectrum grid this panel needs to draw a heatmap. */
 type SpectrumRun = AnalysisRun & { readonly spectrum: (number | null)[][] }
 
+/**
+ * A run carrying real spectrum grid.
+ *
+ * `!= null` on purpose, and it is load-bearing: the wire field is optional,
+ * but events recorded before the service stopped emitting explicit nulls
+ * carry `null` — measured in real session logs. `undefined`-only guards let a
+ * null through, and the crash it causes takes the whole slot down.
+ */
 function hasSpectrum(run: AnalysisRun): run is SpectrumRun {
-  return run.spectrum !== undefined
+  return run.spectrum !== undefined && run.spectrum !== null
 }
 
 export const SpectrumPanel = memo(function SpectrumPanel({ useSession, layout, execution }: SpectrumPanelProps) {

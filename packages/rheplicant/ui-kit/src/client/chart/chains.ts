@@ -69,7 +69,18 @@ interface BucketEntry {
  * other latent — scalar, per-component fan-out, or a summary latent missing
  * one of the three keys — groups as `series`, keys in their original order.
  */
-export function groupChains(chains: Record<string, readonly (number | null)[]>): ChainGroup[] {
+export function groupChains(
+  chains: Record<string, readonly (number | null)[]> | null | undefined,
+): ChainGroup[] {
+  // NULL IS NOT AN EMPTY OBJECT, and this is the choke point where that has to
+  // be true. `RunEntry.chains` is an optional wire field, but events recorded
+  // before the service stopped emitting explicit nulls carry `"chains": null`
+  // — measured in real session logs on a developer machine. `Object.entries`
+  // throws on null, and a throw inside a `conversation.chat.node` renderer
+  // takes the WHOLE slot down (see the same hazard recorded for
+  // `RunDiagnostics.notes`). Guarding here rather than at each call site is
+  // what stops the next panel from being the fourth copy of this bug.
+  if (chains === null || chains === undefined) return []
   const order: string[] = []
   const buckets = new Map<string, BucketEntry[]>()
 

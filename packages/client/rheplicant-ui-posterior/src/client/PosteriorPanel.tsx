@@ -41,8 +41,16 @@ type PosteriorRun = AnalysisRun & { readonly chains: Record<string, (number | nu
 
 const MARGINAL_BINS = 24
 
+/**
+ * A run carrying real draws.
+ *
+ * `!= null` on purpose, and it is load-bearing: the wire field is optional,
+ * but events recorded before the service stopped emitting explicit nulls
+ * carry `null` — measured in real session logs. `undefined`-only guards let a
+ * null through, and the crash it causes takes the whole slot down.
+ */
 function hasChains(run: AnalysisRun): run is PosteriorRun {
-  return run.chains !== undefined
+  return run.chains !== undefined && run.chains !== null
 }
 
 /** Every series across a run's 'series'-kind chain groups, flattened in group-then-series order (band groups carry no marginal). */

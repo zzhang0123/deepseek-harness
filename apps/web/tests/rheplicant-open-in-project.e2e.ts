@@ -27,7 +27,10 @@ import { newEnglishPage, saveFailureShot } from './support.ts'
 const SEED_ID = 'rheplicant-open-in-project-web-e2e'
 const TASK_PATH = 'tasks/global-signal-fit.yaml'
 const EXECUTION = '20260823T101500Z-3f9ac2b1-k7m2xq'
-const OUTCOME = '{"runs":[{"name":"fit","kind":"nuts","status":"ok","diagnostics":{"rhat":1.01,"n_eff":500,"divergences":0,"notes":[]}}],"tookMs":31}'
+// A run against a task file PUBLISHES, so its outcome names a results folder
+// and `receipt()` has stripped its arrays — which is what makes the project
+// view the place to see them, and what makes this node offer a way there.
+const OUTCOME = '{"runs":[{"name":"fit","kind":"nuts","status":"ok","diagnostics":{"rhat":1.01,"n_eff":500,"divergences":0,"notes":[]}}],"tookMs":31,"resultsPath":"results/tasks/global-signal-fit/20260823T101500Z-3f9ac2b1-k7m2xq"}'
 const IDENTITY = `"executionId":"${EXECUTION}","taskDigest":"3f9ac2b1","taskPath":"${TASK_PATH}"`
 
 const SEED_FIXTURE = [

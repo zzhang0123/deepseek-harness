@@ -35,8 +35,16 @@ interface ChainsPanelProps {
 /** An analysis run that has the chain draws this panel needs to draw traces. */
 type ChainsRun = AnalysisRun & { readonly chains: Record<string, (number | null)[]> }
 
+/**
+ * A run carrying real draws.
+ *
+ * `!= null` on purpose, and it is load-bearing: the wire field is optional,
+ * but events recorded before the service stopped emitting explicit nulls
+ * carry `null` — measured in real session logs. `undefined`-only guards let a
+ * null through, and the crash it causes takes the whole slot down.
+ */
 function hasChains(run: AnalysisRun): run is ChainsRun {
-  return run.chains !== undefined
+  return run.chains !== undefined && run.chains !== null
 }
 
 /** One run's rhat / n_eff / divergences diagnostics, folded into StatRow chips, plus one wrapped pair of StatRows per `mcmc` latent (when the sampler reported per-latent diagnostics). */

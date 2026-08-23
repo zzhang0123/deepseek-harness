@@ -2,7 +2,9 @@
 import { memo, useCallback } from 'react'
 import type { ChatNodeViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { GateFinding, RunDiagnostics } from '@rheplicant/dsh-rheplicant'
-import { Badge, formatDiagnostic, formatRunProvenance, mcmcRows } from '@rheplicant/dsh-rheplicant-ui-kit/client'
+import {
+  Badge, BandChart, HeatMap, TracePlot, formatDiagnostic, formatRunProvenance, groupChains, mcmcRows,
+} from '@rheplicant/dsh-rheplicant-ui-kit/client'
 import { canOpenInProject, openInProject } from './project-bridge.ts'
 import { SignalPath } from './SignalPath.tsx'
 import styles from './analysis-run-panel.module.css'
@@ -182,6 +184,74 @@ interface WorkspaceListLike {
 }
 
 /**
+ * One run's draws, drawn HERE because nowhere else can draw them.
+ *
+ * `docs/project-model.md` §20.6. A published execution keeps its arrays in its
+ * results folder and the project surface renders them from there — which is
+ * why `receipt()` strips them from the durable event when a run publishes. An
+ * unpublished run has no folder, so `receipt()` leaves them, and this event is
+ * the only copy there is (P4d). The panels in the project surface read the
+ * tree and hand their occupants an EMPTY conversation on purpose (§11.5), so
+ * they can never show these.
+ *
+ * **The two cases are disjoint on the wire, and that is what keeps this from
+ * being the duplication §20.4 removed.** A node carrying arrays did not
+ * publish; a node that published carries none. There is no run whose draws
+ * appear in both places.
+ *
+ * Behind a `<details>` closed by default: this sits in a TRANSCRIPT, where a
+ * chart that opened itself would push the conversation off the screen. The
+ * same plain-`<details>` idiom `PosteriorPanel`'s corner plot uses.
+ */
+const ScratchDraws = memo(function ScratchDraws(
+  { run }: {
+    run: {
+      name: string
+      // `| null` is not decoration: it is the shape a historical event
+      // actually carries, and the reason both fields are guarded below.
+      chains?: Record<string, (number | null)[]> | null
+      spectrum?: (number | null)[][] | null
+    }
+  },
+) {
+  // `groupChains` treats a nullish bag as no draws — the choke point where
+  // "null is not an empty object" is enforced, because a historical event
+  // really does carry `"chains": null` and a throw here takes the whole chat
+  // node slot down. The spectrum has no such choke point, so it is guarded on
+  // the same `!= null` semantics right here.
+  const groups = groupChains(run.chains)
+  const spectrum = run.spectrum === null ? undefined : run.spectrum
+  if (groups.length === 0 && spectrum === undefined) return null
+  return (
+    <details className={styles.draws} data-scratch-draws={run.name}>
+      <summary className={styles.drawsSummary}>Draws from this run</summary>
+      {/* Why they are here rather than in the project view — said on screen,
+          because a reader who knows the panels live there would otherwise
+          wonder which copy they are looking at. */}
+      <p className={styles.drawsNote}>
+        This run published nothing, so its draws are on this turn&apos;s own record
+        and nowhere else. A run against a task file writes them to its results
+        folder instead, and the project view draws them from there.
+      </p>
+      {groups.map(group => (
+        <div key={group.latent} data-chain-group={group.latent} className={styles.drawsGroup}>
+          <div className={styles.drawsLabel}>{group.latent}</div>
+          {group.kind === 'series'
+            ? <TracePlot series={group.series} />
+            : <BandChart mean={group.mean} q05={group.q05} q95={group.q95} />}
+        </div>
+      ))}
+      {spectrum !== undefined && (
+        <div data-spectrum-grid className={styles.drawsGroup}>
+          <div className={styles.drawsLabel}>m-mode power</div>
+          <HeatMap grid={spectrum} />
+        </div>
+      )}
+    </details>
+  )
+})
+
+/**
  * "Open in the project view" — the one edge out of a result and into the
  * archive (`docs/project-model.md` §20.3).
  *
@@ -189,10 +259,13 @@ interface WorkspaceListLike {
  * one `rheplicant/run` event, so they share an execution and a task, and a
  * control per row would be the same action repeated down the card.
  *
- * It renders only when it would actually do something — the execution is
- * named, the session's project is known, and both project services are
- * reachable. A button that quietly did nothing would be worse than no button,
- * because it looks like it worked.
+ * It renders only when it would actually do something — the execution
+ * PUBLISHED, it is named, the session's project is known, and both project
+ * services are reachable. A button that quietly did nothing would be worse
+ * than no button, because it looks like it worked; and an unpublished
+ * execution is exactly that case — the project surface would select an id its
+ * tree does not hold and report "the results are in this execution's folder,
+ * which this console could not read", of a run that has no folder at all.
  */
 const OpenInProject = memo(function OpenInProject(
   { workspaceId, taskPath, executionId }: {
@@ -231,7 +304,8 @@ export const AnalysisRunPanel = memo(function AnalysisRunPanel(
   const here = String(sessionId)
   const workspaceId = useWorkspaces?.(state =>
     state.items.find(row => row.sessionIds.some(id => String(id) === here))?.workspaceId)
-  const deepen = addressed?.executionId !== undefined
+  const deepen = node.data.published
+    && addressed?.executionId !== undefined
     && workspaceId !== undefined
     && canOpenInProject()
   return (
@@ -245,6 +319,7 @@ export const AnalysisRunPanel = memo(function AnalysisRunPanel(
             <RunProvenanceCaption run={run} />
             {run.diagnostics !== undefined ? <Diagnostics diagnostics={run.diagnostics} /> : null}
             {run.diagnostics?.mcmc !== undefined ? <McmcDiagnostics mcmc={run.diagnostics.mcmc} /> : null}
+            <ScratchDraws run={run} />
           </li>
         ))}
       </ul>

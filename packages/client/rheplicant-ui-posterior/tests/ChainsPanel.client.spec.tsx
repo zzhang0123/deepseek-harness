@@ -46,3 +46,13 @@ describe('the chains panel', () => {
     expect(document.querySelectorAll('[data-chains-run]').length).toBe(0)
   })
 })
+
+
+describe('a historical event carrying an explicit null', () => {
+  // See `PosteriorPanel.client.spec.tsx` for why `null` is a real wire shape.
+  it('renders its empty state instead of crashing', () => {
+    expect(() => { draw([{ name: 'fit', kind: 'nuts', status: 'ok', chains: null }]) }).not.toThrow()
+    expect(document.querySelectorAll('[data-chains-run]').length).toBe(0)
+    expect(document.querySelector('[data-panel="chains"]')).toBeTruthy()
+  })
+})
