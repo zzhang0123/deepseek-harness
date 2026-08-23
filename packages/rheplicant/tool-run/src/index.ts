@@ -251,7 +251,7 @@ function eventDocument(inline: ComputeDocument | undefined, outcome: { readonly 
 }
 
 /** One line per run, with diagnostics surfaced for the model to read. */
-function formatRunOutcome(outcome: RunOutcome, executionId: string): string {
+export function formatRunOutcome(outcome: RunOutcome, executionId: string): string {
   const lines = outcome.runs.map((run) => {
     if (run.status === 'failed') {
       return `- ${run.name} (${run.kind}): FAILED — ${run.error?.message ?? 'error'}`
