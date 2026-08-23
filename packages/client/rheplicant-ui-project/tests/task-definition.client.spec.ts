@@ -15,7 +15,7 @@ function defined(over: Partial<ProjectDefinitionBody> = {}): ProjectDefinitionBo
     }],
     validation: { valid: true, errors: [], warnings: [] },
     gates: { checks: [{ check: 'linearity', mode: 'warn', state: 'warn', reason: null }], runs: [], warnings: [] },
-    fields: { undecided: [] },
+    fields: { undecided: [], excludes: [] },
     ...over,
   }
 }
@@ -214,15 +214,17 @@ describe('the required fields still undecided', () => {
     // grammar's rather than ours.
     const report = defined({
       validation: { valid: false, errors: [{ path: 'runs[0]', code: 'A1', message: 'incomplete' }], warnings: [] },
+      // Non-`runs` paths: the host excludes that section entirely, because
+      // its `must_decide` cannot be attributed to a run's kind.
       fields: { undecided: [
-        undecided('runs[0].num_samples', 'num samples'),
-        undecided('runs[0].num_warmup', 'num warmup'),
-      ] },
+        undecided('observation.freq.grid', 'grid', 'observation'),
+        undecided('observation.time.grid', 'grid', 'observation'),
+      ], excludes: ['runs'] },
     })
     const row = criterion(input({ report }), 'document')
     expect(row.state).toBe('unmet')
-    expect(row.detail).toContain('runs[0].num_samples')
-    expect(row.detail).toContain('runs[0].num_warmup')
+    expect(row.detail).toContain('observation.freq.grid')
+    expect(row.detail).toContain('observation.time.grid')
   })
 
   it('is unmet on undecided fields even when pre-flight did not refuse', () => {
@@ -231,7 +233,7 @@ describe('the required fields still undecided', () => {
     // and a task with one is still not defined.
     const report = defined({
       validation: { valid: true, errors: [], warnings: [] },
-      fields: { undecided: [undecided('observation.freq.grid', 'grid', 'observation')] },
+      fields: { undecided: [undecided('observation.freq.grid', 'grid', 'observation')], excludes: [] },
     })
     const row = criterion(input({ report }), 'document')
     expect(row.state).toBe('unmet')
@@ -240,6 +242,29 @@ describe('the required fields still undecided', () => {
 
   it('says pre-flight is clean when nothing is undecided', () => {
     expect(criterion(input(), 'document').detail).toContain('pre-flight clean')
+  })
+
+  it('says which sections the answer did not look at', () => {
+    // `runs` is excluded because the upstream catalogue cannot attribute a
+    // run option to its kind. An exclusion nobody announced would read as
+    // "nothing to decide there", which is the same lie in the other
+    // direction from the false positives it avoids.
+    const report = defined({ fields: { undecided: [], excludes: ['runs'] } })
+    const row = criterion(input({ report }), 'document')
+    expect(row.state).toBe('ok')
+    expect(row.detail).toContain('per-run options were not checked')
+    expect(row.detail).toContain('runs')
+  })
+
+  it('treats an ABSENT field list the same as a null one', () => {
+    // An older host never carried the field at all. `undefined` is not
+    // `null`, and reading it as an empty answer would report a clean
+    // document on the strength of a question nobody asked.
+    const report = defined({ validation: { valid: true, errors: [], warnings: [] } })
+    delete (report as { fields?: unknown }).fields
+    const row = criterion(input({ report }), 'document')
+    expect(row.state).toBe('ok')
+    expect(row.detail).toContain('could not be checked')
   })
 
   it('does not claim completeness when the fields could not be named', () => {
@@ -254,7 +279,7 @@ describe('the required fields still undecided', () => {
 
   it('caps a long list rather than pasting fifty paths into one line', () => {
     const many = Array.from({ length: 12 }, (_, i) => undecided(`runs[0].k${i}`, `k${i}`))
-    const row = criterion(input({ report: defined({ fields: { undecided: many } }) }), 'document')
+    const row = criterion(input({ report: defined({ fields: { undecided: many, excludes: [] } }) }), 'document')
     expect(row.detail).toContain('12 required fields unset')
     // Names the first few and SAYS how many it did not name. A cap that stays
     // quiet renders as a complete list that happens to be short.

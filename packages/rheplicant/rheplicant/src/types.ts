@@ -392,7 +392,7 @@ export interface DefinitionReport {
   readonly validation: ValidationReport
   readonly gates: GatesReport
   /** The required fields still undecided; null when the gui extra is absent. */
-  readonly fields: { readonly undecided: readonly UndecidedField[] } | null
+  readonly fields: UndecidedFields | null
   readonly fieldsUnavailable?: 'gui-extra-absent'
   /** The parsed document, echoed ONCE. See {@link ValidationReport.document}. */
   readonly document?: ComputeDocument
@@ -777,7 +777,22 @@ export interface ProjectDefinitionBody {
    * of the four criteria depend on it, so its absence means "we cannot name
    * them" — which must not render as "there are none left".
    */
-  readonly fields: { readonly undecided: readonly UndecidedField[] } | null
+  readonly fields: UndecidedFields | null
   /** Why {@link fields} is null, present only when it is. */
   readonly fieldsUnavailable?: 'gui-extra-absent'
+}
+
+/** The undecided-field answer, and what it did not look at. */
+export interface UndecidedFields {
+  readonly undecided: readonly UndecidedField[]
+  /**
+   * Form sections this answer excluded, and therefore says nothing about.
+   *
+   * Today: `runs`. The upstream catalogue emits one widget per option KEY
+   * across all eighteen exits, so `must_decide` on a `runs[].*` path means
+   * "required for SOME kind" — measured to over-claim four fields on one
+   * document. An exclusion nobody announced would read as "nothing to decide
+   * there", so it is named rather than left to be inferred from an absence.
+   */
+  readonly excludes: readonly string[]
 }

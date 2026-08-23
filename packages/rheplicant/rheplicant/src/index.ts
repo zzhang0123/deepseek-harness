@@ -72,6 +72,7 @@ export type {
   TaskIdentity,
   Transport,
   UndecidedField,
+  UndecidedFields,
   ValidationError,
   ValidationReport,
 } from './types.ts'

@@ -16,7 +16,7 @@ function report(inputs: ProjectDefinitionBody['inputs']): ProjectDefinitionBody 
     inputs,
     validation: { valid: true, errors: [], warnings: [] },
     gates: { checks: [], runs: [], warnings: [] },
-    fields: { undecided: [] },
+    fields: { undecided: [], excludes: [] },
   }
 }
 

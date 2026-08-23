@@ -140,7 +140,12 @@ function inputsCriterion(report: ProjectDefinitionBody): DefinitionCriterion {
  */
 function documentCriterion(report: ProjectDefinitionBody): DefinitionCriterion {
   const errors = report.validation.errors.length
-  const undecided = report.fields?.undecided ?? []
+  // `null` (the gui extra is absent) and ABSENT (an older host that never
+  // carried the field) are the same answer here: we cannot say. Treating
+  // absent as an empty answer would report a clean document on the strength
+  // of a question nobody asked.
+  const fields = report.fields ?? null
+  const undecided = fields?.undecided ?? []
   if (errors > 0 || undecided.length > 0) {
     return {
       id: 'document', label: 'Document validates', state: 'unmet',
@@ -151,11 +156,20 @@ function documentCriterion(report: ProjectDefinitionBody): DefinitionCriterion {
   }
   const warnings = report.validation.warnings?.length ?? 0
   const clean = warnings === 0 ? 'pre-flight clean' : `pre-flight clean, ${warnings} warning${warnings === 1 ? '' : 's'}`
+  if (fields === null) {
+    return {
+      id: 'document', label: 'Document validates', state: 'ok',
+      detail: `${clean}; whether a required field is still unset could not be checked here`,
+    }
+  }
+  // The exclusion is stated, never inferred from an absence. A section this
+  // answer did not look at is not a section with nothing left to decide.
+  const excluded = fields.excludes
   return {
     id: 'document', label: 'Document validates', state: 'ok',
-    detail: report.fields === null
-      ? `${clean}; whether a required field is still unset could not be checked here`
-      : clean,
+    detail: excluded.length === 0
+      ? clean
+      : `${clean}; per-run options were not checked (${excluded.join(', ')})`,
   }
 }
 
