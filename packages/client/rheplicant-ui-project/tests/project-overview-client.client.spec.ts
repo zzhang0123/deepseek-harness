@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fetchProjectOverview, fetchTaskDefinition } from '../src/client/project-overview-client.ts'
+import {
+  fetchExecutionArtifact, fetchProjectOverview, fetchTaskDefinition,
+} from '../src/client/project-overview-client.ts'
 
 /** A complete, well-formed body, which each test then damages one way. */
 function body(over: Record<string, unknown> = {}): Record<string, unknown> {
@@ -154,5 +156,56 @@ describe('asking whether one task is defined', () => {
   it('refuses a body whose inputs are not a list', async () => {
     answer(200, definition({ inputs: 'lots' }))
     expect(await fetchTaskDefinition('ws-1', 'tasks/fit.yaml')).toBeUndefined()
+  })
+})
+
+describe('reading one execution artifact', () => {
+  /** Stand in for the artifact route, which answers BYTES rather than JSON. */
+  function serveText(status: number, body: string): void {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({
+      ok: status >= 200 && status < 300,
+      status,
+      text: () => Promise.resolve(body),
+    })))
+  }
+
+  it('asks by execution id and artifact name, both encoded', async () => {
+    serveText(200, 'a: 1\n')
+    await fetchExecutionArtifact('ws 1', 'E 1', 'config.input.yaml')
+    const [url] = (globalThis.fetch as unknown as { mock: { calls: [string][] } }).mock.calls[0]!
+    expect(url).toBe(
+      '/rheplicant/project/artifact?workspace=ws%201&execution=E%201&name=config.input.yaml',
+    )
+  })
+
+  it('returns the bytes as text', async () => {
+    serveText(200, 'schema_version: 1\n')
+    expect(await fetchExecutionArtifact('ws-1', 'E1', 'config.input.yaml'))
+      .toEqual({ ok: true, text: 'schema_version: 1\n' })
+  })
+
+  it('tells a gone execution apart from an unreachable route', async () => {
+    // The same three-way answer every other reader here gives, for the same
+    // reason: "pruned" and "we could not ask" want different things done.
+    serveText(404, '{}')
+    expect(await fetchExecutionArtifact('ws-1', 'E1', 'config.input.yaml'))
+      .toEqual({ ok: false, reason: 'unreadable' })
+    serveText(409, '{}')
+    expect(await fetchExecutionArtifact('ws-1', 'E1', 'config.input.yaml'))
+      .toEqual({ ok: false, reason: 'unreadable' })
+    serveText(500, '{}')
+    expect(await fetchExecutionArtifact('ws-1', 'E1', 'config.input.yaml'))
+      .toEqual({ ok: false, reason: 'unreachable' })
+  })
+
+  it('tags the result, so a reason can never be read as the file\'s text', () => {
+    // The failure that produced this shape: the payload here is a STRING, so
+    // the sentinel convention the sibling readers use (safe beside an object
+    // payload) let the word "unreadable" be rendered as the document and
+    // diffed against the real one. A tag makes that unrepresentable.
+    const answer: Awaited<ReturnType<typeof fetchExecutionArtifact>> =
+      { ok: false, reason: 'unreadable' }
+    // @ts-expect-error `text` does not exist on the failure arm — the point.
+    expect(answer.text).toBeUndefined()
   })
 })

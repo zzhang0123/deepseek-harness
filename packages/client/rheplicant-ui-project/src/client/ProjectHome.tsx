@@ -44,6 +44,8 @@ import { useTaskDefinition } from './use-task-definition.ts'
 import { taskInputUsage } from './input-usage.ts'
 import { TaskMaturity } from './TaskMaturity.tsx'
 import { TaskDefinition } from './TaskDefinition.tsx'
+import { DocumentDiff } from './DocumentDiff.tsx'
+import { useExecutedDocument } from './use-executed-document.ts'
 import type { TaskPanelOwnerProps } from './index.ts'
 import styles from './project-home.module.css'
 
@@ -132,6 +134,11 @@ export const ProjectHome = memo(function ProjectHome(
   // functions of the text, and a checklist that must be asked for is one
   // nobody sees.
   const definition = useTaskDefinition(chosen, selection.taskPath, nonce)
+  // The bytes the SELECTED execution actually ran, so "as authored vs as it
+  // ran" can be answered with the difference rather than only with a flag
+  // (§11.4). No new transport: `config.input.yaml` has been on P3's artifact
+  // allow-list since the seam existed.
+  const executed = useExecutedDocument(chosen, selection.executionId, nonce)
 
   useEffect(() => {
     if (!open) return
@@ -427,6 +434,30 @@ export const ProjectHome = memo(function ProjectHome(
                             <code> config.input.yaml</code>, which is how an edited task shows
                             up as stale rather than silently changing history.
                           </p>
+                          {/* The comparison, when there is an execution to
+                              compare against. Guarded on `shownFor` like
+                              everything else here: diffing against another
+                              execution's bytes would report changes nobody
+                              made. */}
+                          {selection.executionId !== undefined
+                            && executed.shownFor === `${chosen ?? ''} ${selection.executionId}`
+                            && (executed.loading
+                              ? <p className={styles.note}>Reading what that execution ran…</p>
+                              : executed.text !== undefined
+                                ? (
+                                  <DocumentDiff
+                                    ran={executed.text}
+                                    authored={document_.document.text}
+                                    executionId={selection.executionId}
+                                  />
+                                )
+                                : (
+                                  <p className={styles.note} data-document-diff-unavailable="">
+                                    {executed.unreadable
+                                      ? 'The document this execution ran is no longer readable — its results may have been pruned, so there is nothing to compare against.'
+                                      : 'The document this execution ran could not be read from here, so this shows only the task as authored.'}
+                                  </p>
+                                ))}
                         </>
                       )
                       : (

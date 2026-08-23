@@ -374,3 +374,45 @@
   color: var(--dsw-alias-state-success-primary);
   background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 14%, transparent);
 }
+
+/* The as-authored vs as-it-ran comparison (§11.4). Monospace and unwrapped,
+   because a YAML line's indentation is its meaning. */
+.diff {
+  margin: 0.5rem 0 0;
+  padding: 0.6rem 0.7rem;
+  max-height: 26rem;
+  overflow: auto;
+  border-radius: 0.375rem;
+  background: var(--dsw-alias-bg-secondary);
+  font-family: var(--dsw-font-mono, ui-monospace, monospace);
+  font-size: 0.75rem;
+  line-height: 1.55;
+  white-space: pre;
+  tab-size: 2;
+}
+
+/* The two sides are distinguished by a SIGN as well as a colour: the gutter
+   character survives a monochrome screen and a reader who does not see the
+   hues apart, which a background tint alone does not. */
+.diffRemoved {
+  display: block;
+  color: var(--dsw-alias-state-error-primary);
+  background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 10%, transparent);
+}
+
+.diffAdded {
+  display: block;
+  color: var(--dsw-alias-state-success-primary);
+  background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 10%, transparent);
+}
+
+.diffSame {
+  display: block;
+  color: var(--dsw-alias-text-tertiary);
+}
+
+.diffGap {
+  display: block;
+  color: var(--dsw-alias-text-tertiary);
+  opacity: 0.6;
+}

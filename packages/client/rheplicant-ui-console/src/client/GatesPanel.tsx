@@ -6,7 +6,7 @@
  * (`RunOutcome.gates`), and the two always-on informational checks — C16
  * (ADC saturation) and C18 (the two-sigma cross-check) — that are never
  * gated by `inference.checks` at all (docs/rheplicant-philosophy.md §2.4/§7,
- * python/rheplicant_compute/server.py's `_GATE_CHECKS` comment, and the
+ * python/src/rheplicant_compute/server.py's `_GATE_CHECKS` comment, and the
  * e-RHINO source docstrings for `config/postflight/digitising.py` (C16) and
  * `config/postflight/noise.py` / `config/gating.py` (C18)). Reads only the
  * `rheplicant-loop` conversation-view projection — never re-runs compute.

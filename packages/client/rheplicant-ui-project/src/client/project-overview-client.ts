@@ -258,3 +258,73 @@ export async function fetchTaskDefinition(
     return undefined
   }
 }
+
+/**
+ * One artifact read, tagged so its text can never be confused with a reason.
+ *
+ * `unreadable` — the project answered and this artifact is not servable (the
+ * execution is gone, or no longer owns its directory). `unreachable` — the
+ * route itself could not be asked. The two read differently and want
+ * different things done, exactly as everywhere else in this module.
+ */
+export type ArtifactResult =
+  | { readonly ok: true; readonly text: string }
+  | { readonly ok: false; readonly reason: 'unreadable' | 'unreachable' }
+
+/**
+ * One flat audit file out of a published execution's directory.
+ *
+ * The route this uses is P3's, unchanged: an artifact is asked for by
+ * EXECUTION ID and by a name from a fixed allow-list, never by path, and the
+ * host re-checks that the execution still owns its directory before reading.
+ * `config.input.yaml` has been on that allow-list since P3, which is why
+ * showing what an execution actually ran needs no new transport at all.
+ *
+ * Answers TEXT rather than JSON: the route serves the file's bytes under its
+ * own media type, and re-encoding them here would put a second reading of the
+ * document in the browser.
+ *
+ * **Why this one returns a tagged result and its siblings return sentinels.**
+ * `fetchTaskDocument` and `fetchExecutionProjection` answer `'refused'` /
+ * `'unreadable'` beside an OBJECT payload, so a sentinel can never be mistaken
+ * for content. Here the payload is itself a string, and the convention stops
+ * being safe: the first caller written against it did
+ * `typeof answer === 'string' ? answer : undefined` and rendered the word
+ * "unreadable" as the executed document, diffed line-by-line against the real
+ * one. Caught by the test written for exactly that case. A tag makes the
+ * mistake unrepresentable instead of asking every call site to remember.
+ *
+ * @param workspaceId - the project the execution belongs to.
+ * @param executionId - the execution whose directory to read.
+ * @param name - one name from the host's artifact allow-list.
+ * @param signal - abort when the selection changes.
+ * @returns the text, or why there is none.
+ */
+export async function fetchExecutionArtifact(
+  workspaceId: string,
+  executionId: string,
+  name: string,
+  signal?: AbortSignal,
+): Promise<ArtifactResult> {
+  let response: Response
+  try {
+    response = await fetch(
+      `${ROUTE_PREFIX}/artifact?workspace=${encodeURIComponent(workspaceId)}`
+      + `&execution=${encodeURIComponent(executionId)}&name=${encodeURIComponent(name)}`,
+      { ...(signal === undefined ? {} : { signal }) },
+    )
+  } catch {
+    return { ok: false, reason: 'unreachable' }
+  }
+  // 400/404/409 are the project ANSWERING that this artifact is not servable;
+  // anything else means the route itself is not there to ask.
+  if (response.status === 400 || response.status === 404 || response.status === 409) {
+    return { ok: false, reason: 'unreadable' }
+  }
+  if (!response.ok) return { ok: false, reason: 'unreachable' }
+  try {
+    return { ok: true, text: await response.text() }
+  } catch {
+    return { ok: false, reason: 'unreachable' }
+  }
+}

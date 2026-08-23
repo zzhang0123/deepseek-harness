@@ -10,7 +10,7 @@
  * The embedded markup is first-party, server-rendered output
  * (`Assembly.to_svg(theme="dark")` in the trusted Python compute service —
  * never user- or model-authored text); see `docs/rheplicant-philosophy.md`
- * and `python/rheplicant_compute/server.py`'s `_graph`.
+ * and `python/src/rheplicant_compute/server.py`'s `_graph`.
  */
 import { memo } from 'react'
 import type { SignalPathGraph } from '@rheplicant/dsh-rheplicant'

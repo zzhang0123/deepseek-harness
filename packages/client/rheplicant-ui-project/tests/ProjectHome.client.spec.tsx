@@ -48,10 +48,18 @@ function serve(
   bodies: Record<string, Record<string, unknown> | null>,
   documents: Record<string, string> = {},
   definitions: Record<string, Record<string, unknown> | null> = {},
+  artifacts: Record<string, string> = {},
 ): void {
   vi.stubGlobal('fetch', vi.fn((url: string) => {
     const parsed = new URL(url, 'http://x')
     const id = parsed.searchParams.get('workspace') ?? ''
+    if (parsed.pathname.endsWith('/artifact')) {
+      const body = artifacts[parsed.searchParams.get('execution') ?? '']
+      if (body === undefined) {
+        return Promise.resolve({ ok: false, status: 404, text: () => Promise.resolve('{}') })
+      }
+      return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(body) })
+    }
     if (parsed.pathname.endsWith('/definition')) {
       const report = definitions[parsed.searchParams.get('path') ?? '']
       if (report === undefined || report === null) {
@@ -727,5 +735,69 @@ describe('a selected task that is no longer in the listing', () => {
 
     await waitFor(() => { expect(container.querySelector('[data-task-definition]')).toBeTruthy() })
     expect(container.querySelector('[data-project-task-gone]')).toBeNull()
+  })
+})
+
+describe('what the selected execution actually ran', () => {
+  const AUTHORED = 'schema_version: 1\nseed: 20260823\n'
+
+  it('shows the difference, not just that there is one', async () => {
+    // §11.4 left this open: the digest says a task CHANGED, and a flag nobody
+    // can act on is half an answer. The bytes come off P3's artifact route,
+    // which has served `config.input.yaml` since the seam existed.
+    serve({ 'ws-1': overview('rhino') }, { 'rhino-fit.yaml': AUTHORED }, {},
+      { 'rhino-E1': 'schema_version: 1\nseed: 11111111\n' })
+    openHome('ws-1')
+    selectInProject('ws-1', { taskPath: 'rhino-fit.yaml', executionId: 'rhino-E1' })
+    const { container } = mount()
+
+    await waitFor(() => { expect(container.querySelector('[data-document-diff]')).toBeTruthy() })
+    const kinds = [...container.querySelectorAll('[data-diff-line]')]
+      .map(n => n.getAttribute('data-diff-line'))
+    expect(kinds).toEqual(['same', 'removed', 'added'])
+    const text = container.querySelector('[data-document-diff]')!.textContent ?? ''
+    expect(text).toContain('20260823')
+    expect(text).toContain('11111111')
+  })
+
+  it('says so plainly when the two are identical', async () => {
+    // A positive statement, not silence: "byte-for-byte what ran" is the
+    // thing someone about to trust these results wants to be told.
+    serve({ 'ws-1': overview('rhino') }, { 'rhino-fit.yaml': AUTHORED }, {},
+      { 'rhino-E1': AUTHORED })
+    openHome('ws-1')
+    selectInProject('ws-1', { taskPath: 'rhino-fit.yaml', executionId: 'rhino-E1' })
+    const { container } = mount()
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-document-diff-identical]')).toBeTruthy()
+    })
+    expect(container.querySelector('[data-document-diff]')).toBeNull()
+  })
+
+  it('does not compare when no execution is selected', async () => {
+    serve({ 'ws-1': overview('rhino') }, { 'rhino-fit.yaml': AUTHORED })
+    openHome('ws-1')
+    selectInProject('ws-1', { taskPath: 'rhino-fit.yaml' })
+    const { container } = mount()
+
+    await waitFor(() => { expect(container.querySelector('[data-project-document]')).toBeTruthy() })
+    expect(container.querySelector('[data-document-diff]')).toBeNull()
+    expect(container.querySelector('[data-document-diff-identical]')).toBeNull()
+  })
+
+  it('says the executed copy is gone rather than showing a one-sided diff', async () => {
+    // A pruned execution has no bytes to compare against. Diffing the
+    // authored document against nothing would render every line as ADDED,
+    // which reads as "you rewrote the whole file".
+    serve({ 'ws-1': overview('rhino') }, { 'rhino-fit.yaml': AUTHORED }, {}, {})
+    openHome('ws-1')
+    selectInProject('ws-1', { taskPath: 'rhino-fit.yaml', executionId: 'rhino-E1' })
+    const { container } = mount()
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-document-diff-unavailable]')).toBeTruthy()
+    })
+    expect(container.querySelector('[data-document-diff]')).toBeNull()
   })
 })
