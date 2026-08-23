@@ -45,6 +45,21 @@ export interface ConsoleExecutionView {
    * validates against.
    */
   readonly gates?: readonly unknown[]
+  /**
+   * The signal-path graph of the document this execution RAN.
+   *
+   * Declared for the same reason `gates` is, and found the same way: the
+   * projection has always carried it (`execution.read` reads it back out of
+   * `config.input.yaml`), and both hooks were dropping it on the floor. The
+   * panel therefore read the SESSION LOG alone — so selecting an execution
+   * this conversation did not run drew the open conversation's model under
+   * that execution's header. Invisible in any session that has the run,
+   * because the two sources then agree; caught by a real end-to-end run.
+   *
+   * `unknown` on purpose, exactly as `gates` is: this kit renders no graph,
+   * and the consumer that does already owns the shape it validates against.
+   */
+  readonly graph?: unknown
 }
 
 /**
@@ -95,4 +110,34 @@ export function executionEmptyReason(view: ConsoleExecutionView | undefined): st
     return 'The results are in this execution\'s folder, which this console could not read.'
   }
   return undefined
+}
+
+/**
+ * The graph a panel should render: the selected execution's when the console
+ * supplied one, and the session log's otherwise.
+ *
+ * The same three-state discipline {@link runsToRender} applies, and the stakes
+ * are higher here. A model diagram is the most confidently-read thing on the
+ * page, so drawing one execution's model under another's name is the most
+ * expensive version of the mistake this design exists to prevent.
+ *
+ * One case differs from `runsToRender`: a view carrying `runs` but no `graph`
+ * is a COMPLETE answer about this execution — its document declared no
+ * `model:`. Falling back to the log there would invent a diagram for a
+ * document that has none.
+ *
+ * @param view - the owner-props execution view, absent outside the shell.
+ * @param fromLog - the graph the session log carries, if any.
+ * @returns the graph to render, or undefined to render none.
+ */
+export function graphToRender(
+  view: ConsoleExecutionView | undefined,
+  fromLog: unknown,
+): unknown {
+  if (view?.graph !== undefined) return view.graph
+  // An answer ABOUT A NAMED EXECUTION, even a negative one, is not a licence
+  // to draw a different execution's model.
+  if (view?.problem === 'unreadable' || view?.problem === 'loading') return undefined
+  if (view?.runs !== undefined) return undefined
+  return fromLog
 }

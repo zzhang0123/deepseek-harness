@@ -13,7 +13,8 @@ import { memo } from 'react'
 import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-rheplicant-ui-console/client'
 import {
-  type ConsolePanelLayoutView, EmptyState, Panel, type PanelStatus, TOKEN,
+  type ConsoleExecutionView, type ConsolePanelLayoutView, EmptyState, Panel,
+  type PanelStatus, TOKEN, graphToRender,
 } from '@rheplicant/dsh-rheplicant-ui-kit/client'
 import { SignalPath } from './SignalPath.tsx'
 import styles from './signal-path-panel.module.css'
@@ -23,6 +24,12 @@ const PANEL_ID = 'signal-path'
 
 interface SignalPathPanelProps {
   useSession: <T>(selector: (snapshot: ConversationSnapshot) => T) => T
+  /**
+   * The execution being shown (owner prop), so this panel draws the SELECTED
+   * execution's model rather than the open conversation's. Absent outside the
+   * console shell, where the session log is the only source there is.
+   */
+  execution?: ConsoleExecutionView
   /** Console layout state (owner prop — see ui-console's ConsoleView doc comment). Absent when not rendered through the console shell (e.g. a unit test): renders un-collapsed, always visible. */
   layout?: ConsolePanelLayoutView
 }
@@ -53,8 +60,14 @@ const Legend = memo(function Legend() {
   )
 })
 
-export const SignalPathPanel = memo(function SignalPathPanel({ useSession, layout }: SignalPathPanelProps) {
-  const graph = useSession(snapshot => snapshot.views.get('rheplicant-loop')?.run?.outcome.graph)
+export const SignalPathPanel = memo(function SignalPathPanel({ useSession, layout, execution }: SignalPathPanelProps) {
+  // The SELECTED execution's graph, with the session log as the fallback only
+  // where nothing has been claimed about an execution. Reading the log alone
+  // — which this did until a real end-to-end run exposed it — draws the open
+  // conversation's model under a foreign execution's header, and renders
+  // nothing at all in the workbench, which has no conversation.
+  const fromLog = useSession(snapshot => snapshot.views.get('rheplicant-loop')?.run?.outcome.graph)
+  const graph = graphToRender(execution, fromLog) as typeof fromLog
   if (layout?.hidden.has(PANEL_ID) === true) return null
   const status: PanelStatus = graph === undefined ? 'idle' : 'ok'
 

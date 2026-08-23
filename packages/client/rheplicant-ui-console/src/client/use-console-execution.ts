@@ -119,7 +119,15 @@ export function useConsoleExecution(
   // project-owned selection is simply already there when this mounts.
 
   const [projection, setProjection] = useState<
-    { id: string; runs?: readonly AnalysisRun[]; problem?: 'unreadable' | 'unavailable' } | undefined
+    {
+      id: string
+      runs?: readonly AnalysisRun[]
+      // Carried alongside `runs` so the Gates and Signal-path panels address
+      // the SELECTED execution rather than whatever the session log holds.
+      gates?: readonly unknown[]
+      graph?: unknown
+      problem?: 'unreadable' | 'unavailable'
+    } | undefined
   >(undefined)
   const selectedExecutionId = selected?.executionId
   const published = selected?.path !== undefined
@@ -133,7 +141,14 @@ export function useConsoleExecution(
       if (controller.signal.aborted) return
       if (answer === undefined) setProjection({ id: selectedExecutionId, problem: 'unavailable' })
       else if (answer === 'unreadable') setProjection({ id: selectedExecutionId, problem: 'unreadable' })
-      else setProjection({ id: selectedExecutionId, runs: (answer.runs ?? []) as AnalysisRun[] })
+      else {
+        setProjection({
+          id: selectedExecutionId,
+          runs: (answer.runs ?? []) as AnalysisRun[],
+          gates: answer.gates ?? [],
+          ...(answer.graph === undefined ? {} : { graph: answer.graph }),
+        })
+      }
     })
     return () => { controller.abort() }
   }, [sessionId, selectedExecutionId, published])
@@ -148,7 +163,14 @@ export function useConsoleExecution(
     // the log path is not a fallback but the ONLY correct source.
     if (!published) return base
     if (projection?.id !== selected.executionId) return { ...base, problem: 'loading' as const }
-    if (projection.runs !== undefined) return { ...base, runs: projection.runs }
+    if (projection.runs !== undefined) {
+      return {
+        ...base,
+        runs: projection.runs,
+        gates: projection.gates ?? [],
+        ...(projection.graph === undefined ? {} : { graph: projection.graph }),
+      }
+    }
     return { ...base, problem: projection.problem }
   }, [selected, published, projection])
 

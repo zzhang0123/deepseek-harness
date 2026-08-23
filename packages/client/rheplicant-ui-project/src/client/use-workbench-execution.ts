@@ -45,7 +45,19 @@ export function useWorkbenchExecution(
       if (controller.signal.aborted) return
       if (answer === undefined) setView({ executionId, foreign: false, problem: 'unavailable' })
       else if (answer === 'unreadable') setView({ executionId, foreign: false, problem: 'unreadable' })
-      else setView({ executionId, foreign: false, runs: (answer.runs ?? []) as AnalysisRun[] })
+      // `gates` and `graph` travel too. Keeping only `runs` left the
+      // workbench's Gates panel empty for an execution whose tree HAS
+      // findings, and its Signal path empty always — the panel then fell back
+      // to a session log this surface does not have.
+      else {
+        setView({
+          executionId,
+          foreign: false,
+          runs: (answer.runs ?? []) as AnalysisRun[],
+          gates: answer.gates ?? [],
+          ...(answer.graph === undefined ? {} : { graph: answer.graph }),
+        })
+      }
     })
     return () => { controller.abort() }
   }, [workspaceId, executionId, nonce])

@@ -60,6 +60,31 @@ describe('ensureResultsIgnored', () => {
     expect(readFileSync(join(workspace, '.gitignore'), 'utf8')).toContain('/results/')
   })
 
+  it('writes the block for a project NESTED inside a repository', () => {
+    // Measured 2026-08-23, in the first real end-to-end run: `harness/` is a
+    // project inside this repo and has no `.git` of its own, so the check
+    // answered "not a repository" and the block was never written. Its
+    // published tree then showed up as untracked in the parent repo — which
+    // is the exact thing §9 decided to prevent. A project directory is very
+    // rarely a repository ROOT.
+    const nested = join(workspace, 'sub', 'project')
+    mkdirSync(nested, { recursive: true })
+
+    expect(ensureResultsIgnored(nested)).toBe(join(nested, '.gitignore'))
+    // Written into the PROJECT's own .gitignore, not the repository root's:
+    // git honours a nested .gitignore, `results/` is this project's concern,
+    // and rewriting a file the project does not own would be a surprise.
+    expect(readFileSync(join(nested, '.gitignore'), 'utf8')).toContain('/results/')
+  })
+
+  it('still writes nothing for a project outside any repository', () => {
+    // The documented no-op, and the reason the check exists at all: a
+    // .gitignore in a directory git will never read is litter.
+    const loose = mkdtempSync(join(tmpdir(), 'rheplicant-loose-'))
+    expect(ensureResultsIgnored(loose)).toBeUndefined()
+    expect(existsSync(join(loose, '.gitignore'))).toBe(false)
+  })
+
   it('is idempotent, so a second execution announces nothing and duplicates nothing', () => {
     ensureResultsIgnored(workspace)
     const after = readFileSync(join(workspace, '.gitignore'), 'utf8')

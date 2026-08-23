@@ -9,7 +9,7 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname, join, relative, sep } from 'node:path'
+import { dirname, join, relative, resolve, sep } from 'node:path'
 
 /** Delimits the block this layer owns inside a `.gitignore` it does not own. */
 const MANAGED_START = '# >>> rheplicant-agent (managed) >>>'
@@ -56,7 +56,26 @@ export function executionDirectory(
 
 /** Whether this directory is a git working tree (a worktree's `.git` is a file). */
 function isGitRepository(workspace: string): boolean {
-  return existsSync(join(workspace, '.git'))
+  // WALKS UP. A project directory is very rarely a repository ROOT — the
+  // common shape is a project nested inside one, and this repo's own
+  // `harness/` is exactly that. Checking only `<workspace>/.git` answered "not
+  // a repository" for every such project, so the managed block was never
+  // written and the published tree turned up as untracked in the parent repo:
+  // precisely what §9 decided to prevent. Measured in the first real
+  // end-to-end run, 2026-08-23; no unit test could have caught it, because
+  // every one of them built a workspace that WAS a repository root.
+  //
+  // `.git` is tested with `existsSync` rather than `isDirectory`, because in a
+  // worktree or a submodule it is a FILE holding a gitdir pointer. Both are
+  // repositories, and a check that recognised only the directory form would
+  // reintroduce this bug for anyone using either.
+  let directory = resolve(workspace)
+  for (;;) {
+    if (existsSync(join(directory, '.git'))) return true
+    const parent = dirname(directory)
+    if (parent === directory) return false
+    directory = parent
+  }
 }
 
 /**

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { executionEmptyReason, runsToRender } from '../src/client/run/execution-view.ts'
+import { executionEmptyReason, graphToRender, runsToRender } from '../src/client/run/execution-view.ts'
 import type { AnalysisRun } from '../src/client/run/run-selectors.ts'
 
 const fromTree = [{ name: 'tree', kind: 'nuts', status: 'ok' }] as unknown as AnalysisRun[]
@@ -57,5 +57,47 @@ describe('the reason an empty panel is empty', () => {
     // their document.
     expect(executionEmptyReason({ problem: 'unavailable' }))
       .toMatch(/folder, which this console could not read/)
+  })
+})
+
+const treeGraph = { nodes: [{ id: 'tree' }] }
+const logGraph = { nodes: [{ id: 'log' }] }
+
+describe('graphToRender', () => {
+  /**
+   * The signal path used to read the SESSION LOG alone, which meant selecting
+   * an execution this session did not run drew the open conversation's model
+   * under that execution's header. Found by a real end-to-end run, not by a
+   * test: in a session that HAS the run, the two sources agree and the bug is
+   * invisible.
+   */
+  it('renders the selected execution\'s graph when the console supplied it', () => {
+    expect(graphToRender({ graph: treeGraph }, logGraph)).toBe(treeGraph)
+  })
+
+  it('falls back to the log outside the console shell', () => {
+    expect(graphToRender(undefined, logGraph)).toBe(logGraph)
+  })
+
+  it('falls back to the log when the project could not be reached', () => {
+    expect(graphToRender({ problem: 'unavailable' }, logGraph)).toBe(logGraph)
+  })
+
+  it('renders NOTHING when the project says this execution is gone', () => {
+    // Same rule as `runsToRender`, and for a stronger reason: a model diagram
+    // is the most confidently-read thing on the page, so showing the wrong
+    // one is the most expensive mistake available here.
+    expect(graphToRender({ problem: 'unreadable' }, logGraph)).toBeUndefined()
+  })
+
+  it('renders NOTHING while the execution is still being read', () => {
+    expect(graphToRender({ problem: 'loading' }, logGraph)).toBeUndefined()
+  })
+
+  it('does not fall back for an execution that simply declares no model', () => {
+    // `runs` present with no `graph` is a complete answer about this
+    // execution: it declared no `model:`. Reaching for the log there would
+    // invent a diagram for a document that has none.
+    expect(graphToRender({ runs: [] }, logGraph)).toBeUndefined()
   })
 })
