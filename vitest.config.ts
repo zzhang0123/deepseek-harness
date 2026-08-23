@@ -186,6 +186,26 @@ export default defineConfig({
         'packages/self-modification/*/src/**/*.{ts,tsx}',
         // A killed executable lint-contract test can leave a non-product source probe behind.
         'packages/*/*/src/oxlint-contract-*.ts',
+        // rheplicant host packages are PREBUILT elsewhere and dropped in: their
+        // own `tsdown.config.ts` opts out of this workspace's build with
+        // `entry: ''`, and there is no `@rheplicant/*` path mapping, so their
+        // specs resolve `@rheplicant/dsh-rheplicant/project` through the
+        // package's own `exports` to the prebuilt `lib/project.js`. This
+        // workspace therefore never EXECUTES a line of their `src/`. Measured:
+        // every one of those files reports 0% while 200 of their tests pass —
+        // a number that cannot move however many tests are written, because it
+        // is measuring a path nothing runs. Excluded for the same reason
+        // `verify-package-invariants` skips their manifest and build rules.
+        'packages/rheplicant/*/src/**/*.{ts,tsx}',
+        // The rheplicant CLIENT mirrors are the ordinary client-UI case, and
+        // are excluded the way every other client-UI package above is: their
+        // components, plugin `index.ts` registrations and invariant companions
+        // need a browser-grade harness rather than per-file statements. Their
+        // pure derivations are NOT untested — `layout-store` 100%,
+        // `home-store` 97%, `task-maturity` 98%, `loop-tasks` 95%, `selection`
+        // 91% from their own specs; what this exclusion drops is the 100%
+        // per-file bar, not the coverage.
+        'packages/client/rheplicant-ui-*/src/**/*.{ts,tsx}',
         // Client/web UI files whose remaining branches need a browser-grade
         // harness the jsdom lane doesn't cover yet. TODO(gui): cover and
         // remove as the client test lane matures.

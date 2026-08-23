@@ -53,14 +53,63 @@ export function packageInvariantOwners(root: string): PackageInvariantOwner[] {
     })
 }
 
+/**
+ * Whether this workspace's own build produces the package's `lib/`.
+ *
+ * **Why the manifest and build rules are conditional and the source rules are
+ * not.** `checkManifest` and `checkBuild` describe the SHAPE OF THIS BUILD'S
+ * OUTPUT: that `exports["./invariant"]` points at `./lib/types/invariant.d.ts`
+ * and `./lib/invariant.js`, that `files` publishes them, that the package
+ * references the invariants project, and that its tsdown override bundles
+ * `lib/types/invariant.js`. Every one of those is true only because tsc emits
+ * declarations into `lib/types/` and tsdown then emits JavaScript into `lib/`
+ * — a two-stage layout this repository's build creates.
+ *
+ * A package that opts OUT of the workspace build has no such output. Its `lib/`
+ * arrives prebuilt from wherever it was actually built, in whatever layout that
+ * build uses, and this repository never writes a byte of it. Demanding it match
+ * a layout produced by a build that deliberately skips it is a rule applied
+ * past its own premise, and the fix would be to restructure a foreign build to
+ * satisfy a gate that never runs on it.
+ *
+ * `checkSource` is different in kind and stays unconditional: an invariant
+ * companion must exist, must be hand-owned, must register exactly its own
+ * package name, and must say why it installs nothing when it installs nothing.
+ * Those are true of any package that registers ownership in the runtime ledger,
+ * whoever compiled it — and a prebuilt package's companion runs in exactly the
+ * same registry as everyone else's.
+ *
+ * The opt-out marker is this repository's own: `packages/client/tsdown.client.ts`
+ * defines `SKIP_WORKSPACE_BUILD = { entry: '' }` and documents it as "a falsey
+ * entry removes this package before entry resolution". Reading the same marker
+ * here keeps one definition of "this build skips it" rather than a second list
+ * of package names to keep in step.
+ *
+ * @param root - repository root.
+ * @param owner - the package under inspection.
+ * @returns false only when the package's own tsdown config opts out.
+ */
+function buildsInThisWorkspace(root: string, owner: PackageInvariantOwner): boolean {
+  const configPath = resolve(root, `${owner.dir}/tsdown.config.ts`)
+  // No override at all means the root workspace defaults build it.
+  if (!existsSync(configPath)) return true
+  return !/entry:\s*''/.test(readFileSync(configPath, 'utf8'))
+}
+
 /** Return all violations of the package-invariant companion rules. */
 export function collectPackageInvariantViolations(root: string): PackageInvariantViolation[] {
   const violations: PackageInvariantViolation[] = []
   for (const owner of packageInvariantOwners(root)) {
     const manifest = readManifest(resolve(root, owner.manifestPath))
-    checkManifest(owner, manifest, violations)
-    checkBuild(owner, root, violations)
-    checkSource(owner, root, violations)
+    // A package this workspace does not BUILD is not held to this workspace's
+    // build output — but it is still held to its source. See
+    // `optsOutOfWorkspaceBuild` for why that split is the honest one.
+    const built = buildsInThisWorkspace(root, owner)
+    if (built) {
+      checkManifest(owner, manifest, violations)
+      checkBuild(owner, root, violations)
+    }
+    checkSource(owner, root, violations, built)
   }
   return violations
 }
@@ -164,10 +213,19 @@ function checkSource(
   owner: PackageInvariantOwner,
   root: string,
   violations: PackageInvariantViolation[],
+  built: boolean,
 ): void {
   const absolutePath = resolve(root, owner.sourcePath)
   if (!existsSync(absolutePath)) {
-    addViolation(violations, owner.sourcePath, 'missing package-owned invariant companion')
+    // DEMANDING a companion is build-conditional; CHECKING one is not. A
+    // package this workspace does not build is not necessarily a cordis plugin
+    // here at all — `packages/rheplicant/ui-kit` is a pure component library
+    // that consumers INLINE rather than mount, so it never reaches a context
+    // to register on, and its own tsconfig refuses the import that would let
+    // it try. But if such a package DOES ship a companion, every rule below
+    // still applies to it: a registration that runs must name its own package,
+    // be hand-owned, and say why it installs nothing.
+    if (built) addViolation(violations, owner.sourcePath, 'missing package-owned invariant companion')
     return
   }
   const sourceText = readFileSync(absolutePath, 'utf8')
