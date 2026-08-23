@@ -217,6 +217,17 @@
     - id: client-rheplicant-ui-theme
       name: '@deepseek-ai/dsh-client-rheplicant-ui-theme'
 
+    # Rheplicant project home: a shell.overlay page plus its sidebar-foot
+    # trigger. Both seats are additive root-scoped list slots, so this row
+    # shadows no shipped UI.
+    #
+    # BEFORE the console on purpose: this row publishes `ctx.rheplicantSelection`
+    # (docs/project-model.md §11.2), which the console looks up. The console
+    # resolves it lazily so the order is not load-bearing, but a provider ahead
+    # of its consumer is the arrangement that needs no explaining.
+    - id: client-rheplicant-ui-project
+      name: '@deepseek-ai/dsh-client-rheplicant-ui-project'
+
     # Rheplicant console (conversation.view tab declaring the console.panel
     # grid slot) and the posterior panel (injected into that slot).
     - id: client-rheplicant-ui-console
@@ -228,11 +239,6 @@
     - id: client-rheplicant-ui-identifiability
       name: '@deepseek-ai/dsh-client-rheplicant-ui-identifiability'
 
-    # Rheplicant project home: a shell.overlay page plus its sidebar-foot
-    # trigger. Both seats are additive root-scoped list slots, so this row
-    # shadows no shipped UI.
-    - id: client-rheplicant-ui-project
-      name: '@deepseek-ai/dsh-client-rheplicant-ui-project'
 
     - id: ui-attachment
       name: '@deepseek-ai/dsh-client-ui-attachment'

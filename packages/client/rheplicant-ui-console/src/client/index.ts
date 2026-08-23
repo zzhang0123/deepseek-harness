@@ -15,9 +15,9 @@ import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { ConsoleView } from './ConsoleView.tsx'
-import { ConsoleNavigation } from './navigation-service.ts'
 import { GatesPanel } from './GatesPanel.tsx'
 import { createConsoleLayoutStore } from './layout-store.ts'
+import { setSelectionSource } from './selection-bridge.ts'
 import { registerLoopDefinitions } from './loop-definitions.ts'
 import { registerLoopConversationView } from './loop-snapshot-builder.ts'
 
@@ -41,14 +41,20 @@ export type {
   LoopContribution, LoopConversationViewNode, LoopGatesEntry, LoopRunEntry, LoopSnapshot, LoopValidateEntry,
 } from './loop-contract.ts'
 export { loopViewDefinition } from './loop-snapshot-builder.ts'
-export { ConsoleNavigation } from './navigation-service.ts'
+export {
+  chooseExecution, proposeExecution, resetLocalSelection, setSelectionSource, useProjectSelection,
+} from './selection-bridge.ts'
+export type { ProjectSelection, SelectionPatch, SelectionSource } from './selection-bridge.ts'
 
 export const inject = ['slots', 'conversationEvents', 'conversationViews']
 
 export function apply(ctx: ClientContext): void {
-  // The console's cross-plugin face: "show THIS execution in THAT session".
-  // Registered first so a chooser that mounts alongside can already reach it.
-  ctx.plugin(ConsoleNavigation)
+  // Where the PROJECT's selection lives (`docs/project-model.md` §11.2). A
+  // thunk, not a value: `ctx.get` here would answer undefined whenever
+  // ui-project mounts later in the composition, and mount order is a profile's
+  // business. Resolved on first use instead; absent, the console keeps a local
+  // selection of its own.
+  setSelectionSource(() => ctx.get('rheplicantSelection'))
   registerLoopDefinitions(ctx)
   registerLoopConversationView(ctx)
   ctx.slots.inject('conversation.view', () => ctx.slots.register({

@@ -13,8 +13,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProjectHome } from '../src/client/ProjectHome.tsx'
 import { closeHome, openHome, resetHome, selectProject } from '../src/client/home-store.ts'
 import { setNavigator } from '../src/client/navigate.ts'
+import { readSelection, resetSelections } from '../src/client/selection.ts'
 
-afterEach(() => { cleanup(); resetHome(); setNavigator(undefined); vi.unstubAllGlobals() })
+afterEach(() => {
+  cleanup(); resetHome(); setNavigator(undefined); resetSelections(); vi.unstubAllGlobals()
+})
 beforeEach(() => { vi.unstubAllGlobals() })
 
 const WORKSPACES = [
@@ -230,7 +233,6 @@ describe('opening a project from a row', () => {
         return Promise.resolve(`S-${workspaceId}`)
       },
       open: (sessionId) => { calls.push(`open:${sessionId}`) },
-      requestExecution: (s, e) => { calls.push(`request:${s}:${e}`) },
     })
     return calls
   }
@@ -247,7 +249,7 @@ describe('opening a project from a row', () => {
     expect(container.querySelector('[data-project-open-task]')).toBeNull()
   })
 
-  it('opens an execution: connect, request, open, close', async () => {
+  it('opens an execution: set the PROJECT selection, connect, open, close', async () => {
     const calls = navigator()
     serve({ 'ws-1': overview('rhino') })
     openHome('ws-1')
@@ -255,7 +257,9 @@ describe('opening a project from a row', () => {
     await waitFor(() => { expect(container.querySelector('[data-project-open-execution]')).toBeTruthy() })
     fireEvent.click(container.querySelector('[data-project-open-execution]')!)
     await waitFor(() => { expect(calls).toContain('open:S-ws-1') })
-    expect(calls).toEqual(['connect:ws-1', 'request:S-ws-1:rhino-E1', 'open:S-ws-1'])
+    expect(calls).toEqual(['connect:ws-1', 'open:S-ws-1'])
+    // Addressed to the project, not to the session it happened to land in.
+    expect(readSelection('ws-1')).toMatchObject({ executionId: 'rhino-E1', pinned: { execution: true } })
     await waitFor(() => { expect(container.querySelector('[data-project-home]')).toBeNull() })
   })
 
@@ -275,7 +279,7 @@ describe('opening a project from a row', () => {
     expect(screen.getByText('Open latest')).toBeTruthy()
     fireEvent.click(container.querySelector('[data-project-open-task]')!)
     await waitFor(() => { expect(calls).toContain('open:S-ws-1') })
-    expect(calls).toContain('request:S-ws-1:rhino-E1')
+    expect(readSelection('ws-1').executionId).toBe('rhino-E1')
   })
 
   it('opens a never-run task WITHOUT requesting an execution', async () => {
@@ -294,7 +298,7 @@ describe('opening a project from a row', () => {
     expect(screen.getByText('Open project')).toBeTruthy()
     fireEvent.click(container.querySelector('[data-project-open-task]')!)
     await waitFor(() => { expect(calls).toContain('open:S-ws-1') })
-    expect(calls.some(call => call.startsWith('request:'))).toBe(false)
+    expect(readSelection('ws-1').executionId).toBeUndefined()
   })
 
   it('says so and stays open when connecting fails', async () => {
@@ -325,7 +329,6 @@ describe('which session a row lands in', () => {
         return Promise.resolve(`S-${workspaceId}`)
       },
       open: (sessionId) => { calls.push(`open:${sessionId}`) },
-      requestExecution: (s, e) => { calls.push(`request:${s}:${e}`) },
     })
     return calls
   }
@@ -356,7 +359,8 @@ describe('which session a row lands in', () => {
     await waitFor(() => { expect(container.querySelector('[data-project-open-execution]')).toBeTruthy() })
     fireEvent.click(container.querySelector('[data-project-open-execution]')!)
     await waitFor(() => { expect(calls).toContain('open:S-ran-it') })
-    expect(calls).toEqual(['request:S-ran-it:rhino-E1', 'open:S-ran-it'])
+    expect(calls).toEqual(['open:S-ran-it'])
+    expect(readSelection('ws-1').executionId).toBe('rhino-E1')
   })
 
   it('connects the workspace when the producing session is GONE', async () => {
@@ -393,6 +397,7 @@ describe('which session a row lands in', () => {
     await waitFor(() => { expect(container.querySelector('[data-project-open-task]')).toBeTruthy() })
     fireEvent.click(container.querySelector('[data-project-open-task]')!)
     await waitFor(() => { expect(calls).toContain('open:S-ran-it') })
-    expect(calls).toEqual(['request:S-ran-it:rhino-E1', 'open:S-ran-it'])
+    expect(calls).toEqual(['open:S-ran-it'])
+    expect(readSelection('ws-1').executionId).toBe('rhino-E1')
   })
 })

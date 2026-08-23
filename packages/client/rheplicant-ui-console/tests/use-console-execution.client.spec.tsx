@@ -13,8 +13,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
 import { useConsoleExecution } from '../src/client/use-console-execution.ts'
 import {
-  peekExecutionRequest, requestExecution, resetExecutionRequests,
-} from '../src/client/execution-requests.ts'
+  chooseExecution, resetLocalSelection, setSelectionSource,
+  type ProjectSelection,
+} from '../src/client/selection-bridge.ts'
 import type { LoopExecutionRef, LoopSnapshot } from '../src/client/loop-contract.ts'
 
 const NEWER = '20260822T134501Z-3f9ac2b1-k7m2xq'
@@ -81,13 +82,18 @@ beforeEach(() => {
 // landmine for anything module-scoped — a leaked console still reads the
 // execution-request store, and whichever one reacts first consumes the
 // request, so the test's own hook can miss it entirely.
-afterEach(() => { cleanup(); vi.unstubAllGlobals() })
+afterEach(() => { cleanup(); resetLocalSelection(); setSelectionSource(undefined); vi.unstubAllGlobals() })
+
+const WORKSPACES = { items: [{ workspaceId: 'ws-1', sessionIds: ['S-1'] }] }
 
 function mount(executions: readonly LoopExecutionRef[]) {
   const snapshot: LoopSnapshot = { executions, latestSeq: executions.length }
   const views = new Map<string, unknown>([['rheplicant-loop', snapshot]])
   const session = { views, sessionId: 'S-1', chat: { nodes: new Map() }, nodes: [] } as unknown as ConversationSnapshot
-  return renderHook(() => useConsoleExecution(<T,>(s: (x: ConversationSnapshot) => T) => s(session)))
+  return renderHook(() => useConsoleExecution(
+    <T,>(s: (x: ConversationSnapshot) => T) => s(session),
+    <T,>(s: (x: typeof WORKSPACES) => T) => s(WORKSPACES),
+  ))
 }
 
 describe('when the project can be read', () => {
@@ -179,7 +185,7 @@ describe('selection', () => {
   })
 })
 
-describe('a request from another plugin (the project home)', () => {
+describe('addressing by the PROJECT selection, not by session', () => {
   beforeEach(() => {
     answers['/rheplicant/project/executions'] = {
       status: 200,
@@ -191,47 +197,116 @@ describe('a request from another plugin (the project home)', () => {
         ],
       },
     }
-    resetExecutionRequests()
+    resetLocalSelection()
   })
-  afterEach(() => { resetExecutionRequests() })
 
-  it('shows the execution it was asked for, not the newest', async () => {
+  it('follows the newest execution when nobody has chosen one', async () => {
+    // The default rule of §11.2, offered as a proposal rather than baked in.
     const { result } = mount([ref(NEWER)])
     await waitFor(() => { expect(result.current.ordered).toHaveLength(2) })
     expect(result.current.selected?.executionId).toBe(OTHER)
+  })
 
-    act(() => { requestExecution('S-1', NEWER) })
+  it('shows whatever the project selection names, wherever it was set', async () => {
+    // The home sets this; so does another surface in another seat. The console
+    // never learns who chose it, which is the point.
+    const { result } = mount([ref(NEWER)])
+    await waitFor(() => { expect(result.current.ordered).toHaveLength(2) })
+    act(() => { chooseExecution('ws-1', NEWER) })
     await waitFor(() => { expect(result.current.selected?.executionId).toBe(NEWER) })
   })
 
-  it('consumes the request, so nothing re-applies it later', async () => {
+  it('ignores a selection naming an execution this project does not offer', async () => {
+    // Rendering an empty console under a name absent from the picker would be
+    // worse than falling back to the default.
     const { result } = mount([ref(NEWER)])
     await waitFor(() => { expect(result.current.ordered).toHaveLength(2) })
-    act(() => { requestExecution('S-1', NEWER) })
-    await waitFor(() => { expect(peekExecutionRequest('S-1')).toBeUndefined() })
-
-    // The person can still steer away afterwards; the request does not pin.
-    act(() => { result.current.select(OTHER) })
-    await waitFor(() => { expect(result.current.selected?.executionId).toBe(OTHER) })
+    act(() => { chooseExecution('ws-1', 'EXEC-from-another-project') })
+    expect(result.current.selected?.executionId).toBe(OTHER)
   })
 
-  it('ignores a request addressed to a different session', async () => {
+  it('reads the selection of its OWN project only', async () => {
     const { result } = mount([ref(NEWER)])
     await waitFor(() => { expect(result.current.ordered).toHaveLength(2) })
-    act(() => { requestExecution('S-elsewhere', NEWER) })
-    await waitFor(() => { expect(result.current.selected?.executionId).toBe(OTHER) })
-    // And it stays pending for the session it actually names.
-    expect(peekExecutionRequest('S-elsewhere')).toBe(NEWER)
+    act(() => { chooseExecution('ws-elsewhere', NEWER) })
+    expect(result.current.selected?.executionId).toBe(OTHER)
   })
 
-  it('waits rather than dropping a request for an execution not listed YET', async () => {
-    // A request can land before the project listing does. Applying it against
-    // an empty list would silently discard it and leave the person on the
-    // default, wondering why their click did nothing.
-    resetExecutionRequests()
-    requestExecution('S-1', OTHER)
+  it('its picker writes the selection rather than any local state', async () => {
     const { result } = mount([ref(NEWER)])
-    await waitFor(() => { expect(result.current.selected?.executionId).toBe(OTHER) })
-    expect(peekExecutionRequest('S-1')).toBeUndefined()
+    await waitFor(() => { expect(result.current.ordered).toHaveLength(2) })
+    act(() => { result.current.select(NEWER) })
+    await waitFor(() => { expect(result.current.selected?.executionId).toBe(NEWER) })
+  })
+})
+
+describe('which verb the console uses, and why it matters', () => {
+  /** A recording stand-in for the project's selection service. */
+  function spy() {
+    const calls: string[] = []
+    // Annotated, not inferred: an inferred literal would type `executionId`
+    // as `undefined` and refuse every assignment below.
+    let state: ProjectSelection = {
+      taskPath: undefined,
+      executionId: undefined,
+      pinned: { task: false, execution: false },
+    }
+    const listeners = new Set<() => void>()
+    setSelectionSource(() => ({
+      select: (w, patch) => {
+        calls.push(`select:${w}:${String(patch.executionId)}`)
+        state = { ...state, executionId: patch.executionId ?? state.executionId }
+        for (const l of listeners) l()
+      },
+      propose: (w, patch) => {
+        calls.push(`propose:${w}:${String(patch.executionId)}`)
+        state = { ...state, executionId: patch.executionId ?? state.executionId }
+        for (const l of listeners) l()
+      },
+      read: () => state,
+      subscribe: (l) => { listeners.add(l); return () => { listeners.delete(l) } },
+    }))
+    return calls
+  }
+
+  beforeEach(() => {
+    answers['/rheplicant/project/executions'] = {
+      status: 200,
+      body: {
+        project: 'rhino-2026',
+        executions: [
+          { executionId: OTHER, task: 'tasks/fit', status: 'ok', path: `results/tasks/fit/${OTHER}/` },
+          { executionId: NEWER, task: 'tasks/fit', status: 'ok', path: `results/tasks/fit/${NEWER}/` },
+        ],
+      },
+    }
+  })
+
+  it('PROPOSES the newest execution and never selects it', async () => {
+    // The console following the newest is a stated DEFAULT, not a choice made
+    // on the operator's behalf. Calling `select` here would pin it and make a
+    // background run override a human's deliberate pick — the exact failure
+    // this split exists to prevent.
+    const calls = spy()
+    const { result } = mount([ref(NEWER)])
+    await waitFor(() => { expect(result.current.ordered).toHaveLength(2) })
+    expect(calls.some(call => call.startsWith(`propose:ws-1:${OTHER}`))).toBe(true)
+    expect(calls.some(call => call.startsWith('select:'))).toBe(false)
+  })
+
+  it('SELECTS when the picker is used, because that is a human choosing', async () => {
+    const calls = spy()
+    const { result } = mount([ref(NEWER)])
+    await waitFor(() => { expect(result.current.ordered).toHaveLength(2) })
+    act(() => { result.current.select(NEWER) })
+    expect(calls).toContain(`select:ws-1:${NEWER}`)
+  })
+
+  it('addresses every write to the PROJECT, never to the session', async () => {
+    const calls = spy()
+    const { result } = mount([ref(NEWER)])
+    await waitFor(() => { expect(result.current.ordered).toHaveLength(2) })
+    act(() => { result.current.select(NEWER) })
+    expect(calls.every(call => call.split(':')[1] === 'ws-1')).toBe(true)
   })
 })

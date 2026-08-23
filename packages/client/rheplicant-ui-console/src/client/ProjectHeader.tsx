@@ -42,7 +42,7 @@ const Field = memo(function Field(
 })
 
 export const ProjectHeader = memo(function ProjectHeader({ execution }: ProjectHeaderProps) {
-  const { ordered, selected, newest, projectName, projectReadable, select } = execution
+  const { ordered, selected, newest, projectName, projectReadable, pinned, select } = execution
   const onPick = useCallback(
     (event: { target: { value: string } }) => { select(event.target.value) },
     [select],
@@ -122,13 +122,22 @@ export const ProjectHeader = memo(function ProjectHeader({ execution }: ProjectH
             not published — this run kept its results in the session log only
           </div>
         )}
+      {/* The rule has to say which rule is in force. Once a selection can be
+          PINNED (`docs/project-model.md` §11.2), "showing the newest by
+          default" is false exactly when someone has chosen otherwise — and a
+          caption that keeps claiming it while an older execution is on screen
+          is the kind of quiet lie this header exists to prevent. */}
       <div className={styles.rule} data-header-rule>
-        {projectReadable
-          ? `Showing the newest execution by default. This list covers all `
-            + `${ordered.length} execution${ordered.length === 1 ? '' : 's'} in the project.`
-          : `Showing this session's newest execution by default. This list covers `
-            + `the ${ordered.length} run${ordered.length === 1 ? '' : 's'} of this session, `
-            + 'not every execution in the project — the project could not be read from here.'}
+        {pinned
+          ? `Showing an execution you chose. This list covers all `
+            + `${ordered.length} execution${ordered.length === 1 ? '' : 's'} in the project`
+            + `${projectReadable ? '' : ' this session produced'}.`
+          : projectReadable
+            ? `Showing the newest execution by default. This list covers all `
+              + `${ordered.length} execution${ordered.length === 1 ? '' : 's'} in the project.`
+            : `Showing this session's newest execution by default. This list covers `
+              + `the ${ordered.length} run${ordered.length === 1 ? '' : 's'} of this session, `
+              + 'not every execution in the project — the project could not be read from here.'}
       </div>
     </div>
   )

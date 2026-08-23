@@ -65,14 +65,18 @@ import styles from './console.module.css'
 type ConsoleViewProps =
   & {
     useSession: <T>(selector: (snapshot: ConversationSnapshot) => T) => T
+    /** Root-scope standard prop; used only to resolve this session's project. */
+    useWorkspaces: <T>(selector: (state: {
+      items: readonly { workspaceId: string; sessionIds: readonly string[] }[]
+    }) => T) => T
     renderSlot: (key: 'console.panel', owner: object) => ReactNode
   }
   & PropsStore<ReturnType<typeof createConsoleLayoutStore>>
 
-export const ConsoleView = memo(function ConsoleView({ useSession, renderSlot, useStore, actions }: ConsoleViewProps) {
+export const ConsoleView = memo(function ConsoleView({ useSession, useWorkspaces, renderSlot, useStore, actions }: ConsoleViewProps) {
   // One owner for "which execution", shared by the header that names it and
   // the panels that draw it (`docs/project-model.md` §6.1).
-  const execution = useConsoleExecution(useSession)
+  const execution = useConsoleExecution(useSession, useWorkspaces)
   const collapsed = useStore(s => s.collapsed)
   const hidden = useStore(s => s.hidden)
   const collapsedSet = useMemo(() => new Set(collapsed), [collapsed])

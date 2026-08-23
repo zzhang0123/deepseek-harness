@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { canNavigate, openProject, setNavigator, type Navigator } from '../src/client/navigate.ts'
 import { openHome, readHome, resetHome } from '../src/client/home-store.ts'
+import { readSelection, resetSelections, selectInProject } from '../src/client/selection.ts'
 
-afterEach(() => { setNavigator(undefined); resetHome() })
+afterEach(() => { setNavigator(undefined); resetHome(); resetSelections() })
 
 /** A navigator that records the order every capability was called in. */
 function recording(over: Partial<Navigator> = {}) {
@@ -13,9 +14,6 @@ function recording(over: Partial<Navigator> = {}) {
       return Promise.resolve('S-for-' + workspaceId)
     },
     open: (sessionId) => { order.push(`open:${sessionId}`) },
-    requestExecution: (sessionId, executionId) => {
-      order.push(`request:${sessionId}:${executionId}`)
-    },
     ...over,
   }
   setNavigator(navigator)
@@ -32,6 +30,11 @@ describe('without a navigator', () => {
     await expect(openProject('ws-1', { executionId: 'EXEC-1' })).resolves.toBeUndefined()
     expect(readHome().open).toBe(true)
   })
+
+  it('sets no selection either — nothing happened, so nothing is claimed', async () => {
+    await openProject('ws-1', { executionId: 'EXEC-1' })
+    expect(readSelection('ws-1').executionId).toBeUndefined()
+  })
 })
 
 describe('opening a project', () => {
@@ -40,28 +43,35 @@ describe('opening a project', () => {
     expect(canNavigate()).toBe(true)
   })
 
-  it('connects, THEN requests, THEN opens', async () => {
-    // The order is the design. `connect` is what reveals which session the
-    // project resolves to, so the request cannot precede it; and the request
-    // must precede `open`, or the console mounts on its default and visibly
-    // jumps a moment later.
-    const order = recording()
+  it('sets the PROJECT selection, addressed to no session at all', async () => {
+    // The heart of §11.2. P6 had to ask a particular session's console to show
+    // an execution; a project-owned selection is simply already correct for
+    // whichever surface renders next.
+    recording()
     await openProject('ws-1', { executionId: 'EXEC-1' })
-    expect(order).toEqual(['connect:ws-1', 'request:S-for-ws-1:EXEC-1', 'open:S-for-ws-1'])
+    expect(readSelection('ws-1')).toMatchObject({
+      executionId: 'EXEC-1',
+      pinned: { execution: true },
+    })
   })
 
-  it('skips the request when no execution was named', async () => {
+  it('pins it, because clicking a row is an explicit human choice', async () => {
+    // So a run finishing in the background cannot pull the view off it.
+    recording()
+    await openProject('ws-1', { executionId: 'EXEC-1' })
+    expect(readSelection('ws-1').pinned.execution).toBe(true)
+  })
+
+  it('connects, then opens', async () => {
     const order = recording()
+    await openProject('ws-1', { executionId: 'EXEC-1' })
+    expect(order).toEqual(['connect:ws-1', 'open:S-for-ws-1'])
+  })
+
+  it('sets no selection when no execution was named', async () => {
+    recording()
     await openProject('ws-1')
-    expect(order).toEqual(['connect:ws-1', 'open:S-for-ws-1'])
-  })
-
-  it('still opens when no console is present to take the request', async () => {
-    // A composition without ui-console: the jump happens, the console (if one
-    // appears later) lands on its own default. Degrading, not failing.
-    const order = recording({ requestExecution: undefined })
-    await openProject('ws-1', { executionId: 'EXEC-1' })
-    expect(order).toEqual(['connect:ws-1', 'open:S-for-ws-1'])
+    expect(readSelection('ws-1').executionId).toBeUndefined()
   })
 
   it('closes the home once the jump succeeded', async () => {
@@ -69,6 +79,13 @@ describe('opening a project', () => {
     openHome('ws-1')
     await openProject('ws-1', { executionId: 'EXEC-1' })
     expect(readHome().open).toBe(false)
+  })
+
+  it('keeps each project\'s selection to itself', async () => {
+    recording()
+    selectInProject('ws-2', { executionId: 'OTHER' })
+    await openProject('ws-1', { executionId: 'EXEC-1' })
+    expect(readSelection('ws-2').executionId).toBe('OTHER')
   })
 })
 
@@ -93,14 +110,13 @@ describe('when connecting fails', () => {
 
 describe('aiming at the session that produced the execution', () => {
   it('opens that session directly and never connects the workspace', async () => {
-    // `connect` is the workspace-SWITCH primitive: it hands back the project's
-    // BLANK session, which is the hero screen and has no console tab, so a
-    // requested execution would have nowhere to appear. Only a real boot shows
-    // this, which is where it was found.
+    // Still the best landing spot while the workbench does not exist: a blank
+    // session mounts no console tab, so there would be nothing to render the
+    // selection. §11.5 records that this goes away in P7b.
     const order = recording()
     await openProject('ws-1', { executionId: 'EXEC-1', inSession: 'S-produced' })
-    expect(order).toEqual(['request:S-produced:EXEC-1', 'open:S-produced'])
-    expect(order.some(call => call.startsWith('connect:'))).toBe(false)
+    expect(order).toEqual(['open:S-produced'])
+    expect(readSelection('ws-1').executionId).toBe('EXEC-1')
   })
 
   it('falls back to connecting when no producing session was given', async () => {

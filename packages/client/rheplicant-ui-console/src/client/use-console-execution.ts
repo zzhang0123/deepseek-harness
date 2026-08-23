@@ -10,14 +10,12 @@
  * @module @rheplicant/dsh-rheplicant-ui-console/client/use-console-execution
  */
 
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
 import type { AnalysisRun } from '@rheplicant/dsh-rheplicant-ui-kit/client'
 import type { ConsoleExecutionView } from '@rheplicant/dsh-rheplicant-ui-kit/client'
-import {
-  clearExecutionRequest, peekExecutionRequest, subscribeExecutionRequests,
-} from './execution-requests.ts'
 import { EMPTY_LOOP_SNAPSHOT } from './loop-snapshot-builder.ts'
+import { chooseExecution, proposeExecution, useProjectSelection } from './selection-bridge.ts'
 import {
   fetchExecution,
   fetchProjectExecutions,
@@ -37,6 +35,12 @@ export interface ConsoleExecutionState {
   readonly projectName: string | undefined
   /** False when the project routes could not be reached at all. */
   readonly projectReadable: boolean
+  /**
+   * True when a human pinned this execution, so the newest-by-default rule is
+   * NOT what is on screen. The header says which rule is in force, and it can
+   * only do that if it is told.
+   */
+  readonly pinned: boolean
   /** Choose an execution; passing the newest id returns to following it. */
   readonly select: (executionId: string) => void
   /** What every console panel receives through the slot's owner props. */
@@ -45,13 +49,34 @@ export interface ConsoleExecutionState {
 
 type SessionReader = <T>(selector: (snapshot: ConversationSnapshot) => T) => T
 
+/** Just enough of the workspace list to find which project this session is in. */
+interface WorkspaceListLike {
+  items: readonly { workspaceId: string; sessionIds: readonly string[] }[]
+}
+type WorkspaceReader = <T>(selector: (state: WorkspaceListLike) => T) => T
+
 /**
- * Own the console's selection and the data behind it.
+ * Read the console's selection and the data behind it.
+ *
+ * The selection is NOT owned here any more (`docs/project-model.md` §11.2). It
+ * belongs to the project, so this hook reads and writes the project's, and the
+ * session's only remaining job is to say which executions it produced and
+ * which project it is in.
+ *
  * @param useSession - the standard `conversation.view` session reader.
+ * @param useWorkspaces - the standard workspace-list reader, used only to
+ *   resolve this session's project.
  * @returns the selection, the list, and the panels' execution view.
  */
-export function useConsoleExecution(useSession: SessionReader): ConsoleExecutionState {
+export function useConsoleExecution(
+  useSession: SessionReader,
+  useWorkspaces?: WorkspaceReader,
+): ConsoleExecutionState {
   const sessionId = String(useSession(session => session.sessionId))
+  // Which project this conversation belongs to. A session belongs to at most
+  // one workspace, so this is a lookup, not a choice.
+  const workspaceId = useWorkspaces?.(state =>
+    state.items.find(row => row.sessionIds.some(id => String(id) === sessionId))?.workspaceId)
   const own = useSession(
     session => session.views.get('rheplicant-loop')?.executions ?? EMPTY_LOOP_SNAPSHOT.executions,
   )
@@ -69,42 +94,29 @@ export function useConsoleExecution(useSession: SessionReader): ConsoleExecution
 
   const ordered = useMemo(() => mergeExecutions(own, project?.executions), [own, project])
   const newest = ordered[0]?.executionId
-  const [selectedId, setSelectedId] = useState<string | undefined>(undefined)
 
-  // Follow the newest execution until someone chooses otherwise, and resume
-  // following it if the chosen one leaves the list.
+  const selection = useProjectSelection(workspaceId)
+  const selectedId = selection.executionId
+  // A selection naming an execution this project does not offer shows nothing,
+  // so fall back to the default rather than rendering an empty console under a
+  // name nobody can see in the list.
   const known = selectedId !== undefined && ordered.some(row => row.executionId === selectedId)
-  useEffect(() => {
-    if (selectedId !== undefined && !known) setSelectedId(undefined)
-  }, [selectedId, known])
   const selected = known ? ordered.find(row => row.executionId === selectedId) : ordered[0]
 
-  const select = useCallback((executionId: string) => {
-    setSelectedId(executionId === newest ? undefined : executionId)
-  }, [newest])
-
-  // Another plugin — the project home — may ask this session to show a
-  // particular execution. Subscribed rather than read once: the home renders in
-  // `shell.overlay`, which is on screen whether or not a session is open, so a
-  // pick can land while this console is already mounted and navigating nowhere.
-  const requested = useSyncExternalStore(
-    subscribeExecutionRequests,
-    () => peekExecutionRequest(sessionId),
-    () => undefined,
-  )
+  // The default rule, stated in §11.2: absent an explicit choice, follow the
+  // newest execution. Offered as a PROPOSAL, so it fills the selection for a
+  // surface that has none and never overrides one a human pinned.
   useEffect(() => {
-    if (requested === undefined) return
-    // Applied only once the execution is actually offerable. A request that
-    // arrives before the project listing does would otherwise be dropped as
-    // unknown, and the console would sit on the newest execution while the
-    // person waits for the one they clicked.
-    if (!ordered.some(row => row.executionId === requested)) return
-    setSelectedId(requested === newest ? undefined : requested)
-    // Consumed, not remembered: see `execution-requests.ts`. Leaving it set
-    // would make this session snap back to the same execution every time
-    // anything re-rendered.
-    clearExecutionRequest(sessionId)
-  }, [requested, ordered, newest, sessionId])
+    if (newest !== undefined) proposeExecution(workspaceId, newest)
+  }, [workspaceId, newest])
+
+  const select = useCallback((executionId: string) => {
+    chooseExecution(workspaceId, executionId)
+  }, [workspaceId])
+
+  // No "request" machinery any more. P6 needed one because a selection was
+  // addressed to a SESSION and had to be carried across a navigation; a
+  // project-owned selection is simply already there when this mounts.
 
   const [projection, setProjection] = useState<
     { id: string; runs?: readonly AnalysisRun[]; problem?: 'unreadable' | 'unavailable' } | undefined
@@ -148,6 +160,9 @@ export function useConsoleExecution(useSession: SessionReader): ConsoleExecution
       ? project.project
       : sessionProjectName(own),
     projectReadable: project !== undefined,
+    // Only meaningful while the pinned execution is actually offerable; a pin
+    // on something this project no longer lists has already fallen back.
+    pinned: selection.pinned.execution && known,
     select,
     executionView,
   }

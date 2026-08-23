@@ -17,6 +17,7 @@
  */
 
 import { closeHome } from './home-store.ts'
+import { selectInProject } from './selection.ts'
 
 /** What opening a project needs from the host page. */
 export interface Navigator {
@@ -27,12 +28,6 @@ export interface Navigator {
   connect: (workspaceId: string) => Promise<string>
   /** Bring one session to the front. `ctx.sessions.open`. */
   open: (sessionId: string) => void
-  /**
-   * Ask that session's console to show one execution, when a console is
-   * present. Absent in a composition without `ui-console`, in which case the
-   * jump still happens and the console lands on its own default.
-   */
-  requestExecution?: ((sessionId: string, executionId: string) => void) | undefined
 }
 
 let navigator: Navigator | undefined
@@ -75,10 +70,10 @@ export interface OpenTarget {
 /**
  * Open one project, optionally on one execution, and close the home.
  *
- * The order is load-bearing. Resolving the session is what tells us WHERE the
- * request goes, so the request can only be made after it — and it must be made
- * before `open`, so the console applies it as it mounts rather than visibly
- * jumping a moment later.
+ * The selection is set before the jump, so the console reads it as it mounts
+ * rather than visibly jumping a moment later. It no longer needs the session
+ * id first — a selection belongs to the project, not to a conversation — which
+ * is why this is simpler than P6's version.
  *
  * @param workspaceId - the project to open.
  * @param target - what to show, and where.
@@ -90,12 +85,15 @@ export async function openProject(workspaceId: string, target: OpenTarget = {}):
   // A known producing session is opened as-is: connecting the workspace would
   // send us to its blank session instead, losing the console that can show
   // this execution.
+  // The selection is set FIRST and is not addressed to any session: it is the
+  // project's, so whichever surface renders next reads the same thing. This is
+  // what replaced P6's "ask that session's console" — see §11.2.
+  if (target.executionId !== undefined && target.executionId !== '') {
+    selectInProject(workspaceId, { executionId: target.executionId })
+  }
   const sessionId = target.inSession !== undefined && target.inSession !== ''
     ? target.inSession
     : await via.connect(workspaceId)
-  if (target.executionId !== undefined && target.executionId !== '') {
-    via.requestExecution?.(sessionId, target.executionId)
-  }
   via.open(sessionId)
   // Closed only after the jump succeeded. A home that closed first and then
   // failed to connect would leave someone looking at the session they were

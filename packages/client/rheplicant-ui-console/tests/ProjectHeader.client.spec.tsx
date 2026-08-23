@@ -65,6 +65,7 @@ function mount(ordered: HeaderExecution[], over: Partial<ConsoleExecutionState> 
     newest: ordered[0]?.executionId,
     projectName: 'rhino-2026',
     projectReadable: true,
+    pinned: false,
     select,
     executionView: {},
     ...over,
@@ -171,5 +172,25 @@ describe('the picker', () => {
     mount([row(NEWER), row(OLDER)], { projectReadable: false })
     expect(document.querySelector('[data-header-rule]')?.textContent)
       .toMatch(/not every execution in the project/)
+  })
+})
+
+describe('the caption says which rule is actually in force', () => {
+  it('claims the newest-by-default rule only while it is following it', () => {
+    mount([row(NEWER), row(OLDER)])
+    expect(screen.getByText(/Showing the newest execution by default/)).toBeTruthy()
+  })
+
+  it('stops claiming it once a human pinned something', () => {
+    // The lie this guards against: an older execution on screen under a line
+    // that says the newest one is being shown.
+    mount([row(NEWER), row(OLDER)], { selected: row(OLDER), pinned: true })
+    expect(screen.queryByText(/newest execution by default/)).toBeNull()
+    expect(screen.getByText(/Showing an execution you chose/)).toBeTruthy()
+  })
+
+  it('still says how many executions the list covers when pinned', () => {
+    mount([row(NEWER), row(OLDER)], { selected: row(OLDER), pinned: true })
+    expect(screen.getByText(/covers all 2 executions in the project/)).toBeTruthy()
   })
 })
