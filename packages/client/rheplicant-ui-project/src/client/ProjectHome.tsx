@@ -27,16 +27,19 @@
  * @module @rheplicant/dsh-rheplicant-ui-project/client/ProjectHome
  */
 
-import { memo, useCallback, useEffect, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Badge, EmptyState, Panel } from '@rheplicant/dsh-rheplicant-ui-kit/client'
 import { closeHome, selectProject, useHome } from './home-store.ts'
 import {
   countByStatus, formatBytes, groupExecutionsByTask, taskSegmentOf,
 } from './home-selectors.ts'
+import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
 import { canNavigate, openProject } from './navigate.ts'
 import { selectInProject, useSelection } from './selection.ts'
 import { useProjectOverview } from './use-project-overview.ts'
 import { useTaskDocument } from './use-task-document.ts'
+import { useWorkbenchExecution } from './use-workbench-execution.ts'
+import type { TaskPanelOwnerProps } from './index.ts'
 import styles from './project-home.module.css'
 
 /**
@@ -79,9 +82,32 @@ interface ProjectHomeProps {
    * than the project's blank session.
    */
   readonly useSessions: <T>(selector: (state: { ids: readonly string[] }) => T) => T
+  /** Renders this entry's own `task.panel` grid. */
+  readonly renderSlot: (key: 'task.panel', owner: TaskPanelOwnerProps) => ReactNode
 }
 
-export const ProjectHome = memo(function ProjectHome({ useWorkspaces, useSessions }: ProjectHomeProps) {
+/**
+ * The session share handed to a panel in the workbench: none.
+ *
+ * Panels accept a session reader as their LOG FALLBACK, for runs that were
+ * never published. The workbench has no conversation, so the truthful answer
+ * is an empty one — and §11.5 already settled that an unpublished run has no
+ * seat here, because it has no folder to be read from.
+ *
+ * A module constant so its identity is stable across renders; a fresh closure
+ * each time would re-render every panel for nothing.
+ */
+const NO_SESSION = Object.freeze({
+  views: new Map<string, unknown>(),
+  chat: Object.freeze({ nodes: new Map<string, unknown>() }),
+  nodes: Object.freeze([]),
+})
+const readNoSession = <T,>(selector: (snapshot: ConversationSnapshot) => T): T =>
+  selector(NO_SESSION as unknown as ConversationSnapshot)
+
+export const ProjectHome = memo(function ProjectHome(
+  { useWorkspaces, useSessions, renderSlot }: ProjectHomeProps,
+) {
   const { open, workspaceId } = useHome()
   const [nonce, setNonce] = useState(0)
   const workspaces = useWorkspaces(state => state.items)
@@ -100,6 +126,7 @@ export const ProjectHome = memo(function ProjectHome({ useWorkspaces, useSession
   // which task is in view.
   const selection = useSelection(chosen)
   const document_ = useTaskDocument(chosen, selection.taskPath, nonce)
+  const executionView = useWorkbenchExecution(chosen, selection.executionId, nonce)
 
   useEffect(() => {
     if (!open) return
@@ -408,6 +435,19 @@ export const ProjectHome = memo(function ProjectHome({ useWorkspaces, useSession
                     </div>
                   )}
               </Panel>
+
+              {/* The same occupants the console carries, driven by the same
+                  selection. `layout` is absent: panel collapse/hide is the
+                  console shell's own store, and a panel without it renders
+                  un-collapsed, which its own contract already documents. */}
+              {selection.executionId !== undefined && (
+                <div className={styles.panels} data-project-panels>
+                  {renderSlot('task.panel', {
+                    useSession: readNoSession,
+                    execution: executionView,
+                  })}
+                </div>
+              )}
             </div>
           )}
       </section>

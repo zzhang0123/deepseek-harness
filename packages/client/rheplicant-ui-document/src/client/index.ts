@@ -17,10 +17,18 @@ import { registerDocumentDefinitions } from './document-definitions.ts'
 import { registerDocumentConversationView } from './document-snapshot-builder.ts'
 import { DocumentPanel } from './DocumentPanel.tsx'
 import { DocumentView } from './DocumentView.tsx'
+// Type-only: loads the SlotMap entry for `task.panel`, the workbench's grid.
+import type {} from '@deepseek-ai/dsh-client-rheplicant-ui-project/client'
 
 export const inject = ['slots', 'conversationEvents', 'conversationViews']
 
 export function apply(ctx: ClientContext): void {
+  // Deliberately NOT registered into `task.panel`. This panel folds the
+  // SESSION's durable events down to the last document that appeared in the
+  // conversation — a genuinely session-facing fact, and its empty state says
+  // so ("no document in this session yet"). The workbench shows the task file
+  // itself, read from the project, which is a different and better answer
+  // there. §11.4 records that this view's data source is P7c's business.
   registerDocumentDefinitions(ctx)
   registerDocumentConversationView(ctx)
   ctx.slots.inject('conversation.view', () => ctx.slots.register({

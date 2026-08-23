@@ -26,7 +26,8 @@
       "inject": [
         "@deepseek-ai/dsh-client-runtime",
         "@deepseek-ai/dsh-client-ui-conversation",
-        "@deepseek-ai/dsh-client-ui-slots"
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-rheplicant-ui-project"
       ],
       "platform": "web"
     }
@@ -44,6 +45,7 @@
   "license": "MIT",
   "peerDependencies": {
     "@deepseek-ai/dsh-client-rheplicant-ui-console": "workspace:^",
+    "@deepseek-ai/dsh-client-rheplicant-ui-project": "workspace:^",
     "@deepseek-ai/dsh-client-runtime": "workspace:^",
     "@deepseek-ai/dsh-client-ui-conversation": "workspace:^",
     "@deepseek-ai/dsh-client-ui-slots": "workspace:^",
@@ -53,6 +55,7 @@
   },
   "devDependencies": {
     "@deepseek-ai/dsh-client-rheplicant-ui-console": "workspace:^",
+    "@deepseek-ai/dsh-client-rheplicant-ui-project": "workspace:^",
     "@deepseek-ai/dsh-client-runtime": "workspace:^",
     "@deepseek-ai/dsh-client-ui-conversation": "workspace:^",
     "@deepseek-ai/dsh-client-ui-slots": "workspace:^",

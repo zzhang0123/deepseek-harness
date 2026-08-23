@@ -16,7 +16,8 @@ import { setNavigator } from '../src/client/navigate.ts'
 import { readSelection, resetSelections, selectInProject } from '../src/client/selection.ts'
 
 afterEach(() => {
-  cleanup(); resetHome(); setNavigator(undefined); resetSelections(); vi.unstubAllGlobals()
+  cleanup(); resetHome(); setNavigator(undefined); resetSelections()
+  panelOwner = undefined; vi.unstubAllGlobals()
 })
 beforeEach(() => { vi.unstubAllGlobals() })
 
@@ -69,13 +70,26 @@ function serve(
   }))
 }
 
+/** What the workbench handed its `task.panel` grid on the last render. */
+let panelOwner: { useSession: unknown; execution: Record<string, unknown> } | undefined
+
 /** Render the home over a fixed workspace list and session list. */
 function mount(recent: string | undefined = 'ws-1', sessionIds: readonly string[] = []) {
   const state = { items: WORKSPACES, recentWorkspaceId: recent }
   const sessions = { ids: sessionIds }
   const useWorkspaces = <T,>(selector: (value: typeof state) => T): T => selector(state)
   const useSessions = <T,>(selector: (value: typeof sessions) => T): T => selector(sessions)
-  return render(<ProjectHome useWorkspaces={useWorkspaces} useSessions={useSessions} />)
+  const renderSlot = (_key: 'task.panel', owner: never) => {
+    panelOwner = owner
+    return <div data-task-panels="" />
+  }
+  return render(
+    <ProjectHome
+      useWorkspaces={useWorkspaces}
+      useSessions={useSessions}
+      renderSlot={renderSlot as never}
+    />,
+  )
 }
 
 describe('when it is closed', () => {
@@ -507,5 +521,50 @@ describe('the workbench: a task in view, with no session anywhere', () => {
     // B's title while B loads.
     expect(screen.queryByText(/I AM A/)).toBeNull()
     await waitFor(() => { expect(screen.getByText(/I AM B/)).toBeTruthy() })
+  })
+})
+
+describe('the panel grid, in the workbench seat', () => {
+  it('renders no grid until an execution is selected', async () => {
+    serve({ 'ws-1': overview('rhino') }, {})
+    openHome('ws-1')
+    const { container } = mount()
+    await waitFor(() => { expect(container.querySelector('[data-project-tasks]')).toBeTruthy() })
+    expect(container.querySelector('[data-project-panels]')).toBeNull()
+  })
+
+  it('renders the grid once an execution is in view', async () => {
+    serve({ 'ws-1': overview('rhino') }, {})
+    openHome('ws-1')
+    const { container } = mount()
+    await waitFor(() => { expect(container.querySelector('[data-project-select-execution]')).toBeTruthy() })
+    fireEvent.click(container.querySelector('[data-project-select-execution]')!)
+    await waitFor(() => { expect(container.querySelector('[data-project-panels]')).toBeTruthy() })
+  })
+
+  it('hands panels the SAME execution view shape the console builds', async () => {
+    // What makes "both seats, one selection" true rather than approximately
+    // true: a panel cannot tell which seat it is rendering in.
+    serve({ 'ws-1': overview('rhino') }, {})
+    openHome('ws-1')
+    const { container } = mount()
+    await waitFor(() => { expect(container.querySelector('[data-project-select-execution]')).toBeTruthy() })
+    fireEvent.click(container.querySelector('[data-project-select-execution]')!)
+    await waitFor(() => { expect(panelOwner?.execution).toBeTruthy() })
+    expect(panelOwner?.execution).toMatchObject({ executionId: 'rhino-E1' })
+  })
+
+  it('hands panels an EMPTY session reader, because there is no conversation', async () => {
+    // Panels take a session reader as their log fallback. The workbench has no
+    // log, and §11.5 settled that an unpublished run has no seat here — so the
+    // truthful answer is an empty conversation, not a missing prop.
+    serve({ 'ws-1': overview('rhino') }, {})
+    openHome('ws-1')
+    const { container } = mount()
+    await waitFor(() => { expect(container.querySelector('[data-project-select-execution]')).toBeTruthy() })
+    fireEvent.click(container.querySelector('[data-project-select-execution]')!)
+    await waitFor(() => { expect(panelOwner).toBeTruthy() })
+    const read = panelOwner!.useSession as <T>(s: (x: { chat: { nodes: Map<string, unknown> } }) => T) => T
+    expect(read(snapshot => snapshot.chat.nodes.size)).toBe(0)
   })
 })

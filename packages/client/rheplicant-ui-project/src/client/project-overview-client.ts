@@ -161,3 +161,50 @@ export async function fetchTaskDocument(
     return undefined
   }
 }
+
+/** One execution projected into the wire shape a run returns. */
+export interface ExecutionProjection {
+  readonly runs?: readonly unknown[]
+  readonly gates?: readonly unknown[]
+  readonly graph?: unknown
+}
+
+/**
+ * Project one published execution, addressed by PROJECT rather than session.
+ *
+ * The same route the console uses; only the handle differs, which is the whole
+ * point of §11 — the workbench has no session to name and does not need one.
+ *
+ * @param workspaceId - the project the execution belongs to.
+ * @param executionId - the execution to project.
+ * @param signal - abort when the selection changes.
+ * @returns the projection, `'unreadable'` when the project answered that this
+ *   execution is gone or changed, and `undefined` when the route could not be
+ *   reached at all.
+ */
+export async function fetchExecutionProjection(
+  workspaceId: string,
+  executionId: string,
+  signal?: AbortSignal,
+): Promise<ExecutionProjection | 'unreadable' | undefined> {
+  let response: Response
+  try {
+    response = await fetch(
+      `${ROUTE_PREFIX}/execution?workspace=${encodeURIComponent(workspaceId)}`
+      + `&execution=${encodeURIComponent(executionId)}`,
+      { ...(signal === undefined ? {} : { signal }), headers: { accept: 'application/json' } },
+    )
+  } catch {
+    return undefined
+  }
+  // 404/409 mean the project answered and this execution is not servable;
+  // anything else means the route itself is not there to ask.
+  if (response.status === 404 || response.status === 409) return 'unreadable'
+  if (!response.ok) return undefined
+  try {
+    const body: unknown = await response.json()
+    return typeof body === 'object' && body !== null ? body as ExecutionProjection : undefined
+  } catch {
+    return undefined
+  }
+}

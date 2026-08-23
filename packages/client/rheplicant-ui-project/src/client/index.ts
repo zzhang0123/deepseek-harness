@@ -24,8 +24,12 @@
  * @module @rheplicant/dsh-rheplicant-ui-project/client
  */
 
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type {
+  ClientContext, ConversationSnapshot,
+} from '@deepseek-ai/dsh-client-runtime/client'
+import type { ConsoleExecutionView } from '@rheplicant/dsh-rheplicant-ui-kit/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
+
 // Type-only: these load the SlotMap augmentations that DECLARE the two seats
 // this plugin occupies — `shell.overlay` from ui-layout, `sidebar.footer.action`
 // from ui-sidebar. Without them the slot names are not in the map and
@@ -36,6 +40,36 @@ import { HomeTrigger } from './HomeTrigger.tsx'
 import { ProjectHome } from './ProjectHome.tsx'
 import { setNavigator } from './navigate.ts'
 import { SelectionRuntime } from './selection-service.ts'
+
+/**
+ * What the workbench hands each panel.
+ *
+ * `useSession` is an OWNER prop here, not a standard one: `task.panel` is
+ * root-scoped, so the slot runtime supplies no session reader — and that is
+ * the point (§11.3). The workbench supplies one that reads an empty
+ * conversation, which is the truthful answer for a surface that has none, and
+ * lets a panel written for the console render here unchanged.
+ */
+export interface TaskPanelOwnerProps {
+  /** An empty conversation: the workbench contributes no session log. */
+  readonly useSession: <T>(selector: (snapshot: ConversationSnapshot) => T) => T
+  /** The selected execution, in the same shape the console builds. */
+  readonly execution: ConsoleExecutionView
+}
+
+declare module '@deepseek-ai/dsh-client-ui-slots' {
+  interface SlotMap {
+    /**
+     * The workbench's panel grid: the same occupants `console.panel` carries,
+     * rendered against the PROJECT selection instead of a session.
+     *
+     * Root scope on purpose — a panel here is driven by owner props, so it
+     * needs nothing from a conversation, and requiring one is exactly the
+     * coupling §11 removes.
+     */
+    'task.panel': { kind: 'list'; scope: 'root'; owner: TaskPanelOwnerProps }
+  }
+}
 
 export { closeHome, openHome, readHome, resetHome, selectProject, toggleHome, useHome } from './home-store.ts'
 export type { HomeState } from './home-store.ts'
@@ -71,6 +105,15 @@ export function apply(ctx: ClientContext): void {
     name: 'shell.overlay',
     id: 'rheplicant-project-home',
     label: () => 'Project home',
+    // The workbench's own panel grid. A SECOND slot rather than reusing
+    // `console.panel` because a child key may be declared exactly once
+    // (`ui-slots`: "declaring an already-declared child key throws") and only
+    // the declarer's component receives a `renderSlot` bound to it — so one
+    // slot cannot serve two seats. Root scope, because a panel driven by the
+    // project selection has no use for a session (§11.3).
+    children: {
+      'task.panel': { kind: 'list', scope: 'root' },
+    },
   }, ProjectHome))
   ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register({
     name: 'sidebar.footer.action',

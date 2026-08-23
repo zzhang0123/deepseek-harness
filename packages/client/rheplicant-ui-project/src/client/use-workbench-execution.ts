@@ -1,0 +1,54 @@
+/**
+ * The execution view the workbench hands its panels.
+ *
+ * The same `ConsoleExecutionView` shape the console builds, so a panel cannot
+ * tell which surface it is rendering in — which is what makes "both seats, one
+ * selection" (`docs/project-model.md` §11.3) true rather than approximately
+ * true.
+ *
+ * @module @rheplicant/dsh-rheplicant-ui-project/client/use-workbench-execution
+ */
+
+import { useEffect, useState } from 'react'
+import type { AnalysisRun, ConsoleExecutionView } from '@rheplicant/dsh-rheplicant-ui-kit/client'
+import { fetchExecutionProjection } from './project-overview-client.ts'
+
+/** Nothing selected: the panels render their own empty states. */
+const NONE: ConsoleExecutionView = {}
+
+/**
+ * Project the selected execution for the workbench's panels.
+ *
+ * @param workspaceId - the project, or undefined when none is chosen.
+ * @param executionId - the execution, or undefined when none is chosen.
+ * @param nonce - bump to re-read the same execution.
+ * @returns the view every panel receives through the slot's owner props.
+ */
+export function useWorkbenchExecution(
+  workspaceId: string | undefined,
+  executionId: string | undefined,
+  nonce = 0,
+): ConsoleExecutionView {
+  const [view, setView] = useState<ConsoleExecutionView>(NONE)
+
+  useEffect(() => {
+    if (workspaceId === undefined || executionId === undefined) {
+      setView(NONE)
+      return
+    }
+    const controller = new AbortController()
+    // `loading` rather than an empty view: a panel told "loading" renders
+    // nothing and says so, where an empty view would fall back to a session
+    // log the workbench does not have and draw nothing with no explanation.
+    setView({ executionId, foreign: false, problem: 'loading' })
+    void fetchExecutionProjection(workspaceId, executionId, controller.signal).then((answer) => {
+      if (controller.signal.aborted) return
+      if (answer === undefined) setView({ executionId, foreign: false, problem: 'unavailable' })
+      else if (answer === 'unreadable') setView({ executionId, foreign: false, problem: 'unreadable' })
+      else setView({ executionId, foreign: false, runs: (answer.runs ?? []) as AnalysisRun[] })
+    })
+    return () => { controller.abort() }
+  }, [workspaceId, executionId, nonce])
+
+  return view
+}

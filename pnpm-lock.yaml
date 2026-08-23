@@ -1678,6 +1678,9 @@ importers:
       '@deepseek-ai/dsh-client-rheplicant-ui-console':
         specifier: workspace:^
         version: link:../rheplicant-ui-console
+      '@deepseek-ai/dsh-client-rheplicant-ui-project':
+        specifier: workspace:^
+        version: link:../rheplicant-ui-project
       '@deepseek-ai/dsh-client-runtime':
         specifier: workspace:^
         version: link:../runtime
@@ -1753,6 +1756,9 @@ importers:
       '@deepseek-ai/cordis':
         specifier: workspace:^
         version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-client-rheplicant-ui-project':
+        specifier: workspace:^
+        version: link:../rheplicant-ui-project
       '@deepseek-ai/dsh-client-runtime':
         specifier: workspace:^
         version: link:../runtime
@@ -1786,6 +1792,9 @@ importers:
       '@deepseek-ai/dsh-client-rheplicant-ui-console':
         specifier: workspace:^
         version: link:../rheplicant-ui-console
+      '@deepseek-ai/dsh-client-rheplicant-ui-project':
+        specifier: workspace:^
+        version: link:../rheplicant-ui-project
       '@deepseek-ai/dsh-client-runtime':
         specifier: workspace:^
         version: link:../runtime
@@ -1819,6 +1828,9 @@ importers:
       '@deepseek-ai/dsh-client-rheplicant-ui-analysis':
         specifier: workspace:^
         version: link:../rheplicant-ui-analysis
+      '@deepseek-ai/dsh-client-rheplicant-ui-project':
+        specifier: workspace:^
+        version: link:../rheplicant-ui-project
       '@deepseek-ai/dsh-client-runtime':
         specifier: workspace:^
         version: link:../runtime
@@ -1849,6 +1861,9 @@ importers:
       '@deepseek-ai/dsh-client-rheplicant-ui-analysis':
         specifier: workspace:^
         version: link:../rheplicant-ui-analysis
+      '@deepseek-ai/dsh-client-rheplicant-ui-project':
+        specifier: workspace:^
+        version: link:../rheplicant-ui-project
       '@deepseek-ai/dsh-client-runtime':
         specifier: workspace:^
         version: link:../runtime
@@ -1909,6 +1924,9 @@ importers:
       '@deepseek-ai/dsh-client-rheplicant-ui-analysis':
         specifier: workspace:^
         version: link:../rheplicant-ui-analysis
+      '@deepseek-ai/dsh-client-rheplicant-ui-project':
+        specifier: workspace:^
+        version: link:../rheplicant-ui-project
       '@deepseek-ai/dsh-client-runtime':
         specifier: workspace:^
         version: link:../runtime

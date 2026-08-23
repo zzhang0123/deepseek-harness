@@ -257,3 +257,12 @@
   white-space: pre;
   tab-size: 2;
 }
+
+/* The workbench panel grid: the same responsive shape the console uses, so a
+   panel looks the same in either seat. */
+.panels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
+  gap: 0.75rem;
+  align-items: start;
+}
