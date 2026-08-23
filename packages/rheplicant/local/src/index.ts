@@ -88,7 +88,7 @@ class LocalComputeProvider implements ComputeProvider {
     // projection off the wire when 21 KB is what gets rendered.
     return this.request<DocumentProjection>(
       'document.project',
-      { yaml: documentText, include: ['svg', 'walkOrder', 'model'] },
+      { yaml: documentText, include: ['svg', 'walkOrder', 'model', 'runs'] },
       opts,
     )
   }

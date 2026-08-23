@@ -814,7 +814,8 @@ describe('the physics a task declares', () => {
   /** A projection carrying the given lit nodes. */
   function projection(nodes: Record<string, unknown>[], total = 33) {
     return { path: 'rhino-fit.yaml', digest: 'x', svg: '<svg data-diagram=""></svg>',
-      walkOrder: [], model: { totalNodes: total, nodes } }
+      walkOrder: [], model: { totalNodes: total, nodes },
+      runs: { exitsTotal: 18, catalogue: [], declared: [], reserved: [] } }
   }
 
   const SIGNAL = {
@@ -891,5 +892,86 @@ describe('the physics a task declares', () => {
     await waitFor(() => { expect(container.querySelector('[data-task-model]')).toBeTruthy() })
     expect(container.querySelector('[data-model-nodes]')).toBeNull()
     expect(screen.getByText(/declares no operators yet/)).toBeTruthy()
+  })
+})
+
+describe('the exits a task reaches for', () => {
+  const CATALOGUE = [
+    { kind: 'forward', fitting: false, summary: 'the sweep is the whole grammar.', products: ['arrays'] },
+    { kind: 'nuts', fitting: true, summary: 'one kind: nuts run -> a NutsProduct.', products: ['draws', 'chains'] },
+    { kind: 'fisher', fitting: true, summary: 'space/jitter validated.', products: ['covariance'] },
+  ]
+
+  function withExits(over: Record<string, unknown> = {}) {
+    return {
+      path: 'rhino-fit.yaml', digest: 'x', svg: '<svg></svg>', walkOrder: [],
+      model: { totalNodes: 33, nodes: [] },
+      runs: {
+        exitsTotal: 18,
+        catalogue: CATALOGUE,
+        declared: [{ index: 0, name: 'simulate', kind: 'forward', known: true, products: ['arrays'], deferredChecks: [] }],
+        reserved: [{ key: 'campaign', capability: 'capability 4 (streaming evidence)', section: '§8.2' }],
+        ...over,
+      },
+    }
+  }
+
+  function open(projection: Record<string, unknown>) {
+    serve({ 'ws-1': overview('rhino') }, { 'rhino-fit.yaml': 'model: {}\n' }, {}, {},
+      { 'rhino-fit.yaml': projection })
+    openHome('ws-1')
+    selectInProject('ws-1', { taskPath: 'rhino-fit.yaml' })
+    return mount()
+  }
+
+  it('lists every exit, with the declared ones marked and first', async () => {
+    // This replaces six empty panels that each named ONE exit. The catalogue
+    // names all of them, once, whether or not this task can fill a panel.
+    const { container } = open(withExits())
+
+    await waitFor(() => { expect(container.querySelector('[data-task-runs]')).toBeTruthy() })
+    const order = [...container.querySelectorAll('[data-exit]')].map(n => n.getAttribute('data-exit'))
+    expect(order).toEqual(['forward', 'nuts', 'fisher'])
+    expect(container.querySelector('[data-exit="forward"][data-exit-used]')).toBeTruthy()
+    expect(container.querySelector('[data-exit="nuts"][data-exit-used]')).toBeNull()
+  })
+
+  it('says what each exit WRITES, which is what makes it choosable', async () => {
+    const { container } = open(withExits())
+
+    await waitFor(() => { expect(container.querySelector('[data-task-runs]')).toBeTruthy() })
+    const nuts = container.querySelector('[data-exit="nuts"]')!.textContent ?? ''
+    expect(nuts).toContain('draws')
+    expect(nuts).toContain('chains')
+  })
+
+  it('counts what the task uses against what exists, and what needs a fit', async () => {
+    // The honest form of "not defaulting to forward only": no capability is
+    // claimed, because the source defines none.
+    const { container } = open(withExits())
+
+    await waitFor(() => { expect(container.querySelector('[data-task-runs]')).toBeTruthy() })
+    const note = container.querySelector('[data-task-runs]')!.textContent ?? ''
+    expect(note).toContain('1')
+    expect(note).toContain('18')
+    expect(note).toContain('need a fitted parameter space')
+  })
+
+  it('names the reserved keys, and says why that is the one capability claim', async () => {
+    const { container } = open(withExits())
+
+    await waitFor(() => { expect(container.querySelector('[data-exit-reserved]')).toBeTruthy() })
+    expect(container.querySelector('[data-reserved-key="campaign"]')!.textContent)
+      .toContain('capability 4')
+  })
+
+  it('reports a kind the grammar does not run WITHOUT counting it', async () => {
+    const { container } = open(withExits({
+      declared: [{ index: 0, name: 'odd', kind: 'made-up', known: false, products: [], deferredChecks: [] }],
+    }))
+
+    await waitFor(() => { expect(container.querySelector('[data-exit-unknown]')).toBeTruthy() })
+    expect(container.querySelector('[data-exit-unknown]')!.textContent).toContain('made-up')
+    expect(container.querySelector('[data-exit-used]')).toBeNull()
   })
 })

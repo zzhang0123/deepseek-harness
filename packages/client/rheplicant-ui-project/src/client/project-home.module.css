@@ -479,3 +479,32 @@
   font-size: 0.75rem;
   line-height: 1.5;
 }
+
+/* The exit catalogue (§18). */
+.exitRow {
+  padding: 0.4rem 0;
+  border-top: 1px solid var(--dsw-alias-border-secondary, rgb(0 0 0 / 8%));
+  display: grid;
+  gap: 0.15rem;
+}
+
+.exitRow:first-child { border-top: none; }
+
+/* A declared exit is marked by a WORD as well as a tint — the tint alone
+   would not survive a monochrome screen. */
+.exitUsed { background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 7%, transparent); }
+
+.exitHead { display: flex; align-items: center; gap: 0.4rem; }
+
+.exitWhat {
+  margin: 0;
+  color: var(--dsw-alias-text-secondary);
+  font-size: 0.78125rem;
+}
+
+.exitProducts {
+  margin: 0;
+  color: var(--dsw-alias-text-tertiary);
+  font-size: 0.6875rem;
+  font-family: var(--dsw-font-mono, ui-monospace, monospace);
+}

@@ -98,7 +98,10 @@ beforeEach(() => {
   readCalls = []
   definitionCalls = []
   projectionCalls = []
-  projection = { svg: '<svg/>', walkOrder: ['a'], model: { totalNodes: 33, nodes: [] } }
+  projection = {
+    svg: '<svg/>', walkOrder: ['a'], model: { totalNodes: 33, nodes: [] },
+    runs: { exitsTotal: 18, catalogue: [], declared: [], reserved: [] },
+  }
   definition = { inputs: [], validation: { valid: true, errors: [], warnings: [] }, gates: { checks: [], runs: [], warnings: [] } }
   compute = { runs: [{ name: 'fit', kind: 'nuts', status: 'ok' }], gates: [], resultsPath: '/host/only' }
 })
@@ -800,9 +803,14 @@ describe('projecting one task document for display', () => {
 
     const response = await request(`${ROUTE_PREFIX}/projection`, 'session=S-1&path=tasks/fit.yaml')
 
-    const body = JSON.parse(response.body) as { digest: string; svg: string }
+    const body = JSON.parse(response.body) as {
+      digest: string; svg: string; runs: { exitsTotal: number }
+    }
     expect(body.digest).toBe(createHash('sha256').update('model: {}\n').digest('hex'))
     expect(body.svg).toBe('<svg/>')
+    // The exits travel with the diagram: both answer "what could this task
+    // do", and two fetches could answer for two versions of the document.
+    expect(body.runs.exitsTotal).toBe(18)
   })
 
   it('needs no execution at all', async () => {

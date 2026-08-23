@@ -46,6 +46,7 @@ import { TaskMaturity } from './TaskMaturity.tsx'
 import { TaskDefinition } from './TaskDefinition.tsx'
 import { DocumentDiff } from './DocumentDiff.tsx'
 import { TaskModel } from './TaskModel.tsx'
+import { TaskRuns } from './TaskRuns.tsx'
 import { useDocumentProjection } from './use-document-projection.ts'
 import { useExecutedDocument } from './use-executed-document.ts'
 import type { TaskPanelOwnerProps } from './index.ts'
@@ -414,6 +415,25 @@ export const ProjectHome = memo(function ProjectHome(
                     view={newestOfTask?.executionId === selection.executionId ? executionView : undefined}
                     documentDigest={documentDigest}
                   />
+                </Panel>
+              )}
+
+              {selection.taskPath !== undefined && selectedTask !== undefined && (
+                <Panel
+                  id="project-task-runs"
+                  title="Exits"
+                  subtitle="what this task computes, and what it is not reaching for"
+                >
+                  {projected.shownFor !== `${chosen ?? ''} ${selection.taskPath}` || projected.loading
+                    ? <EmptyState message="Reading the exits…" />
+                    : projected.projection !== undefined
+                      ? <TaskRuns runs={projected.projection.runs} />
+                      : (
+                        <EmptyState
+                          message="The exits could not be listed from here"
+                          hint="Same projection the Model panel needs, so it is unavailable for the same reason — the remedy is stated once, there."
+                        />
+                      )}
                 </Panel>
               )}
 

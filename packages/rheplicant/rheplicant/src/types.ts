@@ -439,6 +439,61 @@ export interface DocumentModel {
   readonly nodes: readonly ModelNode[]
 }
 
+/** One exit the grammar can run. */
+export interface ExitEntry {
+  readonly kind: string
+  /**
+   * Whether this exit needs a fitted parameter space.
+   *
+   * The only exit partition rheplicant's source defends
+   * (`preflight/model.py::_A30_NOT_FITTING`). There is deliberately no
+   * `capability` field: capabilities are prose in the README, with no enum,
+   * no registry and no per-exit marker, and a hand-kept mapping here would
+   * be the one thing in this repo that must track the grammar by hand.
+   */
+  readonly fitting: boolean
+  /** The exit's own docstring first line; null for the two that carry none. */
+  readonly summary: string | null
+  /** What it writes, from `RUN_KIND_SELECTORS`. This is what makes a name choosable. */
+  readonly products: readonly string[]
+}
+
+/** One run this document declares. */
+export interface DeclaredRun {
+  readonly index: number
+  readonly name: string | null
+  readonly kind: string | null
+  /** False for a kind the grammar does not run — never counted as an exit used. */
+  readonly known: boolean
+  readonly products: readonly string[]
+  /** Prerequisites this exit cannot check until an earlier run finishes. */
+  readonly deferredChecks: readonly string[]
+}
+
+/**
+ * A document key reserved for a capability that does not ship.
+ *
+ * `preflight/document.py::_CAPABILITY_KEYS` is the ONE place rheplicant names
+ * a capability in code. Capability 4 has no exit at all — six keys, every one
+ * refused — which a four-row capability table would have hidden behind an
+ * empty row.
+ */
+export interface ReservedKey {
+  readonly key: string
+  /** The capability reserving it, in the source's own words. */
+  readonly capability: string
+  /** The schema section that reserves it. */
+  readonly section: string
+}
+
+/** The exits, and what this document does with them. */
+export interface DocumentRuns {
+  readonly exitsTotal: number
+  readonly catalogue: readonly ExitEntry[]
+  readonly declared: readonly DeclaredRun[]
+  readonly reserved: readonly ReservedKey[]
+}
+
 /**
  * One document projected for display: the signal path, and what it declares.
  *
@@ -451,6 +506,7 @@ export interface DocumentProjection {
   readonly svg: string
   readonly walkOrder: readonly string[]
   readonly model: DocumentModel
+  readonly runs: DocumentRuns
 }
 
 /** One compute backend, registered under one or more transport names. */
