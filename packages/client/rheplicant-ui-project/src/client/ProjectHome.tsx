@@ -39,6 +39,8 @@ import { selectInProject, useSelection } from './selection.ts'
 import { useProjectOverview } from './use-project-overview.ts'
 import { useTaskDocument } from './use-task-document.ts'
 import { useWorkbenchExecution } from './use-workbench-execution.ts'
+import { useDocumentDigest } from './use-document-digest.ts'
+import { TaskMaturity } from './TaskMaturity.tsx'
 import type { TaskPanelOwnerProps } from './index.ts'
 import styles from './project-home.module.css'
 
@@ -127,6 +129,9 @@ export const ProjectHome = memo(function ProjectHome(
   const selection = useSelection(chosen)
   const document_ = useTaskDocument(chosen, selection.taskPath, nonce)
   const executionView = useWorkbenchExecution(chosen, selection.executionId, nonce)
+  // Staleness is a DIGEST comparison (§4.2), so the authored document is
+  // hashed here rather than compared by modification time.
+  const documentDigest = useDocumentDigest(document_.document?.text)
 
   useEffect(() => {
     if (!open) return
@@ -163,6 +168,11 @@ export const ProjectHome = memo(function ProjectHome(
     [current],
   )
   const counts = useMemo(() => countByStatus(current?.executions ?? []), [current])
+  const selectedTask = current?.tasks.find(row => row.path === selection.taskPath)
+  const newestOfTask = useMemo(() => {
+    if (selectedTask?.newestExecutionId === undefined) return undefined
+    return current?.executions.find(row => row.executionId === selectedTask.newestExecutionId)
+  }, [current, selectedTask])
   // Which tasks have run is the join the home is actually for: a document with
   // no executions is work not yet done, and it should not hide among the rest.
   const ranSegments = useMemo(
@@ -306,6 +316,17 @@ export const ProjectHome = memo(function ProjectHome(
                     </ul>
                   )}
               </Panel>
+
+              {selection.taskPath !== undefined && selectedTask !== undefined && (
+                <Panel id="project-task-maturity" title="This task" subtitle="read off the project, not this conversation">
+                  <TaskMaturity
+                    task={selectedTask}
+                    newest={newestOfTask}
+                    view={newestOfTask?.executionId === selection.executionId ? executionView : undefined}
+                    documentDigest={documentDigest}
+                  />
+                </Panel>
+              )}
 
               {selection.taskPath !== undefined && (
                 <Panel

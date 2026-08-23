@@ -35,6 +35,16 @@ export interface ConsoleExecutionView {
   readonly problem?: ExecutionViewProblem
   /** True when the selection is an execution this session did not produce. */
   readonly foreign?: boolean
+  /**
+   * The post-flight gate findings this execution recorded.
+   *
+   * Declared here because the projection has always carried them and a
+   * consumer had to cast to read them — which is how a field ends up read two
+   * different ways. `unknown` per finding on purpose: this kit renders none of
+   * them, and every consumer that does already owns a `GateFinding` shape it
+   * validates against.
+   */
+  readonly gates?: readonly unknown[]
 }
 
 /**

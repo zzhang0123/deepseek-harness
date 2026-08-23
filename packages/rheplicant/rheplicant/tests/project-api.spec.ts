@@ -512,3 +512,26 @@ describe('serving one task document', () => {
     expect(found.headers['cache-control']).toBe('no-store')
   })
 })
+
+describe('the digest that makes staleness sayable', () => {
+  it('carries the executed task digest when the sidecar recorded one', async () => {
+    // §4.2: staleness is a digest comparison. Without this on the wire a
+    // surface could only compare mtimes, which is a weaker claim under the
+    // same word.
+    const directory = execution('demo', 'EXEC-1')
+    writeFileSync(join(directory, '.rheplicant-agent.json'),
+      JSON.stringify({ executionId: 'EXEC-1', task: 'demo', taskDigest: 'abc123' }))
+    const call = routes({}, [{ id: 'ws-1', path: workspace, sessionIds: [] }])
+    const body = JSON.parse((await call(`${ROUTE_PREFIX}/executions`, 'workspace=ws-1')).body)
+    expect(body.executions[0].taskDigest).toBe('abc123')
+  })
+
+  it('omits it rather than inventing one when the sidecar has none', async () => {
+    // Absent must stay absent: an empty string would compare unequal to every
+    // document and mark a fresh execution stale.
+    execution('demo', 'EXEC-1')
+    const call = routes({}, [{ id: 'ws-1', path: workspace, sessionIds: [] }])
+    const body = JSON.parse((await call(`${ROUTE_PREFIX}/executions`, 'workspace=ws-1')).body)
+    expect('taskDigest' in body.executions[0]).toBe(false)
+  })
+})

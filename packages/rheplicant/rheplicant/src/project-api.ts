@@ -69,6 +69,7 @@ function row(workspace: string, summary: ExecutionSummary): ProjectExecutionRow 
     ...(summary.transport === undefined ? {} : { transport: summary.transport }),
     ...(summary.startedAt === undefined ? {} : { startedAt: summary.startedAt }),
     ...(summary.finishedAt === undefined ? {} : { finishedAt: summary.finishedAt }),
+    ...(summary.taskDigest === undefined ? {} : { taskDigest: summary.taskDigest }),
   }
 }
 

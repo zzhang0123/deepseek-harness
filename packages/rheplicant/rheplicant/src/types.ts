@@ -436,6 +436,16 @@ export interface ProjectExecutionRow {
   readonly transport?: string
   readonly startedAt?: string
   readonly finishedAt?: string
+  /**
+   * sha256 of the task bytes this execution RAN, when our sidecar recorded it.
+   *
+   * On the wire because staleness is a digest comparison and nothing else
+   * (§4.2: "Content digest, not revision number"). Without it a surface that
+   * wanted to say "these results are for an older version of this document"
+   * could only compare modification times, which is a weaker claim wearing the
+   * same word.
+   */
+  readonly taskDigest?: string
 }
 
 /** The listing response body. */

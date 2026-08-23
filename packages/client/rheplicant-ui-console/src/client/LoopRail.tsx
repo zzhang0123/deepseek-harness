@@ -1,10 +1,20 @@
 /**
- * The workflow-loop rail: five stage segments (Author · Validate · Gates ·
+ * What THIS CONVERSATION did: five stage segments (Author · Validate · Gates ·
  * Run · Diagnostics) rendered full-width above the console panel grid.
- * Reads the `rheplicant-loop` conversation-view projection through the
- * standard `useSession` seat every `conversation.view` entry receives —
- * independent of the chat transcript, per `loop-contract.ts`. All verdict
- * logic lives in `loop-selectors.ts`; this file is presentation only.
+ *
+ * **The session half of the split in `docs/project-model.md` §11.4.** It reads
+ * the `rheplicant-loop` projection of this session's own durable events, so it
+ * answers "what has just happened here" and nothing else. Whether the TASK is
+ * trustworthy is a different question with a different source — the tree — and
+ * it is answered by the workbench's maturity rail (`ui-project`'s
+ * `task-maturity.ts`).
+ *
+ * The two were one rail until P7c, which is precisely what made a session look
+ * like it owned a task: a validate that happened in another conversation was
+ * invisible here, and a run recorded here read as a property of the document.
+ *
+ * All verdict logic lives in `loop-selectors.ts`; this file is presentation
+ * only.
  * @module @rheplicant/dsh-rheplicant-ui-console/client/LoopRail
  */
 import { memo } from 'react'

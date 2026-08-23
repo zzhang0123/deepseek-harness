@@ -266,3 +266,58 @@
   gap: 0.75rem;
   align-items: start;
 }
+
+/* The task-maturity rail: four segments reading left to right. */
+.maturity {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.maturityStage {
+  flex: 1 1 8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 0.375rem;
+}
+
+.maturityHead {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.maturityLabel {
+  color: var(--dsw-alias-text-primary);
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.maturityDetail {
+  color: var(--dsw-alias-text-tertiary);
+  font-size: 0.75rem;
+}
+
+.dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--dsw-alias-text-tertiary);
+}
+
+.dotOk { background: var(--dsw-alias-state-success-primary); }
+.dotWarn { background: var(--dsw-alias-state-warn-primary); }
+.dotError { background: var(--dsw-alias-state-error-primary); }
+.dotIdle { background: color-mix(in srgb, var(--dsw-alias-text-tertiary) 55%, transparent); }
+
+/* Shown only when the digests were actually compared and differ. */
+.staleMark {
+  padding: 0.02rem 0.3rem;
+  border-radius: 0.25rem;
+  background: var(--dsw-rh-stale-bg, transparent);
+  color: var(--dsw-rh-stale-text, var(--dsw-alias-state-warn-primary));
+  font-size: 0.6875rem;
+}

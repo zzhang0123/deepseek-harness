@@ -101,7 +101,12 @@ export const ConsoleView = memo(function ConsoleView({ useSession, useWorkspaces
         <PanelsMenu panels={KNOWN_PANELS} hidden={hiddenSet} onToggleHidden={toggleHidden} onReset={actions.reset} />
       </div>
       <ProjectHeader execution={execution} />
-      <LoopRail useSession={useSession} />
+      {/* Labelled as this CONVERSATION's activity, not the task's state —
+          §11.4. The workbench's maturity rail answers the other question. */}
+      <div className={styles.activity} data-session-activity>
+        <span className={styles.activityLabel}>in this conversation</span>
+        <LoopRail useSession={useSession} />
+      </div>
       <div data-console-grid className={styles.grid}>
         {/* The owner props object is identical for every occupant (see this
             file's doc comment), which is the one channel that reaches them

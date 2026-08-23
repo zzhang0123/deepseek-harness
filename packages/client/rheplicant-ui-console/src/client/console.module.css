@@ -17,3 +17,20 @@
   padding: 0.75rem;
   align-items: start;
 }
+
+/* The session-activity strip. The label is not decoration: without it the
+   rail reads as a statement about the TASK, which is the confusion §11.4
+   exists to remove. */
+.activity {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.activityLabel {
+  padding-inline: 0.75rem;
+  color: var(--dsw-alias-text-tertiary);
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
