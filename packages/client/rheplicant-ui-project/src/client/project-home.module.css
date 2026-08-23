@@ -362,3 +362,15 @@
   display: flex;
   gap: 0.5rem;
 }
+
+/* "read by this task" — the §11.4 link, now that a YAML parse can support it.
+   Deliberately worded rather than a bare dot: the claim is about ONE task, and
+   an unlabelled mark would read as "in use". */
+.usedMark {
+  margin-left: auto;
+  padding: 0.02rem 0.34rem;
+  border-radius: 0.25rem;
+  font-size: 0.6875rem;
+  color: var(--dsw-alias-state-success-primary);
+  background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 14%, transparent);
+}

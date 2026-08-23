@@ -571,3 +571,103 @@ describe('a project with no tasks at all', () => {
     expect(container.querySelector('[data-project-open-empty]')).toBeNull()
   })
 })
+
+describe('which inputs the selected task reads', () => {
+  /** A definition body carrying the given references. */
+  function withReferences(inputs: Record<string, unknown>[]): Record<string, unknown> {
+    return {
+      path: 'rhino-fit.yaml',
+      digest: 'any',
+      inputs,
+      validation: { valid: true, errors: [], warnings: [] },
+      gates: { checks: [], runs: [], warnings: [] },
+    }
+  }
+
+  it('claims nothing while no task is selected', async () => {
+    // §11.4's link is about ONE task. With none chosen there is no claim to
+    // make, and marking rows anyway would assert something about the project.
+    serve({ 'ws-1': overview('rhino') })
+    openHome('ws-1')
+    const { container } = mount()
+
+    await waitFor(() => { expect(container.querySelector('[data-project-inputs]')).toBeTruthy() })
+    expect(container.querySelector('[data-input-used]')).toBeNull()
+    expect(container.querySelector('[data-input-usage-note]')).toBeNull()
+  })
+
+  it('marks the row the task reads and leaves the others unmarked', async () => {
+    serve({ 'ws-1': overview('rhino') }, { 'rhino-fit.yaml': 'model: {}\n' },
+      { 'rhino-fit.yaml': withReferences([{
+        where: 'model.gain.gain', path: 'rhino-beam.npz', format: 'npz',
+        resolves: true, inProject: true, projectPath: 'rhino-beam.npz',
+      }]) })
+    openHome('ws-1')
+    selectInProject('ws-1', { taskPath: 'rhino-fit.yaml' })
+    const { container } = mount()
+
+    await waitFor(() => { expect(container.querySelector('[data-input-used]')).toBeTruthy() })
+    expect(container.querySelector('[data-project-input="rhino-beam.npz"] [data-input-used]')).toBeTruthy()
+  })
+
+  it('says a file with no mark is one THIS task does not read', async () => {
+    // Not "unused". The project's other tasks are not being spoken for.
+    serve({ 'ws-1': overview('rhino') }, { 'rhino-fit.yaml': 'model: {}\n' },
+      { 'rhino-fit.yaml': withReferences([]) })
+    openHome('ws-1')
+    selectInProject('ws-1', { taskPath: 'rhino-fit.yaml' })
+    const { container } = mount()
+
+    await waitFor(() => { expect(container.querySelector('[data-input-usage-note]')).toBeTruthy() })
+    const note = container.querySelector('[data-input-usage-note]')!.textContent ?? ''
+    // Names the task it is speaking for, and denies the reading that an
+    // unmarked row means nobody uses the file.
+    expect(note).toContain('rhino-fit.yaml')
+    expect(note).toContain('this task does not read')
+  })
+
+  it('reports a file it reads that this listing does not carry', async () => {
+    // INPUT_EXTENSIONS is a filter: a `.dat` resolves and never gets a row.
+    // Marking two of three references and saying nothing would read as a
+    // complete account of what the task reads.
+    serve({ 'ws-1': overview('rhino') }, { 'rhino-fit.yaml': 'model: {}\n' },
+      { 'rhino-fit.yaml': withReferences([{
+        where: 'model.gain.gain', path: 'inputs/cal.dat', format: 'txt',
+        resolves: true, inProject: true, projectPath: 'inputs/cal.dat',
+      }]) })
+    openHome('ws-1')
+    selectInProject('ws-1', { taskPath: 'rhino-fit.yaml' })
+    const { container } = mount()
+
+    await waitFor(() => { expect(container.querySelector('[data-input-unlisted]')).toBeTruthy() })
+    expect(container.querySelector('[data-input-unlisted]')!.textContent).toContain('inputs/cal.dat')
+  })
+
+  it('counts a reference resolving outside the project WITHOUT naming a path', async () => {
+    serve({ 'ws-1': overview('rhino') }, { 'rhino-fit.yaml': 'model: {}\n' },
+      { 'rhino-fit.yaml': withReferences([{
+        where: 'model.gain.gain', path: '~/data/beam.npy', format: 'npy',
+        resolves: true, inProject: false,
+      }]) })
+    openHome('ws-1')
+    selectInProject('ws-1', { taskPath: 'rhino-fit.yaml' })
+    const { container } = mount()
+
+    await waitFor(() => { expect(container.querySelector('[data-input-outside]')).toBeTruthy() })
+    const text = container.querySelector('[data-input-outside]')!.textContent ?? ''
+    expect(text).toContain('1')
+    expect(text).not.toContain('~/data/beam.npy')
+  })
+
+  it('marks nothing when the check could not be reached', async () => {
+    // An unreachable service must not read as "this task uses none of them".
+    serve({ 'ws-1': overview('rhino') }, { 'rhino-fit.yaml': 'model: {}\n' }, {})
+    openHome('ws-1')
+    selectInProject('ws-1', { taskPath: 'rhino-fit.yaml' })
+    const { container } = mount()
+
+    await waitFor(() => { expect(container.querySelector('[data-task-definition]')).toBeTruthy() })
+    expect(container.querySelector('[data-input-used]')).toBeNull()
+    expect(container.querySelector('[data-input-usage-note]')).toBeNull()
+  })
+})

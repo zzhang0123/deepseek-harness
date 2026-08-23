@@ -41,6 +41,7 @@ import { useTaskDocument } from './use-task-document.ts'
 import { useWorkbenchExecution } from './use-workbench-execution.ts'
 import { useDocumentDigest } from './use-document-digest.ts'
 import { useTaskDefinition } from './use-task-definition.ts'
+import { taskInputUsage } from './input-usage.ts'
 import { TaskMaturity } from './TaskMaturity.tsx'
 import { TaskDefinition } from './TaskDefinition.tsx'
 import type { TaskPanelOwnerProps } from './index.ts'
@@ -186,6 +187,17 @@ export const ProjectHome = memo(function ProjectHome(
   const ranSegments = useMemo(
     () => new Set(byTask.map(group => group.task)),
     [byTask],
+  )
+  // Guarded on `shownFor` once, here, so the checklist and the input marks
+  // can never disagree about which task they describe.
+  const definitionKey = `${chosen ?? ''} ${selection.taskPath ?? ''}`
+  const reportForTask = definition.shownFor === definitionKey ? definition.report : undefined
+  // §11.4's link, finally answerable: which of the project's data files THIS
+  // task reads, from the YAML parse §12 added. Nothing is claimed about any
+  // other task, and the note below says so.
+  const usage = useMemo(
+    () => taskInputUsage(current?.inputs ?? [], reportForTask),
+    [current, reportForTask],
   )
 
 
@@ -357,12 +369,8 @@ export const ProjectHome = memo(function ProjectHome(
                       appear under the new task's name. */}
                   <TaskDefinition
                     task={selectedTask}
-                    report={definition.shownFor === `${chosen ?? ''} ${selection.taskPath}`
-                      ? definition.report
-                      : undefined}
-                    problem={definition.shownFor === `${chosen ?? ''} ${selection.taskPath}`
-                      ? definition.problem
-                      : 'loading'}
+                    report={reportForTask}
+                    problem={definition.shownFor === definitionKey ? definition.problem : 'loading'}
                     documentDigest={documentDigest}
                   />
                 </Panel>
@@ -433,15 +441,56 @@ export const ProjectHome = memo(function ProjectHome(
                           <li key={input.path} className={styles.row} data-project-input={input.path}>
                             <span className={styles.mono}>{input.path}</span>
                             <span className={styles.meta}>{formatBytes(input.bytes)}</span>
+                            {usage.used.has(input.path) && (
+                              <span className={styles.usedMark} data-input-used="">
+                                read by this task
+                              </span>
+                            )}
                             <span className={styles.chip}>{input.extension}</span>
                           </li>
                         ))}
                       </ul>
+                      {usage.known && (
+                        <p className={styles.note} data-input-usage-note="">
+                          {/* Scoped to ONE task, on purpose. A row with no mark is
+                              not an unused file; it is a file this task does not
+                              read, and the project's other tasks are not being
+                              spoken for. */}
+                          The marks show what <code>{selection.taskPath}</code> reads, from its own
+                          <code> file: </code> nodes as rheplicant resolves them. An unmarked row is
+                          not unused — it is one this task does not read.
+                          {usage.unlisted.length > 0 && (
+                            <span data-input-unlisted="">
+                              {' '}It also reads {usage.unlisted.join(', ')}, which
+                              {usage.unlisted.length === 1 ? ' is' : ' are'} in this project but not
+                              in the list above: the listing matches on a fixed set of extensions,
+                              so a file outside that set resolves perfectly well and never appears
+                              as a row.
+                            </span>
+                          )}
+                          {usage.outside > 0 && (
+                            <span data-input-outside="">
+                              {' '}{usage.outside} further reference
+                              {usage.outside === 1 ? '' : 's'} resolve
+                              {usage.outside === 1 ? 's' : ''} outside this project. Where is not
+                              shown, because a path outside the project is not this project&rsquo;s
+                              to disclose — rheplicant places no restriction on where a
+                              <code> file: </code> may point.
+                            </span>
+                          )}
+                          {usage.unresolved > 0 && (
+                            <span data-input-unresolved="">
+                              {' '}{usage.unresolved} reference
+                              {usage.unresolved === 1 ? '' : 's'} could not be found at all; the
+                              checklist above names {usage.unresolved === 1 ? 'it' : 'them'}.
+                            </span>
+                          )}
+                        </p>
+                      )}
                       <p className={styles.note}>
-                        These are the project&rsquo;s data files, listed by extension. Which task
-                        uses which is not shown: rheplicant reads a file by its document&rsquo;s
-                        declared <code>format:</code> and never by the extension, so this layer
-                        does not claim a link it has not read.
+                        The extension beside each row is what this listing matched on, never a
+                        format claim: rheplicant reads a file by its document&rsquo;s declared
+                        <code> format: </code> and never by the extension.
                       </p>
                     </>
                   )}
