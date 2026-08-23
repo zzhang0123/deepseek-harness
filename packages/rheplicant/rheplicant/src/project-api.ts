@@ -40,8 +40,9 @@ import {
 import type { ProjectTaskDocumentBody } from './types.ts'
 import type {
   DocumentInputReference, ProjectDefinitionBody, ProjectExecutionRow, ProjectExecutionsBody,
-  ProjectInputReference, ProjectOverviewBody, ProjectTaskRow,
+  ProjectInputReference, ProjectOverviewBody, ProjectTaskRow, Transport,
 } from './types.ts'
+import { isTransport } from './types.ts'
 import { RESULTS_ROOT, taskSegment } from './project.ts'
 import type {} from './project-runtime.ts'
 
@@ -274,6 +275,31 @@ function withoutHostPath(
 }
 
 /**
+ * The transport a request names, or a 400 saying it is not one.
+ *
+ * The value comes off the QUERY STRING, so it is caller-supplied and must be
+ * validated here rather than cast. Cast, a misspelling reached the compute
+ * seam and returned "no rheplicant compute provider is registered for
+ * transport 'locl'" — true, and misleading: it reads as a composition
+ * problem, not a bad request.
+ *
+ * @param url - the parsed request URL.
+ * @param res - the response, written to on refusal.
+ * @returns the transport, or undefined when this function has already answered.
+ */
+function transportOf(url: URL, res: ServerResponse): Transport | undefined {
+  const named = url.searchParams.get('transport')
+  // Absent is not invalid: `local` is the default every profile ships with.
+  if (named === null) return 'local'
+  if (isTransport(named)) return named
+  json(res, 400, {
+    error: `${named} is not a rheplicant transport`,
+    code: 'INVALID_TRANSPORT',
+  })
+  return undefined
+}
+
+/**
  * Register the listing and artifact routes.
  * @param ctx - the plugin context, with `webServer`, `rheplicantProject` and `sessions`.
  */
@@ -373,6 +399,8 @@ export function apply(ctx: Context): void {
         json(res, 404, { error: 'unknown project', code: 'PROJECT_NOT_FOUND' })
         return
       }
+      const transport = transportOf(url, res)
+      if (transport === undefined) return
       // Read HOST-side, through the same reader the `/task` route uses, so
       // the confinement is inherited rather than restated — and so a browser
       // cannot submit a document of its own to be checked (§12.6).
@@ -391,7 +419,7 @@ export function apply(ctx: Context): void {
       try {
         const report = await ctx.rheplicant.definition(
           { documentText: document.text, taskPath: absolute },
-          { transport: (url.searchParams.get('transport') ?? 'local') as never },
+          { transport },
         )
         json(res, 200, {
           path: document.path,
@@ -422,6 +450,8 @@ export function apply(ctx: Context): void {
         json(res, 404, { error: 'unknown session', code: 'SESSION_NOT_FOUND' })
         return
       }
+      const transport = transportOf(url, res)
+      if (transport === undefined) return
       const found = locate(ctx, workspace, url.searchParams.get('execution') ?? '')
       if (found === undefined) {
         json(res, 404, {
@@ -449,9 +479,7 @@ export function apply(ctx: Context): void {
         return
       }
       try {
-        const outcome = await ctx.rheplicant.readExecution(found.resultsPath, {
-          transport: (url.searchParams.get('transport') ?? 'local') as never,
-        })
+        const outcome = await ctx.rheplicant.readExecution(found.resultsPath, { transport })
         // The absolute path is the host's business; the browser already knows
         // this execution by its id.
         const { resultsPath: _absolute, ...projected } = outcome

@@ -35,9 +35,21 @@ const CHECK_LABEL: Record<CheckCost['check'], string> = {
   prior_sensitivity: 'Prior sensitivity',
 }
 
-/** Prefer `state` (the effective, defaults-applied value) over `mode` — see `CheckCost`'s own doc comment. */
+/**
+ * The effective, defaults-applied state of one check.
+ *
+ * `state ?? mode` is a BACK-COMPAT read, not a workaround. This selector folds
+ * DURABLE EVENTS out of the session log, and an event written before
+ * 2026-08-23 carries the effective state under `mode` — the service filled it
+ * from `state` back then. Since that date `mode` carries only what the
+ * document DECLARED and is absent when it declared nothing, so a live answer
+ * has the two meaning different things and only `state` governs.
+ *
+ * A surface reading a LIVE `gates` answer must therefore read `state` alone;
+ * the fallback belongs here, where old events do.
+ */
 function effectiveState(check: CheckCost): NonNullable<CheckCost['state']> {
-  return check.state ?? check.mode
+  return check.state ?? check.mode ?? 'off'
 }
 
 function isSkipLike(state: string): boolean {

@@ -29,6 +29,9 @@ import type {
 import { ComputeError } from './types.ts'
 
 export { ComputeError } from './types.ts'
+// Value exports: the transport validator and its name list, so every caller
+// that takes a transport from outside validates against ONE list.
+export { TRANSPORTS, asTransport, isTransport } from './types.ts'
 export type {
   CheckCost,
   ComputeDocument,

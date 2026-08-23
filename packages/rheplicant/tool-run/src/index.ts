@@ -12,6 +12,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { JsonValue } from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-jobs'
 import type {} from '@rheplicant/dsh-rheplicant'
+import { asTransport } from '@rheplicant/dsh-rheplicant'
 import type { ComputeDocument, RunOutcome, Transport } from '@rheplicant/dsh-rheplicant'
 import { mintExecutionId, resolveTaskInput } from '@rheplicant/dsh-rheplicant/task'
 import { ensureResultsIgnored, executionDirectory, taskSegment, writeSidecar } from '@rheplicant/dsh-rheplicant/project'
@@ -104,8 +105,10 @@ export function apply(ctx: Context, config: Config): void {
       },
     },
     async execute(args, exec) {
-      // P0 TODO: validate the string against the Transport union instead of casting.
-      const transport = (args.transport ?? config.defaultTransport) as Transport
+      // Validated at the boundary: the value is MODEL-supplied, and a typo
+      // cast through reached the seam as "no provider is registered", which
+      // reads as a composition problem rather than a misspelling.
+      const transport = asTransport(args.transport ?? config.defaultTransport, 'rheplicant_run')
       // Exactly one of `task` / `document`, and — for a task — the file's
       // bytes, read under confinement to the SESSION's own directory. There
       // is no `process.cwd()` fallback: a session with no directory cannot

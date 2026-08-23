@@ -10,7 +10,49 @@
 import { HarnessError } from '@deepseek-ai/dsh-llm'
 
 /** A transport channel to a Python compute service. */
-export type Transport = 'local' | 'ssh' | 'http'
+/**
+ * Every transport name a provider may be registered under.
+ *
+ * The runtime companion to {@link Transport}, so the union has exactly one
+ * definition. A second list written out by hand is a second list to forget.
+ */
+export const TRANSPORTS = ['local', 'ssh', 'http'] as const
+
+export type Transport = (typeof TRANSPORTS)[number]
+
+/** Whether one unknown value is a transport name. */
+export function isTransport(value: unknown): value is Transport {
+  return typeof value === 'string' && (TRANSPORTS as readonly string[]).includes(value)
+}
+
+/**
+ * One caller-supplied transport name, validated at the boundary.
+ *
+ * Replaces four `as Transport` casts on values that come from OUTSIDE this
+ * layer — three model-supplied tool arguments and a browser query parameter.
+ * A cast let a typo through to {@link ComputeRuntime}, which answered "no
+ * rheplicant compute provider is registered for transport 'locl'": true, and
+ * misleading, because it reads as a composition problem — you forgot to mount
+ * something — rather than as the misspelling it is. Whoever reads that goes
+ * looking for the wrong fix.
+ *
+ * Throws rather than falling back to `local`. A caller that names a transport
+ * has an intention, and quietly running somewhere else is the worst available
+ * answer: the run succeeds, on the wrong machine, and says nothing.
+ *
+ * @param value - the caller-supplied name.
+ * @param where - what to name in the refusal (a tool name, a route).
+ * @returns the validated transport.
+ * @throws ComputeError `INVALID_TRANSPORT` when it is not one.
+ */
+export function asTransport(value: unknown, where: string): Transport {
+  if (isTransport(value)) return value
+  throw new ComputeError(
+    `${where}: ${JSON.stringify(value)} is not a rheplicant transport; `
+    + `the registered names are ${TRANSPORTS.join(', ')}.`,
+    'INVALID_TRANSPORT',
+  )
+}
 
 /** The JSON form of a rheplicant config document. */
 export type ComputeDocument = Record<string, unknown>
@@ -81,14 +123,24 @@ export interface ValidationReport {
 export interface CheckCost {
   readonly check: 'linearity' | 'identifiability' | 'prior_sensitivity'
   /**
-   * What the document DECLARED (or its default), before any gate logic resolves it.
+   * What the document literally WROTE for this check — absent when it wrote
+   * nothing.
    *
-   * KNOWN GAP: the service currently fills this from the EFFECTIVE gate state,
-   * so it equals `state` today (a `# P0 TODO` sits on that line in
-   * `server.py::_gates`). Prefer `state` when present; treat `mode` as the
-   * effective value until the service separates the two.
+   * Four values against {@link state}'s six, because `off` and `auto_skip` are
+   * effective states no document can contain. A check the document never
+   * mentions therefore has no honest `mode`, and the field is OMITTED rather
+   * than filled with a default — which is what makes "did a human CHOOSE
+   * this?" answerable, and that is exactly what §7's third criterion asks
+   * about a `skip`.
+   *
+   * **Old durable events carry the EFFECTIVE state here.** Until 2026-08-23
+   * the service filled this field from `state`, so anything folded out of a
+   * session log written before then reads its effective state under this
+   * name. `state ?? mode` is the correct read for a logged event, and the
+   * WRONG read for a live `gates` answer, where the two now mean different
+   * things.
    */
-  readonly mode: 'refuse' | 'warn' | 'report' | 'skip'
+  readonly mode?: 'refuse' | 'warn' | 'report' | 'skip'
   /**
    * The resource this check spends, in the package's own words. Optional
    * because the service does not compute it yet — the design promises it

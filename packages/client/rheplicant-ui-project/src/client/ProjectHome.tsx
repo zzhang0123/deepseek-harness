@@ -358,6 +358,22 @@ export const ProjectHome = memo(function ProjectHome(
                   )}
               </Panel>
 
+              {/* A selection can outlive the file it names — deleted, renamed,
+                  or moved out of the walk's reach. Saying so is better than
+                  the panels quietly disappearing, which reads as a mis-click;
+                  the document pane below already explains itself for exactly
+                  this case, and three panels about one task should not
+                  disagree about whether to speak. */}
+              {selection.taskPath !== undefined && current.tasks.length > 0
+                && selectedTask === undefined && (
+                <p className={styles.warning} data-project-task-gone="">
+                  <code>{selection.taskPath}</code> is selected but is no longer in this
+                  project&rsquo;s listing — it may have been renamed, deleted, or moved
+                  beyond the depth this walk covers. Its executions, if it has any, are
+                  still below.
+                </p>
+              )}
+
               {selection.taskPath !== undefined && selectedTask !== undefined && (
                 <Panel
                   id="project-task-definition"

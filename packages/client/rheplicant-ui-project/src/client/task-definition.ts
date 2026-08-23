@@ -172,13 +172,23 @@ function gatesCriterion(report: ProjectDefinitionBody): DefinitionCriterion {
   }
   return {
     id: 'gates', label: 'Gates priced', state: 'ok',
-    detail: checks.map(check => `${check.check} ${check.state ?? check.mode}`).join(' · '),
+    // The EFFECTIVE state per check — what actually governs. A `·` between
+    // them rather than a count, because "priced" means somebody SAW the table.
+    detail: checks.map(check => `${check.check} ${check.state ?? 'unknown'}`).join(' · '),
   }
 }
 
-/** Whether one check is a skip nobody justified. */
+/**
+ * Whether one check is a skip nobody justified.
+ *
+ * Reads `state`, not `state ?? mode`: this runs against a LIVE `gates` answer,
+ * where the two fields now mean different things (`mode` is what a human
+ * wrote, `state` is what governs). The `??` form is a back-compat read for
+ * events folded out of a session log, and using it here would let an old
+ * event's spelling decide a live verdict.
+ */
 function isUnpricedSkip(check: CheckCost): boolean {
-  if ((check.state ?? check.mode) !== 'skip') return false
+  if (check.state !== 'skip') return false
   const reason = check.reason
   return reason === null || reason === undefined || reason.trim() === ''
 }

@@ -671,3 +671,61 @@ describe('which inputs the selected task reads', () => {
     expect(container.querySelector('[data-input-usage-note]')).toBeNull()
   })
 })
+
+describe('a selected task that is no longer in the listing', () => {
+  /**
+   * Found in a real boot: the document pane STAYED and explained ("this
+   * project would not serve that document"), while the definition checklist
+   * and the maturity rail simply vanished — they were guarded on the task
+   * still being in the listing. Three panels about one task, two of them
+   * silently absent and one of them talking.
+   *
+   * The explaining one is right. A panel that disappears leaves someone
+   * wondering whether they mis-clicked; a panel that says the task is gone
+   * tells them what happened.
+   */
+  it('says the task is gone rather than removing its panels', async () => {
+    serve({ 'ws-1': overview('rhino') }, { 'rhino-fit.yaml': 'model: {}\n' })
+    openHome('ws-1')
+    // A task the listing does not carry — what a deleted or renamed file
+    // leaves behind in a selection that outlives it.
+    selectInProject('ws-1', { taskPath: 'deleted.yaml' })
+    const { container } = mount()
+
+    await waitFor(() => { expect(container.querySelector('[data-project-tasks]')).toBeTruthy() })
+    const gone = container.querySelector('[data-project-task-gone]')
+    expect(gone).toBeTruthy()
+    expect(gone!.textContent).toContain('deleted.yaml')
+    // And no checklist claiming anything about a task nobody can see.
+    expect(container.querySelector('[data-task-definition]')).toBeNull()
+    expect(container.querySelector('[data-task-maturity]')).toBeNull()
+  })
+
+  it('stays quiet in an EMPTY project, which already says what to do', async () => {
+    // A project with no tasks shows §7's onboarding checklist. Adding "your
+    // selected task is gone" on top of "no task documents yet" states the
+    // same fact twice and buries the one that tells you what to do next.
+    serve({ 'ws-1': overview('rhino', { tasks: [], executions: [] }) })
+    openHome('ws-1')
+    selectInProject('ws-1', { taskPath: 'deleted.yaml' })
+    const { container } = mount()
+
+    await waitFor(() => { expect(container.querySelector('[data-project-onboarding]')).toBeTruthy() })
+    expect(container.querySelector('[data-project-task-gone]')).toBeNull()
+  })
+
+  it('shows both panels again for a task that IS listed', async () => {
+    serve({ 'ws-1': overview('rhino') }, { 'rhino-fit.yaml': 'model: {}\n' },
+      { 'rhino-fit.yaml': {
+        path: 'rhino-fit.yaml', digest: 'x', inputs: [],
+        validation: { valid: true, errors: [], warnings: [] },
+        gates: { checks: [], runs: [], warnings: [] },
+      } })
+    openHome('ws-1')
+    selectInProject('ws-1', { taskPath: 'rhino-fit.yaml' })
+    const { container } = mount()
+
+    await waitFor(() => { expect(container.querySelector('[data-task-definition]')).toBeTruthy() })
+    expect(container.querySelector('[data-project-task-gone]')).toBeNull()
+  })
+})

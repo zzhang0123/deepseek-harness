@@ -732,3 +732,35 @@ describe('checking whether one task is defined', () => {
     expect(JSON.parse(response.body).code).toBe('PROJECT_NOT_FOUND')
   })
 })
+
+describe('the transport a BROWSER may name', () => {
+  /** A workspace holding one task document. */
+  function task(): void {
+    mkdirSync(join(workspace, 'tasks'), { recursive: true })
+    writeFileSync(join(workspace, 'tasks', 'fit.yaml'), 'model: {}\n')
+  }
+
+  it('refuses a transport that is not one, rather than casting it through', async () => {
+    // The value comes off the QUERY STRING. Cast, a misspelling reached the
+    // seam and came back as "no provider is registered for transport 'locl'",
+    // which reads as a composition problem rather than a bad request.
+    task()
+    const request = routes({ 'S-1': workspace })
+
+    const response = await request(`${ROUTE_PREFIX}/definition`,
+      'session=S-1&path=tasks/fit.yaml&transport=locl')
+
+    expect(response.status).toBe(400)
+    expect(JSON.parse(response.body).code).toBe('INVALID_TRANSPORT')
+    expect(definitionCalls).toEqual([])
+  })
+
+  it('still defaults to local when the browser names none', async () => {
+    task()
+    const request = routes({ 'S-1': workspace })
+
+    const response = await request(`${ROUTE_PREFIX}/definition`, 'session=S-1&path=tasks/fit.yaml')
+
+    expect(response.status).toBe(200)
+  })
+})
