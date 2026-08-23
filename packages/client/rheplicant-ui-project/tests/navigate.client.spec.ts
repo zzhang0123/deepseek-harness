@@ -108,26 +108,29 @@ describe('when connecting fails', () => {
   })
 })
 
-describe('aiming at the session that produced the execution', () => {
-  it('opens that session directly and never connects the workspace', async () => {
-    // Still the best landing spot while the workbench does not exist: a blank
-    // session mounts no console tab, so there would be nothing to render the
-    // selection. §11.5 records that this goes away in P7b.
+describe('it always connects — there is no session to hunt for any more', () => {
+  it('connects the workspace every time, whatever produced the execution', async () => {
+    // P6 had to find the session that produced an execution, because that was
+    // the only place a console existed to show it in. The workbench renders
+    // without a session now, so this action means only "go work here".
     const order = recording()
-    await openProject('ws-1', { executionId: 'EXEC-1', inSession: 'S-produced' })
-    expect(order).toEqual(['open:S-produced'])
-    expect(readSelection('ws-1').executionId).toBe('EXEC-1')
+    await openProject('ws-1', { taskPath: 'tasks/fit.yaml', executionId: 'EXEC-1' })
+    expect(order).toEqual(['connect:ws-1', 'open:S-for-ws-1'])
   })
 
-  it('falls back to connecting when no producing session was given', async () => {
-    const order = recording()
-    await openProject('ws-1', { executionId: 'EXEC-1' })
-    expect(order[0]).toBe('connect:ws-1')
+  it('selects the task as well as the execution, so arrival is not ambiguous', async () => {
+    recording()
+    await openProject('ws-1', { taskPath: 'tasks/fit.yaml', executionId: 'EXEC-1' })
+    expect(readSelection('ws-1')).toMatchObject({
+      taskPath: 'tasks/fit.yaml',
+      executionId: 'EXEC-1',
+    })
   })
 
-  it('treats an empty session id as no session, not as one named ""', async () => {
-    const order = recording()
-    await openProject('ws-1', { executionId: 'EXEC-1', inSession: '' })
-    expect(order[0]).toBe('connect:ws-1')
+  it('selects a task with no execution without inventing one', async () => {
+    recording()
+    await openProject('ws-1', { taskPath: 'lonely.yaml' })
+    expect(readSelection('ws-1').taskPath).toBe('lonely.yaml')
+    expect(readSelection('ws-1').executionId).toBeUndefined()
   })
 })

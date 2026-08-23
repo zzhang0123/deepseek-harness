@@ -74,17 +74,33 @@ describe('web e2e: rheplicant project home', () => {
     await page.waitForSelector('[data-project-home]', { state: 'detached', timeout: 15_000 })
   })
 
-  it('offers to open a project, now that a navigator is installed', async () => {
+  it('offers to open a conversation, now that a navigator is installed', async () => {
     // The affordance renders only when the plugin actually captured
     // `ctx.workspaces`/`ctx.sessions` in a real composition — which is the
     // part no unit test can assert, because it depends on the profile wiring.
     await page.locator('[data-project-home-trigger]').click()
     await page.waitForSelector('[data-project-home]', { timeout: 15_000 })
     await page.waitForSelector('[data-project-task="tasks/home-probe.yaml"]', { timeout: 15_000 })
-    // A never-run task: the affordance opens the project and asks for no
-    // execution, because there is none to point at.
     await page.waitForSelector('[data-project-open-task]', { timeout: 15_000 })
-    expect(await page.locator('[data-project-open-task]').innerText()).toBe('Open project')
+    // One control per TASK and none per execution: clicking a row already
+    // shows it here, so a second "open a session" per row would be the same
+    // action repeated down the page.
+    expect(await page.locator('[data-project-open-task]').innerText()).toBe('Open in session')
+    expect(await page.locator('[data-project-open-execution]').count()).toBe(0)
+    await page.locator('[data-project-close]').click()
+    await page.waitForSelector('[data-project-home]', { state: 'detached', timeout: 15_000 })
+  })
+
+  it('selects a task IN PLACE and reads its document, with no session involved', async () => {
+    // The whole point of §11: a task the current conversation never touched is
+    // not merely hidden under the old addressing, it is inexpressible.
+    await page.locator('[data-project-home-trigger]').click()
+    await page.waitForSelector('[data-project-home]', { timeout: 15_000 })
+    await page.locator('[data-project-select-task="tasks/home-probe.yaml"]').click()
+    await page.waitForSelector('[data-project-document]', { timeout: 15_000 })
+    expect(await page.locator('[data-project-document]').innerText()).toContain('schema_version')
+    // In place: the home is still open, nothing navigated.
+    expect(await page.locator('[data-project-home]').count()).toBe(1)
     await page.locator('[data-project-close]').click()
     await page.waitForSelector('[data-project-home]', { state: 'detached', timeout: 15_000 })
   })

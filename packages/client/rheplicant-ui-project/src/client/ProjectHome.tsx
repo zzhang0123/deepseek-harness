@@ -78,12 +78,6 @@ interface ProjectHomeProps {
     items: readonly WorkspaceRow[]
     recentWorkspaceId: string | undefined
   }) => T) => T
-  /**
-   * The session list, read for one thing only: whether the session that
-   * produced an execution still exists, so the home can open THAT one rather
-   * than the project's blank session.
-   */
-  readonly useSessions: <T>(selector: (state: { ids: readonly string[] }) => T) => T
   /** Renders this entry's own `task.panel` grid. */
   readonly renderSlot: (key: 'task.panel', owner: TaskPanelOwnerProps) => ReactNode
 }
@@ -108,13 +102,12 @@ const readNoSession = <T,>(selector: (snapshot: ConversationSnapshot) => T): T =
   selector(NO_SESSION as unknown as ConversationSnapshot)
 
 export const ProjectHome = memo(function ProjectHome(
-  { useWorkspaces, useSessions, renderSlot }: ProjectHomeProps,
+  { useWorkspaces, renderSlot }: ProjectHomeProps,
 ) {
   const { open, workspaceId } = useHome()
   const [nonce, setNonce] = useState(0)
   const workspaces = useWorkspaces(state => state.items)
   const recent = useWorkspaces(state => state.recentWorkspaceId)
-  const sessionIds = useSessions(state => state.ids)
 
   // The chooser has no default SELECTION (§6.0), but landing on a blank page
   // when there is an obvious project to look at is not a choice, it is a
@@ -146,17 +139,17 @@ export const ProjectHome = memo(function ProjectHome(
   // A failed connect leaves the home open and unchanged, which is the only
   // honest thing it can do: there is nowhere to have gone.
   const [failure, setFailure] = useState<string | undefined>(undefined)
-  const live = useMemo(() => new Set(sessionIds.map(String)), [sessionIds])
-  const jumpTo = useCallback((executionId?: string, producedBy?: string) => {
+  // "Go and work on this" — the only thing opening a session still means.
+  // No producing-session hunt: the workbench shows results without one, so a
+  // blank conversation is exactly the right place to land (§11.5).
+  const workOnTask = useCallback((taskPath: string, executionId?: string) => {
     if (chosen === undefined) return
     setFailure(undefined)
-    // Only a session that still exists is worth aiming at; a pruned one would
-    // fail to open, and connecting the workspace is the honest fallback.
-    const inSession = producedBy !== undefined && live.has(producedBy) ? producedBy : undefined
-    void openProject(chosen, { executionId, inSession }).catch((error: unknown) => {
-      setFailure(error instanceof Error ? error.message : String(error))
-    })
-  }, [chosen, live])
+    void openProject(chosen, { taskPath, ...(executionId === undefined ? {} : { executionId }) })
+      .catch((error: unknown) => {
+        setFailure(error instanceof Error ? error.message : String(error))
+      })
+  }, [chosen])
   const openable = canNavigate()
 
   // Guarded on `shownFor`, never on `overview` alone: an overview held over a
@@ -179,16 +172,7 @@ export const ProjectHome = memo(function ProjectHome(
     () => new Set(byTask.map(group => group.task)),
     [byTask],
   )
-  // executionId -> the session our sidecar recorded as its producer. A task
-  // row names only its newest execution's ID, so this is how it reaches the
-  // same session that execution's own row would.
-  const producerOf = useMemo(() => {
-    const found = new Map<string, string>()
-    for (const execution of current?.executions ?? []) {
-      if (execution.sessionId !== undefined) found.set(execution.executionId, execution.sessionId)
-    }
-    return found
-  }, [current])
+
 
   if (!open) return null
 
@@ -289,19 +273,9 @@ export const ProjectHome = memo(function ProjectHome(
                               type="button"
                               className={styles.open}
                               data-project-open-task={task.path}
-                              onClick={() => {
-                                jumpTo(
-                                  task.newestExecutionId,
-                                  task.newestExecutionId === undefined
-                                    ? undefined
-                                    : producerOf.get(task.newestExecutionId),
-                                )
-                              }}
+                              onClick={() => { workOnTask(task.path, task.newestExecutionId) }}
                             >
-                              {/* A task with a history opens ON that history; one
-                                  without simply opens the project, because there
-                                  is no execution to point at. */}
-                              {task.newestExecutionId === undefined ? 'Open project' : 'Open latest'}
+                              Open in session
                             </button>
                           )}
                           {ranSegments.has(taskSegmentOf(task.path))
@@ -436,18 +410,6 @@ export const ProjectHome = memo(function ProjectHome(
                                 <Badge state={EXECUTION_BADGE[execution.status]}>
                                   {execution.status}
                                 </Badge>
-                                {openable && (
-                                  <button
-                                    type="button"
-                                    className={styles.open}
-                                    data-project-open-execution={execution.executionId}
-                                    onClick={() => {
-                                      jumpTo(execution.executionId, execution.sessionId)
-                                    }}
-                                  >
-                                    Open
-                                  </button>
-                                )}
                               </li>
                             ))}
                           </ul>

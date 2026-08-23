@@ -45,56 +45,44 @@ export function canNavigate(): boolean {
   return navigator !== undefined
 }
 
-/** Where a row wants to land. */
+/** What to have in view once a conversation opens. */
 export interface OpenTarget {
-  /** The execution to show once there, when the row names one. */
+  /** The task to select, so the workbench and console agree on arrival. */
+  readonly taskPath?: string | undefined
+  /** The execution to select alongside it, when the task has one. */
   readonly executionId?: string | undefined
-  /**
-   * A session to open directly, instead of connecting the workspace.
-   *
-   * This is what makes "open this execution" actually show it. `connect` is
-   * the WORKSPACE-SWITCH primitive: it hands back the project's BLANK session
-   * (ui-conversation's own picker documents it as "switches to that
-   * workspace's blank session"). A blank session is the hero screen — no
-   * console tab exists there, so a requested execution has nowhere to appear
-   * and simply waits. Measured in a real boot, which is the only place it
-   * shows.
-   *
-   * The caller supplies the session that PRODUCED the execution, which our own
-   * sidecar recorded and the listing already carries, having first checked it
-   * still exists. Absent when we do not know one, or it is gone.
-   */
-  readonly inSession?: string | undefined
 }
 
 /**
- * Open one project, optionally on one execution, and close the home.
+ * Open a conversation in one project, and close the home.
  *
- * The selection is set before the jump, so the console reads it as it mounts
- * rather than visibly jumping a moment later. It no longer needs the session
- * id first — a selection belongs to the project, not to a conversation — which
- * is why this is simpler than P6's version.
+ * **This no longer targets the session that produced an execution.** P6 had
+ * to: an execution could only be SHOWN inside a console, a console only exists
+ * in a session, and `connect` hands back the project's BLANK session — the
+ * hero screen, which mounts no console tab. So the jump had to hunt for a
+ * session that already had one.
+ *
+ * The workbench renders all of those surfaces with no session at all (§11.5),
+ * so that whole search is gone. What is left is the only thing this action
+ * ever meant: go and WORK on this project. A blank conversation is the right
+ * place to land for that, and the selection travels because it belongs to the
+ * project rather than to wherever you happen to be standing.
  *
  * @param workspaceId - the project to open.
- * @param target - what to show, and where.
+ * @param target - what to have selected on arrival.
  * @returns resolution after the session is open; rejects if connecting fails.
  */
 export async function openProject(workspaceId: string, target: OpenTarget = {}): Promise<void> {
   const via = navigator
   if (via === undefined) return
-  // A known producing session is opened as-is: connecting the workspace would
-  // send us to its blank session instead, losing the console that can show
-  // this execution.
-  // The selection is set FIRST and is not addressed to any session: it is the
-  // project's, so whichever surface renders next reads the same thing. This is
-  // what replaced P6's "ask that session's console" — see §11.2.
-  if (target.executionId !== undefined && target.executionId !== '') {
-    selectInProject(workspaceId, { executionId: target.executionId })
+  // Selected BEFORE the jump, so whatever renders next already agrees.
+  if (target.taskPath !== undefined || target.executionId !== undefined) {
+    selectInProject(workspaceId, {
+      ...(target.taskPath === undefined ? {} : { taskPath: target.taskPath }),
+      ...(target.executionId === undefined ? {} : { executionId: target.executionId }),
+    })
   }
-  const sessionId = target.inSession !== undefined && target.inSession !== ''
-    ? target.inSession
-    : await via.connect(workspaceId)
-  via.open(sessionId)
+  via.open(await via.connect(workspaceId))
   // Closed only after the jump succeeded. A home that closed first and then
   // failed to connect would leave someone looking at the session they were
   // already in, with no sign that anything had gone wrong.
