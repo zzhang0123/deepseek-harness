@@ -49,10 +49,18 @@ function serve(
   documents: Record<string, string> = {},
   definitions: Record<string, Record<string, unknown> | null> = {},
   artifacts: Record<string, string> = {},
+  projections: Record<string, Record<string, unknown> | null> = {},
 ): void {
   vi.stubGlobal('fetch', vi.fn((url: string) => {
     const parsed = new URL(url, 'http://x')
     const id = parsed.searchParams.get('workspace') ?? ''
+    if (parsed.pathname.endsWith('/projection')) {
+      const body = projections[parsed.searchParams.get('path') ?? '']
+      if (body === undefined || body === null) {
+        return Promise.resolve({ ok: false, status: 502, json: () => Promise.resolve({}) })
+      }
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) })
+    }
     if (parsed.pathname.endsWith('/artifact')) {
       const body = artifacts[parsed.searchParams.get('execution') ?? '']
       if (body === undefined) {
@@ -799,5 +807,89 @@ describe('what the selected execution actually ran', () => {
       expect(container.querySelector('[data-document-diff-unavailable]')).toBeTruthy()
     })
     expect(container.querySelector('[data-document-diff]')).toBeNull()
+  })
+})
+
+describe('the physics a task declares', () => {
+  /** A projection carrying the given lit nodes. */
+  function projection(nodes: Record<string, unknown>[], total = 33) {
+    return { path: 'rhino-fit.yaml', digest: 'x', svg: '<svg data-diagram=""></svg>',
+      walkOrder: [], model: { totalNodes: total, nodes } }
+  }
+
+  const SIGNAL = {
+    nodeId: 'global_signal', label: 'global signal', kind: 'source', segment: 'sky',
+    description: 'A sky-averaged 21-cm absorption trough.', selectedType: null,
+    fields: [{ name: 'depth', label: 'depth', help: 'trough depth [K] (positive number gives absorption).', unit: 'K', required: true, value: null }],
+  }
+
+  it('shows the diagram and the operators with NO execution selected', async () => {
+    // The point of §17. Before it, the signal path existed only after a first
+    // run, so the diagram the philosophy asks to be "always present" was
+    // missing for exactly the task somebody is still authoring.
+    serve({ 'ws-1': overview('rhino') }, { 'rhino-fit.yaml': 'model: {}\n' }, {}, {},
+      { 'rhino-fit.yaml': projection([SIGNAL]) })
+    openHome('ws-1')
+    selectInProject('ws-1', { taskPath: 'rhino-fit.yaml' })
+    const { container } = mount()
+
+    await waitFor(() => { expect(container.querySelector('[data-task-model]')).toBeTruthy() })
+    expect(container.querySelector('[data-model-diagram] svg')).toBeTruthy()
+    expect(container.querySelector('[data-model-node="global_signal"]')).toBeTruthy()
+  })
+
+  it("shows each parameter's own help text rather than describing it here", async () => {
+    serve({ 'ws-1': overview('rhino') }, { 'rhino-fit.yaml': 'model: {}\n' }, {}, {},
+      { 'rhino-fit.yaml': projection([SIGNAL]) })
+    openHome('ws-1')
+    selectInProject('ws-1', { taskPath: 'rhino-fit.yaml' })
+    const { container } = mount()
+
+    await waitFor(() => { expect(container.querySelector('[data-model-field="depth"]')).toBeTruthy() })
+    const field = container.querySelector('[data-model-field="depth"]')!.textContent ?? ''
+    expect(field).toContain('trough depth')
+    expect(field).toContain('K')
+  })
+
+  it('says how many operators are dimmed, so the catalogue stays visible', async () => {
+    // "1 of 33" is how a reader learns there is more physics available than
+    // they have used — the list itself only shows what is lit.
+    serve({ 'ws-1': overview('rhino') }, { 'rhino-fit.yaml': 'model: {}\n' }, {}, {},
+      { 'rhino-fit.yaml': projection([SIGNAL]) })
+    openHome('ws-1')
+    selectInProject('ws-1', { taskPath: 'rhino-fit.yaml' })
+    const { container } = mount()
+
+    await waitFor(() => { expect(container.querySelector('[data-model-nodes]')).toBeTruthy() })
+    const note = container.querySelector('[data-task-model]')!.textContent ?? ''
+    expect(note).toContain('1 of 33')
+    expect(note).toContain('32')
+  })
+
+  it('names the optional extra when the service cannot project', async () => {
+    // `rheplicant.gui` is optional, so this is a normal state on a working
+    // install — and the fix is a pip command, which the panel gives.
+    serve({ 'ws-1': overview('rhino') }, { 'rhino-fit.yaml': 'model: {}\n' }, {}, {}, {})
+    openHome('ws-1')
+    selectInProject('ws-1', { taskPath: 'rhino-fit.yaml' })
+    const { container } = mount()
+
+    await waitFor(() => {
+      expect(screen.getByText(/could not be projected/)).toBeTruthy()
+    })
+    expect(container.querySelector('[data-task-model]')).toBeNull()
+    expect(screen.getByText(/rheplicant\[gui\]/)).toBeTruthy()
+  })
+
+  it('claims nothing about a document that declares no operators', async () => {
+    serve({ 'ws-1': overview('rhino') }, { 'rhino-fit.yaml': 'model: {}\n' }, {}, {},
+      { 'rhino-fit.yaml': projection([]) })
+    openHome('ws-1')
+    selectInProject('ws-1', { taskPath: 'rhino-fit.yaml' })
+    const { container } = mount()
+
+    await waitFor(() => { expect(container.querySelector('[data-task-model]')).toBeTruthy() })
+    expect(container.querySelector('[data-model-nodes]')).toBeNull()
+    expect(screen.getByText(/declares no operators yet/)).toBeTruthy()
   })
 })

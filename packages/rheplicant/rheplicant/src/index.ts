@@ -23,6 +23,7 @@ import type {
   SchemaDocument,
   SignalPathGraph,
   DefinitionReport,
+  DocumentProjection,
   Transport,
   ValidationReport,
 } from './types.ts'
@@ -41,11 +42,16 @@ export type {
   ComputeProvider,
   DefinitionReport,
   DocumentInputReference,
+  DocumentModel,
+  DocumentProjection,
   ExecutionIdentity,
   GatesReport,
   GateFinding,
   ProjectExecutionRow,
+  ModelField,
+  ModelNode,
   ProjectDefinitionBody,
+  ProjectDocumentProjectionBody,
   ProjectExecutionsBody,
   ProjectInputReference,
   ProjectInputRow,
@@ -65,6 +71,7 @@ export type {
   SignalPathGraph,
   TaskIdentity,
   Transport,
+  UndecidedField,
   ValidationError,
   ValidationReport,
 } from './types.ts'
@@ -162,6 +169,11 @@ export class ComputeRuntime extends Service {
   /** Project one published execution tree; see {@link ComputeProvider.readExecution}. */
   readExecution(resultsPath: string, opts: RunOpts): Promise<RunOutcome> {
     return this.provider(opts.transport).readExecution(resultsPath, opts)
+  }
+
+  /** Project one document for display; see {@link ComputeProvider.projectDocument}. */
+  projectDocument(documentText: string, opts: ComputeOpts): Promise<DocumentProjection> {
+    return this.provider(opts.transport).projectDocument(documentText, opts)
   }
 
   /** How far one document is from a defined task; see {@link ComputeProvider.definition}. */

@@ -391,8 +391,66 @@ export interface DefinitionReport {
   readonly inputs: readonly DocumentInputReference[]
   readonly validation: ValidationReport
   readonly gates: GatesReport
+  /** The required fields still undecided; null when the gui extra is absent. */
+  readonly fields: { readonly undecided: readonly UndecidedField[] } | null
+  readonly fieldsUnavailable?: 'gui-extra-absent'
   /** The parsed document, echoed ONCE. See {@link ValidationReport.document}. */
   readonly document?: ComputeDocument
+}
+
+/** One parameter of a declared operator, described by the grammar itself. */
+export interface ModelField {
+  readonly name: string
+  readonly label: string
+  /**
+   * The operator class's own `Attributes:` docstring, lifted upstream.
+   *
+   * Never prose written in this layer: a second description of what a
+   * parameter means is a second thing to drift from the physics.
+   */
+  readonly help: string | null
+  readonly unit: string | null
+  readonly required: boolean | null
+  readonly value: unknown
+}
+
+/** One operator this document DECLARES. */
+export interface ModelNode {
+  readonly nodeId: string
+  readonly label: string
+  /** `source` / `transform` / `processing` / … — the canonical graph's own kind. */
+  readonly kind: string
+  readonly segment: string
+  readonly description: string | null
+  readonly selectedType: string | null
+  readonly fields: readonly ModelField[]
+}
+
+/**
+ * The physics one document declares, and how much it did not.
+ *
+ * Only the LIT nodes: the canonical graph has 33 and an ordinary document
+ * lights three. The dimmed remainder is what the DIAGRAM shows, which is a
+ * different mechanism's job. {@link totalNodes} is reported anyway, because
+ * "3 of 33" tells a reader there is more physics available than they used.
+ */
+export interface DocumentModel {
+  readonly totalNodes: number
+  readonly nodes: readonly ModelNode[]
+}
+
+/**
+ * One document projected for display: the signal path, and what it declares.
+ *
+ * `docs/project-model.md` §17. What makes this worth a route is that it needs
+ * NO execution — a task that has never run can show its diagram and its
+ * operators, where before both appeared only after a first run. The
+ * philosophy doc asks for "a canonical graph ALWAYS present on screen".
+ */
+export interface DocumentProjection {
+  readonly svg: string
+  readonly walkOrder: readonly string[]
+  readonly model: DocumentModel
 }
 
 /** One compute backend, registered under one or more transport names. */
@@ -418,6 +476,14 @@ export interface ComputeProvider {
    * worth reporting.
    */
   definition(input: ComputeInput, opts: ComputeOpts): Promise<DefinitionReport>
+  /**
+   * Project one document for display — the diagram and the declared physics.
+   *
+   * Asks the service for a SLICE (`svg`, `walkOrder`, `model`): the full
+   * projection is ~68 KB of which most is a dimmed catalogue no surface
+   * renders, and the slice is ~21 KB.
+   */
+  projectDocument(documentText: string, opts: ComputeOpts): Promise<DocumentProjection>
   schema(opts: ComputeOpts): Promise<SchemaDocument>
   /** The lit/dim signal-path rendering for a document's `model:` section. */
   graph(document: ComputeDocument, opts: ComputeOpts): Promise<SignalPathGraph | null>
@@ -661,16 +727,57 @@ export interface ProjectInputReference {
 }
 
 /**
+ * One required field this document has not decided yet.
+ *
+ * `docs/project-model.md` §17. Upstream's own `must_decide` flag — visible,
+ * enabled, required, absent, and carrying no default — evaluated against this
+ * document. Naming them is what turns §7's second criterion from a verdict
+ * ("the document does not validate") into a to-do list.
+ */
+export interface UndecidedField {
+  /** Concrete dotted path, wildcards bound — e.g. `runs[0].num_samples`. */
+  readonly path: string
+  /** The grammar's own label for it. */
+  readonly label: string
+  /** Which of the 12 form sections it belongs to. */
+  readonly section: string
+  /** The widget kind the grammar declares; a display hint, never a format claim. */
+  readonly widget: string
+  /** The accepted values, when this field is a closed choice. */
+  readonly choices: readonly string[]
+  /** Every spelling the alphabet accepts for this field's dimension, canonical first. */
+  readonly units: readonly string[]
+}
+
+/**
  * How far one task is from §7's "completely defined".
  *
  * {@link digest} is the sha256 of the bytes that were CHECKED. The document
  * pane and this check are two separate fetches, so without it a file edited
  * between them would show one document under the other's verdict (§12.6).
  */
+/** {@link DocumentProjection} as a browser sees it, with its document's digest. */
+export interface ProjectDocumentProjectionBody extends DocumentProjection {
+  readonly path: string
+  /** sha256 of the bytes projected, so the view cannot be shown against another version. */
+  readonly digest: string
+}
+
 export interface ProjectDefinitionBody {
   readonly path: string
   readonly digest: string
   readonly inputs: readonly ProjectInputReference[]
   readonly validation: ValidationReport
   readonly gates: GatesReport
+  /**
+   * The required fields still undecided, or `null` when they could not be
+   * named at all.
+   *
+   * Null is NOT an empty list. `rheplicant.gui` is an optional extra and none
+   * of the four criteria depend on it, so its absence means "we cannot name
+   * them" — which must not render as "there are none left".
+   */
+  readonly fields: { readonly undecided: readonly UndecidedField[] } | null
+  /** Why {@link fields} is null, present only when it is. */
+  readonly fieldsUnavailable?: 'gui-extra-absent'
 }

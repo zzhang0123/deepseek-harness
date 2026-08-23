@@ -15,6 +15,7 @@ function defined(over: Partial<ProjectDefinitionBody> = {}): ProjectDefinitionBo
     }],
     validation: { valid: true, errors: [], warnings: [] },
     gates: { checks: [{ check: 'linearity', mode: 'warn', state: 'warn', reason: null }], runs: [], warnings: [] },
+    fields: { undecided: [] },
     ...over,
   }
 }
@@ -198,5 +199,68 @@ describe('a verdict about a different version of the document', () => {
     // context, and treating "could not compare" as "changed" would make every
     // check unusable on a plain-http deployment.
     expect(criterion(input({ documentDigest: undefined }), 'inputs').state).toBe('ok')
+  })
+})
+
+describe('the required fields still undecided', () => {
+  /** One undecided field, as the grammar describes it. */
+  function undecided(path: string, label: string, section = 'runs') {
+    return { path, label, section, widget: 'value', choices: [], units: [] }
+  }
+
+  it('names them instead of only saying the document is not valid', () => {
+    // A verdict tells you there is a problem; a list tells you what to do
+    // about it. `must_decide` is upstream's own flag, so the names are the
+    // grammar's rather than ours.
+    const report = defined({
+      validation: { valid: false, errors: [{ path: 'runs[0]', code: 'A1', message: 'incomplete' }], warnings: [] },
+      fields: { undecided: [
+        undecided('runs[0].num_samples', 'num samples'),
+        undecided('runs[0].num_warmup', 'num warmup'),
+      ] },
+    })
+    const row = criterion(input({ report }), 'document')
+    expect(row.state).toBe('unmet')
+    expect(row.detail).toContain('runs[0].num_samples')
+    expect(row.detail).toContain('runs[0].num_warmup')
+  })
+
+  it('is unmet on undecided fields even when pre-flight did not refuse', () => {
+    // The two are different questions. Pre-flight refuses what it can decide
+    // from the text; a required field with no value is not always a refusal,
+    // and a task with one is still not defined.
+    const report = defined({
+      validation: { valid: true, errors: [], warnings: [] },
+      fields: { undecided: [undecided('observation.freq.grid', 'grid', 'observation')] },
+    })
+    const row = criterion(input({ report }), 'document')
+    expect(row.state).toBe('unmet')
+    expect(row.detail).toContain('observation.freq.grid')
+  })
+
+  it('says pre-flight is clean when nothing is undecided', () => {
+    expect(criterion(input(), 'document').detail).toContain('pre-flight clean')
+  })
+
+  it('does not claim completeness when the fields could not be named', () => {
+    // `rheplicant.gui` is optional. Absent, we know pre-flight passed and we
+    // do NOT know whether a required field is unset — so the criterion says
+    // so rather than reporting a clean document.
+    const report = defined({ validation: { valid: true, errors: [], warnings: [] }, fields: null })
+    const row = criterion(input({ report }), 'document')
+    expect(row.state).toBe('ok')
+    expect(row.detail).toContain('could not be checked')
+  })
+
+  it('caps a long list rather than pasting fifty paths into one line', () => {
+    const many = Array.from({ length: 12 }, (_, i) => undecided(`runs[0].k${i}`, `k${i}`))
+    const row = criterion(input({ report: defined({ fields: { undecided: many } }) }), 'document')
+    expect(row.detail).toContain('12 required fields unset')
+    // Names the first few and SAYS how many it did not name. A cap that stays
+    // quiet renders as a complete list that happens to be short.
+    expect(row.detail).toContain('runs[0].k0')
+    expect(row.detail).toContain('+9 more')
+    expect(row.detail).not.toContain('runs[0].k11')
+    expect(row.detail.length).toBeLessThan(200)
   })
 })

@@ -40,7 +40,8 @@ import {
 import type { ProjectTaskDocumentBody } from './types.ts'
 import type {
   DocumentInputReference, ProjectDefinitionBody, ProjectExecutionRow, ProjectExecutionsBody,
-  ProjectInputReference, ProjectOverviewBody, ProjectTaskRow, Transport,
+  ProjectDocumentProjectionBody, ProjectInputReference, ProjectOverviewBody, ProjectTaskRow,
+  Transport,
 } from './types.ts'
 import { isTransport } from './types.ts'
 import { RESULTS_ROOT, taskSegment } from './project.ts'
@@ -391,6 +392,56 @@ export function apply(ctx: Context): void {
 
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
+    path: `${ROUTE_PREFIX}/projection`,
+    handler: async (req, res) => {
+      const url = requestUrl(req)
+      const workspace = url === undefined ? undefined : workspaceFor(ctx, url)
+      if (url === undefined || workspace === undefined) {
+        json(res, 404, { error: 'unknown project', code: 'PROJECT_NOT_FOUND' })
+        return
+      }
+      const transport = transportOf(url, res)
+      if (transport === undefined) return
+      // Read host-side through the same reader every other document route
+      // uses, so the confinement is inherited rather than restated.
+      let document
+      try {
+        document = ctx.rheplicantProject.readTask(workspace, url.searchParams.get('path') ?? '')
+      } catch (error) {
+        const code = error instanceof ProjectReadError ? error.code : 'ARTIFACT_UNREADABLE'
+        json(res, code === 'PATH_ESCAPES_PROJECT' || code === 'ARTIFACT_NOT_ALLOWED' ? 400 : 404, {
+          error: 'this task document could not be read',
+          code,
+        })
+        return
+      }
+      try {
+        const projected = await ctx.rheplicant.projectDocument(document.text, { transport })
+        json(res, 200, {
+          path: document.path,
+          // The same guarantee the definition route gives: a diagram shown
+          // against the wrong version of a document is worse than no diagram,
+          // because a diagram is believed on sight.
+          digest: createHash('sha256').update(document.text).digest('hex'),
+          svg: projected.svg,
+          walkOrder: projected.walkOrder,
+          model: projected.model,
+        } satisfies ProjectDocumentProjectionBody)
+      } catch (error) {
+        // `rheplicant.gui` is an OPTIONAL extra, so this can be unavailable on
+        // a perfectly working install. Saying so beats rendering a document
+        // as though it declared no physics.
+        json(res, 502, {
+          error: 'this document could not be projected — the compute service may not have the gui extra',
+          code: 'PROJECTION_UNAVAILABLE',
+          detail: error instanceof Error ? error.message : String(error),
+        })
+      }
+    },
+  }))
+
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'exact',
     path: `${ROUTE_PREFIX}/definition`,
     handler: async (req, res) => {
       const url = requestUrl(req)
@@ -429,6 +480,12 @@ export function apply(ctx: Context): void {
           inputs: report.inputs.map((reference: DocumentInputReference) => withoutHostPath(workspace, reference)),
           validation: report.validation,
           gates: report.gates,
+          // Forwarded verbatim: a path out of the user's own document, and a
+          // label out of the grammar. Neither is a host path.
+          fields: report.fields ?? null,
+          ...(report.fieldsUnavailable === undefined
+            ? {}
+            : { fieldsUnavailable: report.fieldsUnavailable }),
         } satisfies ProjectDefinitionBody)
       } catch (error) {
         json(res, 502, {

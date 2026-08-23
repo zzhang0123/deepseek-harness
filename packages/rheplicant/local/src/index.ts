@@ -12,6 +12,7 @@ import z from '@deepseek-ai/schemastery'
 import { stdioRequest } from '@rheplicant/dsh-rheplicant-transport'
 import type {} from '@rheplicant/dsh-rheplicant'
 import type {
+  DocumentProjection,
   DefinitionReport,
   ComputeDocument,
   ComputeInput,
@@ -80,6 +81,16 @@ class LocalComputeProvider implements ComputeProvider {
 
   definition(input: ComputeInput, opts: ComputeOpts): Promise<DefinitionReport> {
     return this.request<DefinitionReport>('document.definition', { ...input }, opts)
+  }
+
+  projectDocument(documentText: string, opts: ComputeOpts): Promise<DocumentProjection> {
+    // The slice, never the whole snapshot: `include` is what keeps a 68 KB
+    // projection off the wire when 21 KB is what gets rendered.
+    return this.request<DocumentProjection>(
+      'document.project',
+      { yaml: documentText, include: ['svg', 'walkOrder', 'model'] },
+      opts,
+    )
   }
 
   schema(opts: ComputeOpts): Promise<SchemaDocument> {

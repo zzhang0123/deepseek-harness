@@ -45,6 +45,8 @@ import { taskInputUsage } from './input-usage.ts'
 import { TaskMaturity } from './TaskMaturity.tsx'
 import { TaskDefinition } from './TaskDefinition.tsx'
 import { DocumentDiff } from './DocumentDiff.tsx'
+import { TaskModel } from './TaskModel.tsx'
+import { useDocumentProjection } from './use-document-projection.ts'
 import { useExecutedDocument } from './use-executed-document.ts'
 import type { TaskPanelOwnerProps } from './index.ts'
 import styles from './project-home.module.css'
@@ -139,6 +141,11 @@ export const ProjectHome = memo(function ProjectHome(
   // (§11.4). No new transport: `config.input.yaml` has been on P3's artifact
   // allow-list since the seam existed.
   const executed = useExecutedDocument(chosen, selection.executionId, nonce)
+  // The diagram and the declared physics, needing NO execution (§17). Before
+  // this, both appeared only after a first run — so the one diagram the
+  // philosophy asks to be "always present on screen" was missing for exactly
+  // the task somebody is still authoring.
+  const projected = useDocumentProjection(chosen, selection.taskPath, nonce)
 
   useEffect(() => {
     if (!open) return
@@ -407,6 +414,30 @@ export const ProjectHome = memo(function ProjectHome(
                     view={newestOfTask?.executionId === selection.executionId ? executionView : undefined}
                     documentDigest={documentDigest}
                   />
+                </Panel>
+              )}
+
+              {selection.taskPath !== undefined && selectedTask !== undefined && (
+                <Panel id="project-task-model" title="Model" subtitle="the physics this document declares">
+                  {projected.shownFor !== `${chosen ?? ''} ${selection.taskPath}` || projected.loading
+                    ? <EmptyState message="Projecting the document…" />
+                    : projected.projection !== undefined
+                      ? (
+                        <TaskModel
+                          svg={projected.projection.svg}
+                          model={projected.projection.model}
+                        />
+                      )
+                      : (
+                        <EmptyState
+                          message={projected.refused
+                            ? 'This project would not serve that document'
+                            : 'The model could not be projected from here'}
+                          hint={projected.refused
+                            ? 'The path is outside the project, inside its results tree, or not a task document.'
+                            : 'Projecting a document needs the compute service\'s optional gui extra (pip install "rheplicant[gui]"). Everything else on this page works without it.'}
+                        />
+                      )}
                 </Panel>
               )}
 

@@ -19,7 +19,7 @@
  */
 
 import type {
-  CheckCost, ProjectDefinitionBody, ProjectTaskRow,
+  CheckCost, ProjectDefinitionBody, ProjectTaskRow, UndecidedField,
 } from '@rheplicant/dsh-rheplicant'
 
 /** How a criterion reads. */
@@ -125,20 +125,50 @@ function inputsCriterion(report: ProjectDefinitionBody): DefinitionCriterion {
   }
 }
 
-/** Criterion 2: pre-flight is clean. */
+/**
+ * Criterion 2: pre-flight is clean, and no required field is still unset.
+ *
+ * Two questions, and the second one is what makes this criterion actionable.
+ * Pre-flight refuses what it can decide from the text; a required field with
+ * no value is not always a refusal, and a task carrying one is still not
+ * defined. Naming the fields turns a verdict — "the document does not
+ * validate" — into a to-do list.
+ *
+ * `fields === null` means the optional `rheplicant.gui` extra is absent, so
+ * we know pre-flight passed and do NOT know whether something is unset. The
+ * criterion says exactly that rather than reporting a clean document.
+ */
 function documentCriterion(report: ProjectDefinitionBody): DefinitionCriterion {
   const errors = report.validation.errors.length
-  if (errors > 0) {
+  const undecided = report.fields?.undecided ?? []
+  if (errors > 0 || undecided.length > 0) {
     return {
       id: 'document', label: 'Document validates', state: 'unmet',
-      detail: `${errors} refusal${errors === 1 ? '' : 's'}: ${report.validation.errors[0]?.message ?? ''}`,
+      detail: errors > 0 && undecided.length === 0
+        ? `${errors} refusal${errors === 1 ? '' : 's'}: ${report.validation.errors[0]?.message ?? ''}`
+        : undecidedDetail(undecided),
     }
   }
   const warnings = report.validation.warnings?.length ?? 0
+  const clean = warnings === 0 ? 'pre-flight clean' : `pre-flight clean, ${warnings} warning${warnings === 1 ? '' : 's'}`
   return {
     id: 'document', label: 'Document validates', state: 'ok',
-    detail: warnings === 0 ? 'pre-flight clean' : `pre-flight clean, ${warnings} warning${warnings === 1 ? '' : 's'}`,
+    detail: report.fields === null
+      ? `${clean}; whether a required field is still unset could not be checked here`
+      : clean,
   }
+}
+
+/** How many fields are unset, naming as many as fit on one line. */
+const NAMED_FIELDS = 3
+
+function undecidedDetail(undecided: readonly UndecidedField[]): string {
+  const count = `${undecided.length} required field${undecided.length === 1 ? '' : 's'} unset`
+  // Named, but capped: a task early in its life can have dozens, and pasting
+  // every path into one line is how the count itself becomes unreadable.
+  const named = undecided.slice(0, NAMED_FIELDS).map(field => field.path).join(', ')
+  const rest = undecided.length - NAMED_FIELDS
+  return rest > 0 ? `${count}: ${named}, +${rest} more` : `${count}: ${named}`
 }
 
 /**

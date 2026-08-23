@@ -37,6 +37,10 @@ let compute: Record<string, unknown> | undefined
 let definitionCalls: { documentText: string; taskPath: string | undefined }[]
 /** What the fake `definition` answers, or undefined to make it throw. */
 let definition: Record<string, unknown> | undefined
+/** Documents the fake service was asked to project, in order. */
+let projectionCalls: string[]
+/** What the fake `projectDocument` answers, or undefined to make it throw. */
+let projection: Record<string, unknown> | undefined
 
 function routes(
   sessions: Record<string, string | undefined>,
@@ -59,6 +63,11 @@ function routes(
         readCalls.push(resultsPath)
         if (compute === undefined) throw new Error('compute is down')
         return Promise.resolve(compute)
+      },
+      projectDocument: (documentText: string) => {
+        projectionCalls.push(documentText)
+        if (projection === undefined) throw new Error('compute is down')
+        return Promise.resolve(projection)
       },
       definition: (input: { documentText: string; taskPath?: string }) => {
         definitionCalls.push({ documentText: input.documentText, taskPath: input.taskPath })
@@ -88,6 +97,8 @@ beforeEach(() => {
   workspace = mkdtempSync(join(tmpdir(), 'rheplicant-api-'))
   readCalls = []
   definitionCalls = []
+  projectionCalls = []
+  projection = { svg: '<svg/>', walkOrder: ['a'], model: { totalNodes: 33, nodes: [] } }
   definition = { inputs: [], validation: { valid: true, errors: [], warnings: [] }, gates: { checks: [], runs: [], warnings: [] } }
   compute = { runs: [{ name: 'fit', kind: 'nuts', status: 'ok' }], gates: [], resultsPath: '/host/only' }
 })
@@ -762,5 +773,84 @@ describe('the transport a BROWSER may name', () => {
     const response = await request(`${ROUTE_PREFIX}/definition`, 'session=S-1&path=tasks/fit.yaml')
 
     expect(response.status).toBe(200)
+  })
+})
+
+describe('projecting one task document for display', () => {
+  function task(text = 'model: {}\n'): void {
+    mkdirSync(join(workspace, 'tasks'), { recursive: true })
+    writeFileSync(join(workspace, 'tasks', 'fit.yaml'), text)
+  }
+
+  it('projects the document it read HOST-side', async () => {
+    task('model: {authored: true}\n')
+    const request = routes({ 'S-1': workspace })
+
+    await request(`${ROUTE_PREFIX}/projection`, 'session=S-1&path=tasks/fit.yaml')
+
+    expect(projectionCalls).toEqual(['model: {authored: true}\n'])
+  })
+
+  it('answers the digest of the bytes it projected', async () => {
+    // Same guarantee the definition route gives, and for the same reason: a
+    // diagram shown against the wrong version of a document is worse than no
+    // diagram, because a diagram is believed.
+    task('model: {}\n')
+    const request = routes({ 'S-1': workspace })
+
+    const response = await request(`${ROUTE_PREFIX}/projection`, 'session=S-1&path=tasks/fit.yaml')
+
+    const body = JSON.parse(response.body) as { digest: string; svg: string }
+    expect(body.digest).toBe(createHash('sha256').update('model: {}\n').digest('hex'))
+    expect(body.svg).toBe('<svg/>')
+  })
+
+  it('needs no execution at all', async () => {
+    // The point of the route. Before it, a signal path existed only after a
+    // first run — so the one diagram the philosophy asks to be "always
+    // present" was absent for exactly the task someone is still authoring.
+    task()
+    const request = routes({ 'S-1': workspace })
+
+    const response = await request(`${ROUTE_PREFIX}/projection`, 'session=S-1&path=tasks/fit.yaml')
+
+    expect(response.status).toBe(200)
+    expect(readCalls).toEqual([])
+  })
+
+  it('refuses a path outside the project with the reader\'s own code', async () => {
+    task()
+    const request = routes({ 'S-1': workspace })
+
+    const response = await request(`${ROUTE_PREFIX}/projection`, 'session=S-1&path=../escape.yaml')
+
+    expect(response.status).toBe(400)
+    expect(JSON.parse(response.body).code).toBe('PATH_ESCAPES_PROJECT')
+    expect(projectionCalls).toEqual([])
+  })
+
+  it('reports an unreachable or gui-less service as 502', async () => {
+    // `rheplicant.gui` is an optional extra, so this route can legitimately
+    // be unavailable on a working install. It says so instead of pretending
+    // the document has no model.
+    task()
+    projection = undefined
+    const request = routes({ 'S-1': workspace })
+
+    const response = await request(`${ROUTE_PREFIX}/projection`, 'session=S-1&path=tasks/fit.yaml')
+
+    expect(response.status).toBe(502)
+    expect(JSON.parse(response.body).code).toBe('PROJECTION_UNAVAILABLE')
+  })
+
+  it('refuses a transport that is not one', async () => {
+    task()
+    const request = routes({ 'S-1': workspace })
+
+    const response = await request(`${ROUTE_PREFIX}/projection`,
+      'session=S-1&path=tasks/fit.yaml&transport=locl')
+
+    expect(response.status).toBe(400)
+    expect(JSON.parse(response.body).code).toBe('INVALID_TRANSPORT')
   })
 })

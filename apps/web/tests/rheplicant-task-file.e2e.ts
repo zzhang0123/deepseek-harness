@@ -24,6 +24,7 @@ import { SessionId } from '@deepseek-ai/dsh-session'
 import type { ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 import { ComputeRuntime } from '@rheplicant/dsh-rheplicant'
 import type {
+  DocumentProjection,
   DefinitionReport,
   ComputeInput, ComputeProvider, GatesReport, RunOutcome, SchemaDocument, SignalPathGraph, ValidationReport,
 } from '@rheplicant/dsh-rheplicant'
@@ -94,7 +95,19 @@ class CapturingProvider implements ComputeProvider {
       inputs: [],
       validation: { valid: true, errors: [] },
       gates: { checks: [], runs: [], warnings: [] },
+      // §17: the undecided-field list. Null rather than empty — this stub
+      // does not consult the grammar, and an empty list would claim it did
+      // and found nothing left to decide.
+      fields: null,
+      fieldsUnavailable: 'gui-extra-absent' as const,
     })
+  }
+
+  // §17 added `projectDocument` to the seam. This scenario checks the RUN
+  // path and projects nothing, so the stub refuses rather than inventing a
+  // diagram that would look like a real one.
+  projectDocument(documentText: string): Promise<DocumentProjection> {
+    return Promise.reject(new Error(`this scenario projects nothing; ${documentText.length} bytes ignored`))
   }
 
   schema(): Promise<SchemaDocument> {

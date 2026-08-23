@@ -18,7 +18,8 @@
  */
 
 import type {
-  ProjectDefinitionBody, ProjectExecutionRow, ProjectInputRow, ProjectOverviewBody,
+  ProjectDefinitionBody, ProjectDocumentProjectionBody, ProjectExecutionRow, ProjectInputRow,
+  ProjectOverviewBody,
   ProjectTaskRow,
 } from '@rheplicant/dsh-rheplicant'
 
@@ -326,5 +327,53 @@ export async function fetchExecutionArtifact(
     return { ok: true, text: await response.text() }
   } catch {
     return { ok: false, reason: 'unreachable' }
+  }
+}
+
+/**
+ * One task document projected for display — its signal path, and the physics
+ * it declares.
+ *
+ * `docs/project-model.md` §17. What makes this different from every other
+ * reader here is that it needs NO execution: a task that has never run can
+ * show its diagram and its operators. Before it, both appeared only after a
+ * first run, so the one diagram the philosophy asks to be "always present on
+ * screen" was missing for exactly the task somebody is still authoring.
+ *
+ * @param workspaceId - the project the task belongs to.
+ * @param path - the task's workspace-relative path.
+ * @param signal - abort when the selection changes.
+ * @returns the projection, `'refused'` when the host would not serve that
+ *   path, and `undefined` when the route or the gui extra could not be
+ *   reached — the last of which is a normal state, not a fault.
+ */
+export async function fetchDocumentProjection(
+  workspaceId: string,
+  path: string,
+  signal?: AbortSignal,
+): Promise<ProjectDocumentProjectionBody | 'refused' | undefined> {
+  let response: Response
+  try {
+    response = await fetch(
+      `${ROUTE_PREFIX}/projection?workspace=${encodeURIComponent(workspaceId)}`
+      + `&path=${encodeURIComponent(path)}`,
+      { ...(signal === undefined ? {} : { signal }), headers: { accept: 'application/json' } },
+    )
+  } catch {
+    return undefined
+  }
+  if (response.status === 400 || response.status === 404) return 'refused'
+  if (!response.ok) return undefined
+  try {
+    const body: unknown = await response.json()
+    if (typeof body !== 'object' || body === null) return undefined
+    const row = body as Record<string, unknown>
+    // The digest is not optional, for the reason §12.6 gives: a view that
+    // cannot be dated can be shown against a document it does not describe.
+    if (typeof row.digest !== 'string' || typeof row.svg !== 'string') return undefined
+    if (typeof row.model !== 'object' || row.model === null) return undefined
+    return body as ProjectDocumentProjectionBody
+  } catch {
+    return undefined
   }
 }

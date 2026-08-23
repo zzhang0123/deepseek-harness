@@ -416,3 +416,66 @@
   color: var(--dsw-alias-text-tertiary);
   opacity: 0.6;
 }
+
+/* The declared-physics catalogue (§17). */
+.modelDiagram {
+  margin-bottom: 0.75rem;
+  overflow-x: auto;
+}
+
+.modelDiagram svg { max-width: 100%; height: auto; }
+
+.modelNode {
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--dsw-alias-border-secondary, rgb(0 0 0 / 8%));
+  display: grid;
+  gap: 0.3rem;
+}
+
+.modelNode:first-child { border-top: none; }
+
+.modelHead { display: flex; align-items: center; gap: 0.4rem; }
+
+.modelWhat {
+  margin: 0;
+  color: var(--dsw-alias-text-secondary);
+  font-size: 0.8125rem;
+}
+
+.modelFields { margin: 0.2rem 0 0; display: grid; gap: 0.25rem; }
+
+.modelField {
+  display: grid;
+  grid-template-columns: minmax(7rem, 12rem) 1fr;
+  gap: 0.5rem;
+  align-items: baseline;
+}
+
+.modelFieldName {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  font-family: var(--dsw-font-mono, ui-monospace, monospace);
+  font-size: 0.75rem;
+  color: var(--dsw-alias-text-primary);
+}
+
+.modelUnit {
+  padding: 0 0.25rem;
+  border-radius: 0.2rem;
+  background: color-mix(in srgb, var(--dsw-alias-text-tertiary) 12%, transparent);
+  color: var(--dsw-alias-text-tertiary);
+  font-size: 0.6875rem;
+}
+
+.modelRequired {
+  color: var(--dsw-alias-state-warn-primary);
+  font-size: 0.6875rem;
+}
+
+.modelHelp {
+  margin: 0;
+  color: var(--dsw-alias-text-tertiary);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
