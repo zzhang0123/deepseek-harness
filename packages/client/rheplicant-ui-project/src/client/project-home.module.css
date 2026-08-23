@@ -321,3 +321,44 @@
   color: var(--dsw-rh-stale-text, var(--dsw-alias-state-warn-primary));
   font-size: 0.6875rem;
 }
+
+/* The definition checklist's per-criterion mark.
+   Spelled as a word, never colour alone: the three states have to survive a
+   monochrome screen and a reader who does not see the hues apart. */
+.definitionMark {
+  margin-left: auto;
+  padding: 0.02rem 0.34rem;
+  border-radius: 0.25rem;
+  font-size: 0.6875rem;
+  letter-spacing: 0.02em;
+  color: var(--dsw-alias-text-tertiary);
+  background: color-mix(in srgb, var(--dsw-alias-text-tertiary) 12%, transparent);
+}
+
+.definitionMark[data-definition-mark='ok'] {
+  color: var(--dsw-alias-state-success-primary);
+  background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 14%, transparent);
+}
+
+.definitionMark[data-definition-mark='unmet'] {
+  color: var(--dsw-alias-state-error-primary);
+  background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 14%, transparent);
+}
+
+/* The prospective checklist an EMPTY project sees: the same four criteria,
+   before there is a task for them to be about. */
+.onboarding {
+  margin: 0.75rem 0 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.3rem;
+  color: var(--dsw-alias-text-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.onboardingActions {
+  margin-top: 0.75rem;
+  display: flex;
+  gap: 0.5rem;
+}

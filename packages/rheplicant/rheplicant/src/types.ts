@@ -294,6 +294,55 @@ export interface RunOpts extends ComputeOpts {
   readonly outputsDir?: string
 }
 
+/**
+ * One `file:` reference a document declares, and whether it resolves.
+ *
+ * `docs/project-model.md` §12.1. §7 words its first criterion as "every
+ * `file:` reference exists under `inputs/`", which is stricter than the
+ * package: `config/files.py` applies no containment on purpose, and names
+ * three real spellings the rule would break. So the question answered here is
+ * whether a reference RESOLVES.
+ */
+export interface DocumentInputReference {
+  /** Where in the document it sits, dotted — e.g. `model.gain.gain`. */
+  readonly where: string
+  /** The path AS DECLARED, verbatim. The user's own text out of their document. */
+  readonly path: string
+  /** The document's own `format:`, never inferred from the extension. */
+  readonly format: string | null
+  readonly resolves: boolean
+  /**
+   * Absolute, and HOST-SIDE ONLY — the route strips it before answering a
+   * browser (`project-api.ts`), which is the layer that knows where the
+   * project is and therefore the only one that can say "inside" or "outside".
+   */
+  readonly resolvedPath: string | null
+  /**
+   * True when the reference is malformed — a non-string path, say.
+   *
+   * A grammar fault, which {@link DefinitionReport.validation} reports in its
+   * own vocabulary. Flagged rather than called "does not resolve", because
+   * stating one fault twice under two names sends someone looking for a
+   * missing file that was never named.
+   */
+  readonly malformed?: boolean
+}
+
+/**
+ * Everything §7 calls "completely defined", about one document, at once.
+ *
+ * One call rather than three, for the reason `/overview` is one route: three
+ * answers fetched separately can describe three different versions of a
+ * document that changed between them.
+ */
+export interface DefinitionReport {
+  readonly inputs: readonly DocumentInputReference[]
+  readonly validation: ValidationReport
+  readonly gates: GatesReport
+  /** The parsed document, echoed ONCE. See {@link ValidationReport.document}. */
+  readonly document?: ComputeDocument
+}
+
 /** One compute backend, registered under one or more transport names. */
 export interface ComputeProvider {
   validate(input: ComputeInput, opts: ComputeOpts): Promise<ValidationReport>
@@ -308,6 +357,15 @@ export interface ComputeProvider {
    * tree before asking (`executions.ts`).
    */
   readExecution(resultsPath: string, opts: RunOpts): Promise<RunOutcome>
+  /**
+   * How far one document is from being a defined task (§7, §12).
+   *
+   * Takes `taskPath` off the input for the document's `base_dir`, exactly as
+   * {@link ComputeInput.taskPath} already documents — relative `file:` paths
+   * then resolve the way they would in a run, which is the only resolution
+   * worth reporting.
+   */
+  definition(input: ComputeInput, opts: ComputeOpts): Promise<DefinitionReport>
   schema(opts: ComputeOpts): Promise<SchemaDocument>
   /** The lit/dim signal-path rendering for a document's `model:` section. */
   graph(document: ComputeDocument, opts: ComputeOpts): Promise<SignalPathGraph | null>
@@ -528,4 +586,39 @@ export interface ProjectTaskDocumentBody {
   readonly text: string
   readonly bytes: number
   readonly modifiedAt: string
+}
+
+/**
+ * One `file:` reference, as a BROWSER may see it.
+ *
+ * {@link DocumentInputReference} with the host path removed and replaced by
+ * the only two facts about it a browser has any business knowing: whether it
+ * landed inside this project, and if so where, project-relative. §12.5.
+ */
+export interface ProjectInputReference {
+  readonly where: string
+  /** The path as the document declared it — the user's own text. */
+  readonly path: string
+  readonly format: string | null
+  readonly resolves: boolean
+  /** False for a reference that resolved elsewhere, and for one that did not resolve. */
+  readonly inProject: boolean
+  /** Workspace-relative, present only when {@link inProject}. */
+  readonly projectPath?: string
+  readonly malformed?: boolean
+}
+
+/**
+ * How far one task is from §7's "completely defined".
+ *
+ * {@link digest} is the sha256 of the bytes that were CHECKED. The document
+ * pane and this check are two separate fetches, so without it a file edited
+ * between them would show one document under the other's verdict (§12.6).
+ */
+export interface ProjectDefinitionBody {
+  readonly path: string
+  readonly digest: string
+  readonly inputs: readonly ProjectInputReference[]
+  readonly validation: ValidationReport
+  readonly gates: GatesReport
 }

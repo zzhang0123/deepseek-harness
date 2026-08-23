@@ -22,6 +22,7 @@ import type {
   RunOutcome,
   SchemaDocument,
   SignalPathGraph,
+  DefinitionReport,
   Transport,
   ValidationReport,
 } from './types.ts'
@@ -35,11 +36,15 @@ export type {
   ComputeInput,
   ComputeOpts,
   ComputeProvider,
+  DefinitionReport,
+  DocumentInputReference,
   ExecutionIdentity,
   GatesReport,
   GateFinding,
   ProjectExecutionRow,
+  ProjectDefinitionBody,
   ProjectExecutionsBody,
+  ProjectInputReference,
   ProjectInputRow,
   ProjectOverviewBody,
   ProjectTaskDocumentBody,
@@ -154,6 +159,11 @@ export class ComputeRuntime extends Service {
   /** Project one published execution tree; see {@link ComputeProvider.readExecution}. */
   readExecution(resultsPath: string, opts: RunOpts): Promise<RunOutcome> {
     return this.provider(opts.transport).readExecution(resultsPath, opts)
+  }
+
+  /** How far one document is from a defined task; see {@link ComputeProvider.definition}. */
+  definition(input: ComputeInput, opts: ComputeOpts): Promise<DefinitionReport> {
+    return this.provider(opts.transport).definition(input, opts)
   }
 
   schema(opts: ComputeOpts): Promise<SchemaDocument> {

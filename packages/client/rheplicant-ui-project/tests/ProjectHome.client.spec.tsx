@@ -47,10 +47,18 @@ function overview(project: string, over: Record<string, unknown> = {}): Record<s
 function serve(
   bodies: Record<string, Record<string, unknown> | null>,
   documents: Record<string, string> = {},
+  definitions: Record<string, Record<string, unknown> | null> = {},
 ): void {
   vi.stubGlobal('fetch', vi.fn((url: string) => {
     const parsed = new URL(url, 'http://x')
     const id = parsed.searchParams.get('workspace') ?? ''
+    if (parsed.pathname.endsWith('/definition')) {
+      const report = definitions[parsed.searchParams.get('path') ?? '']
+      if (report === undefined || report === null) {
+        return Promise.resolve({ ok: false, status: 502, json: () => Promise.resolve({}) })
+      }
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(report) })
+    }
     if (parsed.pathname.endsWith('/task')) {
       const text = documents[parsed.searchParams.get('path') ?? '']
       if (text === undefined) {
@@ -442,5 +450,124 @@ describe('opening a conversation to work in', () => {
     fireEvent.click(container.querySelector('[data-project-open-task]')!)
     await waitFor(() => { expect(container.querySelector('[data-project-open-failed]')).toBeTruthy() })
     expect(container.querySelector('[data-project-home]')).toBeTruthy()
+  })
+})
+
+describe('the definition checklist', () => {
+  /** A definition body in which every criterion is met. */
+  function defined(digest: string, over: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      path: 'rhino-fit.yaml',
+      digest,
+      inputs: [],
+      validation: { valid: true, errors: [], warnings: [] },
+      gates: { checks: [{ check: 'linearity', mode: 'warn', state: 'warn', reason: null }], runs: [], warnings: [] },
+      ...over,
+    }
+  }
+
+  it('appears for the selected task, labelled by the source it reads', async () => {
+    serve({ 'ws-1': overview('rhino') }, { 'rhino-fit.yaml': 'model: {}\n' },
+      { 'rhino-fit.yaml': defined('any') })
+    openHome('ws-1')
+    selectInProject('ws-1', { taskPath: 'rhino-fit.yaml' })
+    const { container } = mount()
+
+    await waitFor(() => { expect(container.querySelector('[data-task-definition]')).toBeTruthy() })
+    // The label is not decoration. Unlabelled, this rail and the maturity
+    // rail below it read as two statements about the same evidence.
+    expect(screen.getByText('read off the document, as authored')).toBeTruthy()
+    expect(screen.getByText('read off the project, not this conversation')).toBeTruthy()
+  })
+
+  it('reports all four criteria of §7', async () => {
+    serve({ 'ws-1': overview('rhino') }, { 'rhino-fit.yaml': 'model: {}\n' },
+      { 'rhino-fit.yaml': defined('any') })
+    openHome('ws-1')
+    selectInProject('ws-1', { taskPath: 'rhino-fit.yaml' })
+    const { container } = mount()
+
+    await waitFor(() => { expect(container.querySelector('[data-task-definition]')).toBeTruthy() })
+    expect([...container.querySelectorAll('[data-definition-criterion]')]
+      .map(node => node.getAttribute('data-definition-criterion')))
+      .toEqual(['inputs', 'document', 'gates', 'name'])
+  })
+
+  it('says UNKNOWN, not unmet, when the compute service could not be reached', async () => {
+    // The distinction the whole three-state design exists for: telling
+    // someone their document is wrong when nobody could ask is how a fine
+    // document gets edited.
+    serve({ 'ws-1': overview('rhino') }, { 'rhino-fit.yaml': 'model: {}\n' }, {})
+    openHome('ws-1')
+    selectInProject('ws-1', { taskPath: 'rhino-fit.yaml' })
+    const { container } = mount()
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-definition-criterion="document"][data-definition-state="unknown"]'))
+        .toBeTruthy()
+    })
+    expect(container.querySelector('[data-definition-state="unmet"]')).toBeNull()
+  })
+
+  it('still answers "the task is named" when nothing else can be checked', async () => {
+    // Criterion 4 comes off the LISTING, so an absent compute service must
+    // not take it down with the other three.
+    serve({ 'ws-1': overview('rhino') }, { 'rhino-fit.yaml': 'model: {}\n' }, {})
+    openHome('ws-1')
+    selectInProject('ws-1', { taskPath: 'rhino-fit.yaml' })
+    const { container } = mount()
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-definition-criterion="name"][data-definition-state="ok"]'))
+        .toBeTruthy()
+    })
+  })
+
+  it('is absent until a task is selected', async () => {
+    serve({ 'ws-1': overview('rhino') })
+    openHome('ws-1')
+    const { container } = mount()
+
+    await waitFor(() => { expect(container.querySelector('[data-project-tasks]')).toBeTruthy() })
+    expect(container.querySelector('[data-task-definition]')).toBeNull()
+  })
+})
+
+describe('a project with no tasks at all', () => {
+  it('lists §7\'s four criteria rather than shrugging', async () => {
+    // The gap item 1 exists to close: before this, an empty project offered
+    // no next step at all.
+    serve({ 'ws-1': overview('rhino', { tasks: [], executions: [] }) })
+    openHome('ws-1')
+    const { container } = mount()
+
+    await waitFor(() => { expect(container.querySelector('[data-project-onboarding]')).toBeTruthy() })
+    const items = [...container.querySelectorAll('[data-project-onboarding] li')]
+    expect(items).toHaveLength(4)
+    expect(items[0]?.textContent).toContain('Inputs resolve')
+  })
+
+  it('offers a way to reach the agent, since this surface never writes', async () => {
+    const opened: string[] = []
+    setNavigator({
+      connect: (id: string) => { opened.push(id); return Promise.resolve('S-new') },
+      open: () => {},
+    })
+    serve({ 'ws-1': overview('rhino', { tasks: [], executions: [] }) })
+    openHome('ws-1')
+    const { container } = mount()
+
+    await waitFor(() => { expect(container.querySelector('[data-project-open-empty]')).toBeTruthy() })
+    fireEvent.click(container.querySelector('[data-project-open-empty]')!)
+    await waitFor(() => { expect(opened).toEqual(['ws-1']) })
+  })
+
+  it('offers no such control when there is nowhere to send anyone', async () => {
+    serve({ 'ws-1': overview('rhino', { tasks: [], executions: [] }) })
+    openHome('ws-1')
+    const { container } = mount()
+
+    await waitFor(() => { expect(container.querySelector('[data-project-onboarding]')).toBeTruthy() })
+    expect(container.querySelector('[data-project-open-empty]')).toBeNull()
   })
 })

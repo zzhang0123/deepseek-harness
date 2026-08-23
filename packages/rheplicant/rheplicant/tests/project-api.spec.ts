@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
@@ -32,6 +33,10 @@ interface Captured {
 let readCalls: string[]
 /** What the fake compute service returns, or undefined to make it throw. */
 let compute: Record<string, unknown> | undefined
+/** Documents the fake compute service was asked to check, in order. */
+let definitionCalls: { documentText: string; taskPath: string | undefined }[]
+/** What the fake `definition` answers, or undefined to make it throw. */
+let definition: Record<string, unknown> | undefined
 
 function routes(
   sessions: Record<string, string | undefined>,
@@ -55,6 +60,11 @@ function routes(
         if (compute === undefined) throw new Error('compute is down')
         return Promise.resolve(compute)
       },
+      definition: (input: { documentText: string; taskPath?: string }) => {
+        definitionCalls.push({ documentText: input.documentText, taskPath: input.taskPath })
+        if (definition === undefined) throw new Error('compute is down')
+        return Promise.resolve(definition)
+      },
     },
   }
   apply(ctx as never)
@@ -77,6 +87,8 @@ function routes(
 beforeEach(() => {
   workspace = mkdtempSync(join(tmpdir(), 'rheplicant-api-'))
   readCalls = []
+  definitionCalls = []
+  definition = { inputs: [], validation: { valid: true, errors: [], warnings: [] }, gates: { checks: [], runs: [], warnings: [] } }
   compute = { runs: [{ name: 'fit', kind: 'nuts', status: 'ok' }], gates: [], resultsPath: '/host/only' }
 })
 
@@ -533,5 +545,190 @@ describe('the digest that makes staleness sayable', () => {
     const call = routes({}, [{ id: 'ws-1', path: workspace, sessionIds: [] }])
     const body = JSON.parse((await call(`${ROUTE_PREFIX}/executions`, 'workspace=ws-1')).body)
     expect('taskDigest' in body.executions[0]).toBe(false)
+  })
+})
+
+describe('checking whether one task is defined', () => {
+  /** A workspace holding one task document and one data file beside it. */
+  function project(text = 'model: {}\n'): void {
+    mkdirSync(join(workspace, 'tasks'), { recursive: true })
+    writeFileSync(join(workspace, 'tasks', 'fit.yaml'), text)
+    mkdirSync(join(workspace, 'inputs'), { recursive: true })
+    writeFileSync(join(workspace, 'inputs', 'gain.npy'), '')
+  }
+
+  it('reads the document HOST-side, so the browser cannot submit one of its own', async () => {
+    // The confinement is `readTask`'s, inherited rather than restated: a
+    // second place to state the bound is a second place for it to drift.
+    project('model: {authored: true}\n')
+    const request = routes({ 'S-1': workspace })
+
+    await request(`${ROUTE_PREFIX}/definition`, 'session=S-1&path=tasks/fit.yaml')
+
+    expect(definitionCalls).toEqual([
+      { documentText: 'model: {authored: true}\n', taskPath: join(workspace, 'tasks', 'fit.yaml') },
+    ])
+  })
+
+  it('ignores a document the QUERY STRING tries to supply', async () => {
+    // The other half of "host-side". Asserting only that the host-read text
+    // was forwarded leaves room for a second, caller-named source alongside
+    // it — a mutation adding one survived until this test existed.
+    project('model: {authored: true}\n')
+    const request = routes({ 'S-1': workspace })
+
+    await request(`${ROUTE_PREFIX}/definition`,
+      `session=S-1&path=tasks/fit.yaml&text=${encodeURIComponent('model: {injected: true}')}`
+      + `&documentText=${encodeURIComponent('model: {injected: true}')}`)
+
+    expect(definitionCalls.map(call => call.documentText)).toEqual(['model: {authored: true}\n'])
+  })
+
+  it('does not place a self-contradicting answer inside the project', async () => {
+    // A reference that says it did not resolve yet carries a path is a
+    // compute service disagreeing with itself. Believing the path would turn
+    // that into a project-relative claim about a file nobody found.
+    project()
+    definition = {
+      inputs: [{
+        where: 'model.gain.gain', path: 'inputs/gain.npy', format: 'npy',
+        resolves: false, resolvedPath: join(workspace, 'inputs', 'gain.npy'),
+      }],
+      validation: { valid: true, errors: [], warnings: [] },
+      gates: { checks: [], runs: [], warnings: [] },
+    }
+    const request = routes({ 'S-1': workspace })
+
+    const response = await request(`${ROUTE_PREFIX}/definition`, 'session=S-1&path=tasks/fit.yaml')
+
+    const body = JSON.parse(response.body) as { inputs: [Record<string, unknown>] }
+    expect(body.inputs[0].inProject).toBe(false)
+    expect(response.body).not.toContain(workspace)
+  })
+
+  it('answers the digest of the bytes it CHECKED', async () => {
+    // The document pane and this check are two separate fetches. Without the
+    // digest, a file edited between them shows one document under the other's
+    // verdict.
+    project('model: {}\n')
+    const request = routes({ 'S-1': workspace })
+
+    const response = await request(`${ROUTE_PREFIX}/definition`, 'session=S-1&path=tasks/fit.yaml')
+
+    const body = JSON.parse(response.body) as { digest: string }
+    expect(body.digest).toBe(createHash('sha256').update('model: {}\n').digest('hex'))
+  })
+
+  it('turns a resolved path inside the project into a project-relative one', async () => {
+    project()
+    definition = {
+      inputs: [{
+        where: 'model.gain.gain', path: 'inputs/gain.npy', format: 'npy',
+        resolves: true, resolvedPath: join(workspace, 'inputs', 'gain.npy'),
+      }],
+      validation: { valid: true, errors: [], warnings: [] },
+      gates: { checks: [], runs: [], warnings: [] },
+    }
+    const request = routes({ 'S-1': workspace })
+
+    const response = await request(`${ROUTE_PREFIX}/definition`, 'session=S-1&path=tasks/fit.yaml')
+
+    const body = JSON.parse(response.body) as { inputs: [Record<string, unknown>] }
+    expect(body.inputs[0]).toMatchObject({
+      path: 'inputs/gain.npy', resolves: true, inProject: true, projectPath: 'inputs/gain.npy',
+    })
+  })
+
+  it('says a reference resolved OUTSIDE the project without saying where', async () => {
+    project()
+    const elsewhere = mkdtempSync(join(tmpdir(), 'rheplicant-outside-'))
+    definition = {
+      inputs: [{
+        where: 'model.gain.gain', path: '~/data/beam.npy', format: 'npy',
+        resolves: true, resolvedPath: join(elsewhere, 'beam.npy'),
+      }],
+      validation: { valid: true, errors: [], warnings: [] },
+      gates: { checks: [], runs: [], warnings: [] },
+    }
+    const request = routes({ 'S-1': workspace })
+
+    const response = await request(`${ROUTE_PREFIX}/definition`, 'session=S-1&path=tasks/fit.yaml')
+
+    expect(response.body).not.toContain(elsewhere)
+    const body = JSON.parse(response.body) as { inputs: [Record<string, unknown>] }
+    expect(body.inputs[0]).toMatchObject({ resolves: true, inProject: false })
+    expect(body.inputs[0].projectPath).toBeUndefined()
+  })
+
+  it('does not call a SIBLING directory part of the project', async () => {
+    // `/p/project-notes` starts with `/p/project` and is not inside it. The
+    // separator is what makes the prefix test a containment test.
+    project()
+    const sibling = `${workspace}-notes`
+    mkdirSync(sibling, { recursive: true })
+    definition = {
+      inputs: [{
+        where: 'model.gain.gain', path: '../notes/beam.npy', format: 'npy',
+        resolves: true, resolvedPath: join(sibling, 'beam.npy'),
+      }],
+      validation: { valid: true, errors: [], warnings: [] },
+      gates: { checks: [], runs: [], warnings: [] },
+    }
+    const request = routes({ 'S-1': workspace })
+
+    const response = await request(`${ROUTE_PREFIX}/definition`, 'session=S-1&path=tasks/fit.yaml')
+
+    const body = JSON.parse(response.body) as { inputs: [Record<string, unknown>] }
+    expect(body.inputs[0].inProject).toBe(false)
+    expect(body.inputs[0].projectPath).toBeUndefined()
+  })
+
+  it('never forwards the host path of a reference it could not resolve', async () => {
+    project()
+    definition = {
+      inputs: [{
+        where: 'model.gain.gain', path: 'missing.npy', format: 'npy',
+        resolves: false, resolvedPath: null,
+      }],
+      validation: { valid: true, errors: [], warnings: [] },
+      gates: { checks: [], runs: [], warnings: [] },
+    }
+    const request = routes({ 'S-1': workspace })
+
+    const response = await request(`${ROUTE_PREFIX}/definition`, 'session=S-1&path=tasks/fit.yaml')
+
+    expect(response.body).not.toContain(workspace)
+  })
+
+  it('refuses a path outside the project with the reader\'s own code', async () => {
+    project()
+    const request = routes({ 'S-1': workspace })
+
+    const response = await request(`${ROUTE_PREFIX}/definition`, 'session=S-1&path=../escape.yaml')
+
+    expect(response.status).toBe(400)
+    expect(JSON.parse(response.body).code).toBe('PATH_ESCAPES_PROJECT')
+    expect(definitionCalls).toEqual([])
+  })
+
+  it('reports a compute service that could not be reached as 502', async () => {
+    project()
+    definition = undefined
+    const request = routes({ 'S-1': workspace })
+
+    const response = await request(`${ROUTE_PREFIX}/definition`, 'session=S-1&path=tasks/fit.yaml')
+
+    expect(response.status).toBe(502)
+    expect(JSON.parse(response.body).code).toBe('DEFINITION_UNAVAILABLE')
+  })
+
+  it('refuses a request that names no project', async () => {
+    project()
+    const request = routes({ 'S-1': workspace })
+
+    const response = await request(`${ROUTE_PREFIX}/definition`, 'session=S-unknown&path=tasks/fit.yaml')
+
+    expect(response.status).toBe(404)
+    expect(JSON.parse(response.body).code).toBe('PROJECT_NOT_FOUND')
   })
 })

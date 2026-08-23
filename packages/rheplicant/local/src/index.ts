@@ -12,6 +12,7 @@ import z from '@deepseek-ai/schemastery'
 import { stdioRequest } from '@rheplicant/dsh-rheplicant-transport'
 import type {} from '@rheplicant/dsh-rheplicant'
 import type {
+  DefinitionReport,
   ComputeDocument,
   ComputeInput,
   ComputeOpts,
@@ -75,6 +76,10 @@ class LocalComputeProvider implements ComputeProvider {
 
   readExecution(resultsPath: string, opts: RunOpts): Promise<RunOutcome> {
     return this.request<RunOutcome>('execution.read', { resultsPath, runs: opts.runs }, opts)
+  }
+
+  definition(input: ComputeInput, opts: ComputeOpts): Promise<DefinitionReport> {
+    return this.request<DefinitionReport>('document.definition', { ...input }, opts)
   }
 
   schema(opts: ComputeOpts): Promise<SchemaDocument> {

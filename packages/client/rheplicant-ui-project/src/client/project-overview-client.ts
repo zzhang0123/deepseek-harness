@@ -18,7 +18,8 @@
  */
 
 import type {
-  ProjectExecutionRow, ProjectInputRow, ProjectOverviewBody, ProjectTaskRow,
+  ProjectDefinitionBody, ProjectExecutionRow, ProjectInputRow, ProjectOverviewBody,
+  ProjectTaskRow,
 } from '@rheplicant/dsh-rheplicant'
 
 /** Where the host mounts the project routes. */
@@ -204,6 +205,55 @@ export async function fetchExecutionProjection(
   try {
     const body: unknown = await response.json()
     return typeof body === 'object' && body !== null ? body as ExecutionProjection : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * How far one task is from §7's "completely defined".
+ *
+ * `docs/project-model.md` §12. The document is read HOST-side, so this asks
+ * by path and sends no text: a browser that could submit a document could
+ * have a verdict rendered about bytes nobody has on disk.
+ *
+ * @param workspaceId - the project the task belongs to.
+ * @param path - the task's workspace-relative path, from the listing.
+ * @param signal - abort when the selection changes.
+ * @returns the report, `'refused'` when the host would not serve that path,
+ *   and `undefined` when the route or the compute service could not be
+ *   reached. Three answers, because a wrong path and an absent service want
+ *   different things done about them.
+ */
+export async function fetchTaskDefinition(
+  workspaceId: string,
+  path: string,
+  signal?: AbortSignal,
+): Promise<ProjectDefinitionBody | 'refused' | undefined> {
+  let response: Response
+  try {
+    response = await fetch(
+      `${ROUTE_PREFIX}/definition?workspace=${encodeURIComponent(workspaceId)}`
+      + `&path=${encodeURIComponent(path)}`,
+      { ...(signal === undefined ? {} : { signal }), headers: { accept: 'application/json' } },
+    )
+  } catch {
+    return undefined
+  }
+  if (response.status === 400 || response.status === 404) return 'refused'
+  if (!response.ok) return undefined
+  try {
+    const body: unknown = await response.json()
+    if (typeof body !== 'object' || body === null) return undefined
+    const row = body as Record<string, unknown>
+    // The digest is not optional. Without it there is no way to know which
+    // document this verdict describes, and a verdict that cannot be dated is
+    // exactly what §12.6 exists to keep off the screen.
+    if (typeof row.digest !== 'string' || typeof row.path !== 'string') return undefined
+    if (!Array.isArray(row.inputs)) return undefined
+    if (typeof row.validation !== 'object' || row.validation === null) return undefined
+    if (typeof row.gates !== 'object' || row.gates === null) return undefined
+    return body as ProjectDefinitionBody
   } catch {
     return undefined
   }

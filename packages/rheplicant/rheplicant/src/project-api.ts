@@ -31,6 +31,7 @@ import type {} from '@deepseek-ai/dsh-host-webserver'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-workspace'
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { createHash } from 'node:crypto'
 import { basename, join, sep } from 'node:path'
 
 import {
@@ -38,7 +39,8 @@ import {
 } from './executions.ts'
 import type { ProjectTaskDocumentBody } from './types.ts'
 import type {
-  ProjectExecutionRow, ProjectExecutionsBody, ProjectOverviewBody, ProjectTaskRow,
+  DocumentInputReference, ProjectDefinitionBody, ProjectExecutionRow, ProjectExecutionsBody,
+  ProjectInputReference, ProjectOverviewBody, ProjectTaskRow,
 } from './types.ts'
 import { RESULTS_ROOT, taskSegment } from './project.ts'
 import type {} from './project-runtime.ts'
@@ -237,6 +239,41 @@ function requestUrl(req: IncomingMessage): URL | undefined {
 }
 
 /**
+ * One `file:` reference with the host path taken off it.
+ *
+ * The trust boundary at the one place in this design that is MADE of paths
+ * (§12.5). A reference that resolved inside the project keeps a
+ * workspace-relative path, which is what lets an Inputs row be linked. One
+ * that resolved elsewhere says so and carries nothing; one that did not
+ * resolve carries nothing either — rheplicant's own refusal lists every
+ * directory it tried, in host-absolute form, and that is exactly what must
+ * not cross.
+ *
+ * @param workspace - the project's absolute directory.
+ * @param reference - the reference as the compute service answered it.
+ * @returns the browser-facing view.
+ */
+function withoutHostPath(
+  workspace: string,
+  reference: DocumentInputReference,
+): ProjectInputReference {
+  const base = {
+    where: reference.where,
+    path: reference.path,
+    format: reference.format,
+    resolves: reference.resolves,
+    ...(reference.malformed === undefined ? {} : { malformed: reference.malformed }),
+  }
+  const resolved = reference.resolvedPath
+  if (!reference.resolves || resolved === null) return { ...base, inProject: false }
+  // `startsWith` on the directory PLUS its separator, never on the bare
+  // directory: `/p/project-notes` starts with `/p/project` and is not in it.
+  const prefix = workspace.endsWith(sep) ? workspace : `${workspace}${sep}`
+  if (!resolved.startsWith(prefix)) return { ...base, inProject: false }
+  return { ...base, inProject: true, projectPath: resolved.slice(prefix.length).split(sep).join('/') }
+}
+
+/**
  * Register the listing and artifact routes.
  * @param ctx - the plugin context, with `webServer`, `rheplicantProject` and `sessions`.
  */
@@ -321,6 +358,55 @@ export function apply(ctx: Context): void {
         json(res, code === 'PATH_ESCAPES_PROJECT' || code === 'ARTIFACT_NOT_ALLOWED' ? 400 : 404, {
           error: 'this task document could not be read',
           code,
+        })
+      }
+    },
+  }))
+
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'exact',
+    path: `${ROUTE_PREFIX}/definition`,
+    handler: async (req, res) => {
+      const url = requestUrl(req)
+      const workspace = url === undefined ? undefined : workspaceFor(ctx, url)
+      if (url === undefined || workspace === undefined) {
+        json(res, 404, { error: 'unknown project', code: 'PROJECT_NOT_FOUND' })
+        return
+      }
+      // Read HOST-side, through the same reader the `/task` route uses, so
+      // the confinement is inherited rather than restated — and so a browser
+      // cannot submit a document of its own to be checked (§12.6).
+      let document
+      try {
+        document = ctx.rheplicantProject.readTask(workspace, url.searchParams.get('path') ?? '')
+      } catch (error) {
+        const code = error instanceof ProjectReadError ? error.code : 'ARTIFACT_UNREADABLE'
+        json(res, code === 'PATH_ESCAPES_PROJECT' || code === 'ARTIFACT_NOT_ALLOWED' ? 400 : 404, {
+          error: 'this task document could not be read',
+          code,
+        })
+        return
+      }
+      const absolute = join(workspace, document.path)
+      try {
+        const report = await ctx.rheplicant.definition(
+          { documentText: document.text, taskPath: absolute },
+          { transport: (url.searchParams.get('transport') ?? 'local') as never },
+        )
+        json(res, 200, {
+          path: document.path,
+          // The digest of the bytes actually checked, so a verdict can never
+          // be shown against a document it does not describe.
+          digest: createHash('sha256').update(document.text).digest('hex'),
+          inputs: report.inputs.map((reference: DocumentInputReference) => withoutHostPath(workspace, reference)),
+          validation: report.validation,
+          gates: report.gates,
+        } satisfies ProjectDefinitionBody)
+      } catch (error) {
+        json(res, 502, {
+          error: 'the compute service could not check this task',
+          code: 'DEFINITION_UNAVAILABLE',
+          detail: error instanceof Error ? error.message : String(error),
         })
       }
     },

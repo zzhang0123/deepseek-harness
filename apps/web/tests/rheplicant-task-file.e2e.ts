@@ -24,6 +24,7 @@ import { SessionId } from '@deepseek-ai/dsh-session'
 import type { ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 import { ComputeRuntime } from '@rheplicant/dsh-rheplicant'
 import type {
+  DefinitionReport,
   ComputeInput, ComputeProvider, GatesReport, RunOutcome, SchemaDocument, SignalPathGraph, ValidationReport,
 } from '@rheplicant/dsh-rheplicant'
 import * as toolRun from '@rheplicant/dsh-rheplicant-tool-run'
@@ -81,6 +82,19 @@ class CapturingProvider implements ComputeProvider {
   // refuses rather than inventing an outcome that would look like a real one.
   readExecution(resultsPath: string): Promise<RunOutcome> {
     return Promise.reject(new Error(`this scenario publishes nothing; ${resultsPath} does not exist`))
+  }
+
+  // §12 added `definition` to the seam: §7's four criteria, answered from one
+  // document at once. This scenario checks the RUN path, so the stub answers a
+  // defined task rather than refusing — a refusal here would be an assertion
+  // about definedness that this test is not making.
+  definition(input: ComputeInput): Promise<DefinitionReport> {
+    this.seen.push(input)
+    return Promise.resolve({
+      inputs: [],
+      validation: { valid: true, errors: [] },
+      gates: { checks: [], runs: [], warnings: [] },
+    })
   }
 
   schema(): Promise<SchemaDocument> {

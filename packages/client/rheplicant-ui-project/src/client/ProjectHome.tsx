@@ -40,7 +40,9 @@ import { useProjectOverview } from './use-project-overview.ts'
 import { useTaskDocument } from './use-task-document.ts'
 import { useWorkbenchExecution } from './use-workbench-execution.ts'
 import { useDocumentDigest } from './use-document-digest.ts'
+import { useTaskDefinition } from './use-task-definition.ts'
 import { TaskMaturity } from './TaskMaturity.tsx'
+import { TaskDefinition } from './TaskDefinition.tsx'
 import type { TaskPanelOwnerProps } from './index.ts'
 import styles from './project-home.module.css'
 
@@ -125,6 +127,10 @@ export const ProjectHome = memo(function ProjectHome(
   // Staleness is a DIGEST comparison (§4.2), so the authored document is
   // hashed here rather than compared by modification time.
   const documentDigest = useDocumentDigest(document_.document?.text)
+  // Checked on SELECTION, not behind a button (§12.7): both halves are pure
+  // functions of the text, and a checklist that must be asked for is one
+  // nobody sees.
+  const definition = useTaskDefinition(chosen, selection.taskPath, nonce)
 
   useEffect(() => {
     if (!open) return
@@ -149,6 +155,15 @@ export const ProjectHome = memo(function ProjectHome(
       .catch((error: unknown) => {
         setFailure(error instanceof Error ? error.message : String(error))
       })
+  }, [chosen])
+  // The same action with no target: an empty project has no task to arrive
+  // selected, and landing in a conversation is the whole point.
+  const workOnProject = useCallback(() => {
+    if (chosen === undefined) return
+    setFailure(undefined)
+    void openProject(chosen).catch((error: unknown) => {
+      setFailure(error instanceof Error ? error.message : String(error))
+    })
   }, [chosen])
   const openable = canNavigate()
 
@@ -241,10 +256,50 @@ export const ProjectHome = memo(function ProjectHome(
               <Panel id="project-tasks" title="Tasks" subtitle={`${current.tasks.length} document${current.tasks.length === 1 ? '' : 's'}`}>
                 {current.tasks.length === 0
                   ? (
-                    <EmptyState
-                      message="No task documents yet"
-                      hint="A task is a rheplicant config document anywhere in this project. Ask the agent to author one, and it becomes runnable here."
-                    />
+                    <>
+                      <EmptyState
+                        message="No task documents yet"
+                        hint="A task is a rheplicant config document anywhere in this project — there is no blessed directory, so wherever you keep it is where it lives."
+                      />
+                      {/* §7's four criteria, before there is a task for them
+                          to be about. The same list the checklist above shows
+                          once one exists, so the vocabulary is learned once. */}
+                      <ol className={styles.onboarding} data-project-onboarding="">
+                        <li>
+                          <strong>Inputs resolve.</strong> Every <code>file:</code> the document
+                          names can be found — beside the document, or anywhere else you point it.
+                        </li>
+                        <li>
+                          <strong>The document validates.</strong> Pre-flight, which is every check
+                          decidable from the text alone, comes back clean.
+                        </li>
+                        <li>
+                          <strong>The gates are priced.</strong> You have seen what each check costs
+                          and chosen its mode, with a written reason for anything you skip.
+                        </li>
+                        <li>
+                          <strong>The task is named.</strong> Its name is the file&rsquo;s, and it is
+                          what its results are filed under in <code>results/</code>.
+                        </li>
+                      </ol>
+                      <p className={styles.note}>
+                        Only then is running it the obvious next step. This surface reads a project;
+                        it never writes one, so authoring is a conversation — open a session and ask
+                        the agent for a document, and it appears here.
+                      </p>
+                      {openable && (
+                        <div className={styles.onboardingActions}>
+                          <button
+                            type="button"
+                            className={styles.open}
+                            data-project-open-empty=""
+                            onClick={() => { workOnProject() }}
+                          >
+                            Open a session in this project
+                          </button>
+                        </div>
+                      )}
+                    </>
                   )
                   : (
                     <ul className={styles.rows} data-project-tasks="">
@@ -290,6 +345,28 @@ export const ProjectHome = memo(function ProjectHome(
                     </ul>
                   )}
               </Panel>
+
+              {selection.taskPath !== undefined && selectedTask !== undefined && (
+                <Panel
+                  id="project-task-definition"
+                  title="Is this task defined?"
+                  subtitle="read off the document, as authored"
+                >
+                  {/* Guarded on `shownFor` for the same reason the document
+                      pane is: a verdict held across a change of task would
+                      appear under the new task's name. */}
+                  <TaskDefinition
+                    task={selectedTask}
+                    report={definition.shownFor === `${chosen ?? ''} ${selection.taskPath}`
+                      ? definition.report
+                      : undefined}
+                    problem={definition.shownFor === `${chosen ?? ''} ${selection.taskPath}`
+                      ? definition.problem
+                      : 'loading'}
+                    documentDigest={documentDigest}
+                  />
+                </Panel>
+              )}
 
               {selection.taskPath !== undefined && selectedTask !== undefined && (
                 <Panel id="project-task-maturity" title="This task" subtitle="read off the project, not this conversation">

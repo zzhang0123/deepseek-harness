@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fetchProjectOverview } from '../src/client/project-overview-client.ts'
+import { fetchProjectOverview, fetchTaskDefinition } from '../src/client/project-overview-client.ts'
 
 /** A complete, well-formed body, which each test then damages one way. */
 function body(over: Record<string, unknown> = {}): Record<string, unknown> {
@@ -103,5 +103,56 @@ describe('a project it cannot read', () => {
   ])('answers undefined when %s is not a list', async (_name, damage) => {
     answer(200, body(damage))
     expect(await fetchProjectOverview('ws-1')).toBeUndefined()
+  })
+})
+
+describe('asking whether one task is defined', () => {
+  /** A complete definition body, which each test then damages one way. */
+  function definition(over: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      path: 'tasks/fit.yaml',
+      digest: 'abc123',
+      inputs: [{
+        where: 'model.gain.gain', path: 'inputs/gain.npy', format: 'npy',
+        resolves: true, inProject: true, projectPath: 'inputs/gain.npy',
+      }],
+      validation: { valid: true, errors: [], warnings: [] },
+      gates: { checks: [], runs: [], warnings: [] },
+      ...over,
+    }
+  }
+
+  it('names the workspace and the task, both encoded', async () => {
+    answer(200, definition())
+    await fetchTaskDefinition('ws 1', 'tasks/a b.yaml')
+    const [url] = (globalThis.fetch as unknown as { mock: { calls: [string][] } }).mock.calls[0]!
+    expect(url).toBe('/rheplicant/project/definition?workspace=ws%201&path=tasks%2Fa%20b.yaml')
+  })
+
+  it('decodes a well-formed answer', async () => {
+    answer(200, definition())
+    const found = await fetchTaskDefinition('ws-1', 'tasks/fit.yaml')
+    expect(found).toMatchObject({ digest: 'abc123' })
+  })
+
+  it('reports a refused path differently from an unreachable route', async () => {
+    // "The path is wrong" and "we could not ask" send someone to different
+    // places, so the caller gets to tell them apart.
+    answer(400, { code: 'PATH_ESCAPES_PROJECT' })
+    expect(await fetchTaskDefinition('ws-1', '../escape.yaml')).toBe('refused')
+    answer(502, { code: 'DEFINITION_UNAVAILABLE' })
+    expect(await fetchTaskDefinition('ws-1', 'tasks/fit.yaml')).toBeUndefined()
+  })
+
+  it('refuses a body missing the digest rather than trusting a verdict it cannot date', async () => {
+    // Without the digest there is no way to know which document the verdict
+    // describes, which is the one thing §12.6 exists to prevent.
+    answer(200, definition({ digest: undefined }))
+    expect(await fetchTaskDefinition('ws-1', 'tasks/fit.yaml')).toBeUndefined()
+  })
+
+  it('refuses a body whose inputs are not a list', async () => {
+    answer(200, definition({ inputs: 'lots' }))
+    expect(await fetchTaskDefinition('ws-1', 'tasks/fit.yaml')).toBeUndefined()
   })
 })
