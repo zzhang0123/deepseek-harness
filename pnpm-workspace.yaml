@@ -7,6 +7,13 @@ packages:
   - native/landlock-run/packages/*
   # Product assemblies over the package tier; apps/cli owns the `dsh` bin.
   - apps/*
+  # The rheplicant web e2e install anchor. A member for DEPENDENCY RESOLUTION
+  # only, never a build target: `packageDirFromAnchor` resolves with ordinary
+  # upward node_modules lookup, and `apps/*` does not match a directory this
+  # deep — so without this line pnpm creates no node_modules beside it and the
+  # anchor resolves nothing. Same reason `examples` and `native/landlock-run`
+  # are listed individually above.
+  - apps/web/tests/rheplicant-anchor
   - website
   # The runnable demo leaves join as ONE workspace member: examples/package.json
   # declares the union of every leaf's cordis.yml plugins as workspace:*, so a

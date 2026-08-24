@@ -1,0 +1,22 @@
+{
+  "name": "@deepseek-ai/dsh-rheplicant-e2e-anchor",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Install anchor for the rheplicant web e2e scenarios. NOT a product: healProfilesModuleFallback walks this manifest's dependencies to decide which packages a composed row can resolve, so declaring them here is what keeps them out of DSH's own bundle and CLI. Every entry must be a `dependencies` entry — the BFS walks dependencies and peerDependencies only, never devDependencies.",
+  "dependencies": {
+    "@rheplicant/dsh-rheplicant": "workspace:^",
+    "@rheplicant/dsh-rheplicant-transport": "workspace:^",
+    "@rheplicant/dsh-rheplicant-local": "workspace:^",
+    "@rheplicant/dsh-rheplicant-tool-run": "workspace:^",
+    "@deepseek-ai/dsh-client-rheplicant-ui-analysis": "workspace:^",
+    "@deepseek-ai/dsh-client-rheplicant-ui-brand": "workspace:^",
+    "@deepseek-ai/dsh-client-rheplicant-ui-compute": "workspace:^",
+    "@deepseek-ai/dsh-client-rheplicant-ui-console": "workspace:^",
+    "@deepseek-ai/dsh-client-rheplicant-ui-document": "workspace:^",
+    "@deepseek-ai/dsh-client-rheplicant-ui-identifiability": "workspace:^",
+    "@deepseek-ai/dsh-client-rheplicant-ui-posterior": "workspace:^",
+    "@deepseek-ai/dsh-client-rheplicant-ui-project": "workspace:^",
+    "@deepseek-ai/dsh-client-rheplicant-ui-spectrum": "workspace:^",
+    "@deepseek-ai/dsh-client-rheplicant-ui-theme": "workspace:^"
+  }
+}

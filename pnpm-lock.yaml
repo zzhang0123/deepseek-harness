@@ -437,6 +437,51 @@ importers:
         specifier: ^4.1.8
         version: 4.1.8(@opentelemetry/api@1.9.0)(@types/node@22.20.0)(@vitest/coverage-v8@4.1.8)(jsdom@29.1.1)(vite@6.4.3(@types/node@22.20.0)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.4)(yaml@2.9.0))
 
+  apps/web/tests/rheplicant-anchor:
+    dependencies:
+      '@deepseek-ai/dsh-client-rheplicant-ui-analysis':
+        specifier: workspace:^
+        version: link:../../../../packages/client/rheplicant-ui-analysis
+      '@deepseek-ai/dsh-client-rheplicant-ui-brand':
+        specifier: workspace:^
+        version: link:../../../../packages/client/rheplicant-ui-brand
+      '@deepseek-ai/dsh-client-rheplicant-ui-compute':
+        specifier: workspace:^
+        version: link:../../../../packages/client/rheplicant-ui-compute
+      '@deepseek-ai/dsh-client-rheplicant-ui-console':
+        specifier: workspace:^
+        version: link:../../../../packages/client/rheplicant-ui-console
+      '@deepseek-ai/dsh-client-rheplicant-ui-document':
+        specifier: workspace:^
+        version: link:../../../../packages/client/rheplicant-ui-document
+      '@deepseek-ai/dsh-client-rheplicant-ui-identifiability':
+        specifier: workspace:^
+        version: link:../../../../packages/client/rheplicant-ui-identifiability
+      '@deepseek-ai/dsh-client-rheplicant-ui-posterior':
+        specifier: workspace:^
+        version: link:../../../../packages/client/rheplicant-ui-posterior
+      '@deepseek-ai/dsh-client-rheplicant-ui-project':
+        specifier: workspace:^
+        version: link:../../../../packages/client/rheplicant-ui-project
+      '@deepseek-ai/dsh-client-rheplicant-ui-spectrum':
+        specifier: workspace:^
+        version: link:../../../../packages/client/rheplicant-ui-spectrum
+      '@deepseek-ai/dsh-client-rheplicant-ui-theme':
+        specifier: workspace:^
+        version: link:../../../../packages/client/rheplicant-ui-theme
+      '@rheplicant/dsh-rheplicant':
+        specifier: workspace:^
+        version: link:../../../../packages/rheplicant/rheplicant
+      '@rheplicant/dsh-rheplicant-local':
+        specifier: workspace:^
+        version: link:../../../../packages/rheplicant/local
+      '@rheplicant/dsh-rheplicant-tool-run':
+        specifier: workspace:^
+        version: link:../../../../packages/rheplicant/tool-run
+      '@rheplicant/dsh-rheplicant-transport':
+        specifier: workspace:^
+        version: link:../../../../packages/rheplicant/transport
+
   examples:
     dependencies:
       '@deepseek-ai/cordis-plugin-hmr':
@@ -1359,6 +1404,9 @@ importers:
       '@deepseek-ai/dsh-client-ui-attachment':
         specifier: workspace:^
         version: link:../../client/ui-attachment
+      '@deepseek-ai/dsh-client-ui-brand-official':
+        specifier: workspace:^
+        version: link:../../client/ui-brand-official
       '@deepseek-ai/dsh-client-ui-commands':
         specifier: workspace:^
         version: link:../../client/ui-commands

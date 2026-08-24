@@ -190,6 +190,20 @@ export interface WebScaffold {
 /** Options for {@link launchWebScaffold}. */
 export interface LaunchOptions {
   /**
+   * Manifest whose dependency closure becomes an ADDITIONAL profile module
+   * fallback root — a second BFS `healProfilesModuleFallback` walks, on top
+   * of the shipped CLI (never instead of it: the base/web-app bundles must
+   * keep resolving), to decide which extra packages a composed row's `name:`
+   * can resolve to. Omit for scenarios that need nothing extra.
+   *
+   * A row EXISTING and its package RESOLVING are two different facts:
+   * `extraOverlayPath` supplies the first, this supplies the second. A
+   * scenario mounting a plugin outside DSH's own product closure needs both,
+   * which is why the rheplicant scenarios pass a manifest of their own
+   * instead of DSH's artifacts carrying their dependencies.
+   */
+  installAnchor?: string
+  /**
    * Optional product overlay applied after the shipped Web surface and before
    * the scaffold's hermetic test patches, matching the launcher's `--patch`
    * ordering.
@@ -517,7 +531,17 @@ export async function launchWebScaffold(options: LaunchOptions = {}): Promise<We
     // The production module-resolution setup: an empty profile root inside the temp
     // harness home, with bare plugin names resolving through the flat module
     // fallback the launcher heals under <home>/profiles.
+    //
+    // ADDITIVE, not `??`: healProfilesModuleFallback only ever creates/updates
+    // symlinks for the closure it walks, never removing ones an earlier call
+    // established (see its own "idempotent" contract). The shipped CLI anchor
+    // must always run so the base/web-app bundles resolve (cordis-plugin-timer
+    // and the rest of their closure); replacing it with `installAnchor` instead
+    // of layering on top left every non-rheplicant package unresolvable and the
+    // boot failed on the first unrelated row — caught by this scenario at the
+    // Step 11 gate.
     healProfilesModuleFallback(INSTALL_ANCHOR, harnessHome)
+    if (options.installAnchor !== undefined) healProfilesModuleFallback(options.installAnchor, harnessHome)
     const profileDir = join(harnessHome, 'profiles', 'scaffold')
     await mkdir(profileDir, { recursive: true })
     const rootConfig = join(profileDir, 'cordis.yml')

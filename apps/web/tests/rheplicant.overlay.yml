@@ -1,0 +1,61 @@
+# Composition rows for the rheplicant web e2e scenarios. These used to live in
+# packages/bundle/web-app/cordis.patch.yml, which made `pnpm dsh web` from this
+# checkout boot rheplicant instead of DSH. They are test scenery, so they live
+# with the tests and are applied per-scenario via `extraOverlayPath`.
+#
+# The packages these rows name are resolved through
+# apps/web/tests/rheplicant-anchor/package.json, passed as `installAnchor`.
+# A row without that anchor resolves nothing; both are required.
+#
+# The ten rows below sit inside ONE `- insert:` list rather than being stated
+# as bare `{id, name}` patches. A bare entry PATCHES an existing row by id and
+# warns-and-skips when that id is absent (cordis-plugin-include's
+# applyEntryPatches, vendor/include/src/index.ts) — it never creates a row.
+# None of these ids exist anywhere once packages/bundle/web-app/cordis.patch.yml
+# drops them, so a bare form silently no-ops all ten and the scenario boots
+# with no rheplicant plugin loaded at all — confirmed the hard way, by running
+# this exact file through applyEntryPatches and reading back "patch: entry not
+# found" for every one of them. The precedent for the insert shape already
+# lives in this repo: apps/web/tests/pin-browse-picker.overlay.yml, whose own
+# comment calls it "the disable+insert pair."
+#
+# `ui-brand-official` below stays a BARE entry on purpose: that row already
+# exists (restored by packages/bundle/web-app/cordis.patch.yml), so patching
+# it — not inserting a duplicate — is correct, exactly like
+# pin-browse-picker.overlay.yml's own `directory-picker` disable.
+
+# DSH's own brand is DISABLED rather than deleted, so the shipped rows survive
+# in the bundle and only step aside for the duration of a scenario.
+- id: ui-brand-official
+  disabled: true
+
+- insert:
+    - id: ui-brand-rheplicant
+      name: '@deepseek-ai/dsh-client-rheplicant-ui-brand'
+
+    # Rheplicant theme (registers a `rheplicant` token set as default).
+    - id: client-rheplicant-ui-theme
+      name: '@deepseek-ai/dsh-client-rheplicant-ui-theme'
+
+    # BEFORE the console on purpose: this row publishes `ctx.rheplicantSelection`
+    # (docs/project-model.md §11.2), which the console looks up. The console
+    # resolves it lazily so the order is not load-bearing, but a provider ahead of
+    # its consumer is the arrangement that needs no explaining.
+    - id: client-rheplicant-ui-project
+      name: '@deepseek-ai/dsh-client-rheplicant-ui-project'
+
+    - id: client-rheplicant-ui-console
+      name: '@deepseek-ai/dsh-client-rheplicant-ui-console'
+    - id: client-rheplicant-ui-posterior
+      name: '@deepseek-ai/dsh-client-rheplicant-ui-posterior'
+    - id: client-rheplicant-ui-spectrum
+      name: '@deepseek-ai/dsh-client-rheplicant-ui-spectrum'
+    - id: client-rheplicant-ui-identifiability
+      name: '@deepseek-ai/dsh-client-rheplicant-ui-identifiability'
+
+    - id: client-rheplicant-ui-analysis
+      name: '@deepseek-ai/dsh-client-rheplicant-ui-analysis'
+    - id: client-rheplicant-ui-compute
+      name: '@deepseek-ai/dsh-client-rheplicant-ui-compute'
+    - id: client-rheplicant-ui-document
+      name: '@deepseek-ai/dsh-client-rheplicant-ui-document'
