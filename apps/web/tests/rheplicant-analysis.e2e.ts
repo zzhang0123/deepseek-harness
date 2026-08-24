@@ -24,7 +24,7 @@ const SEED_FIXTURE = [
   '{"type":"turn/start","seq":0,"time":1784974100758,"data":{"turn":1,"trigger":{"kind":"message","source":{"kind":"user","rpcId":"{{rpcId}}"}}}}',
   '{"type":"user/message","seq":1,"time":1784974100759,"data":{"content":[{"type":"text","text":"Run the forward analysis and read back the result."}],"source":{"kind":"user","rpcId":"{{rpcId}}"}},"surfaceOp":"append"}',
   '{"type":"step/start","seq":2,"time":1784974100827,"data":{"turn":1,"step":1}}',
-  '{"type":"rheplicant/run","seq":3,"time":1784974100828,"ignorable":true,"data":{"document":{"schema_version":1,"model":{"global_signal":{"depth":0.1,"centre":75e6,"width":5e6},"gain":{"gain":1.1},"noise":{"sigma":0.05}}},"outcome":{"runs":[{"name":"sim","kind":"forward","status":"ok","diagnostics":{"converged":true,"rhat":1.02,"rank":6,"nullity":0,"chi2":12.4,"n_eff":1200,"divergences":0,"kappa":40.0,"notes":["seed=42","n_draw=1000"]}},{"name":"fit","kind":"nuts","status":"ok","diagnostics":{"rhat":1.002,"n_eff":1327,"divergences":0,"notes":[]},"chains":{"g":[1.0,1.1,1.2,1.05,1.08,1.15],"amp":[0.5,0.51,0.49,0.52,0.5,0.5]}},{"name":"post","kind":"predict","status":"failed"}],"tookMs":42,"graph":{"graph":"single-antenna","lit":["global_signal","gain","noise"],"skipped":["astro_sum","beam_spill"],"svg":"<svg xmlns=\\"http://www.w3.org/2000/svg\\" width=\\"20\\" height=\\"20\\" role=\\"img\\"></svg>"},"gates":[{"check":"C12","severity":"warn","where":"inference.parameters.g","message":"relative departure exceeds rtol"}]},"transport":"local"}}',
+  '{"type":"rheplicant/run","seq":3,"time":1784974100828,"ignorable":true,"data":{"document":{"schema_version":1,"model":{"global_signal":{"depth":0.1,"centre":75e6,"width":5e6},"gain":{"gain":1.1},"noise":{"sigma":0.05}}},"outcome":{"runs":[{"name":"sim","kind":"forward","status":"ok","diagnostics":{"converged":true,"rhat":1.02,"rank":6,"nullity":0,"chi2":12.4,"n_eff":1200,"divergences":0,"kappa":40.0,"notes":["seed=42","n_draw=1000"]}},{"name":"fit","kind":"nuts","status":"ok","diagnostics":{"rhat":1.002,"n_eff":1327,"divergences":0,"notes":[]},"chains":{"g":[1.0,1.1,1.2,1.05,1.08,1.15],"amp":[0.5,0.51,0.49,0.52,0.5,0.5]}},{"name":"post","kind":"predict","status":"failed"}],"tookMs":42,"graph":{"graph":"single-antenna","lit":["global_signal","gain","noise"],"skipped":["astro_sum","beam_spill"],"svg":"<svg xmlns=\\"http://www.w3.org/2000/svg\\" width=\\"20\\" height=\\"20\\" role=\\"img\\"></svg>"},"gates":[{"check":"C12","severity":"warn","where":"inference.parameters.g","message":"relative departure exceeds rtol","departure":[["g",[[0.001,1.32e-4],[1,4.89e-1],[1000,null]]]]}]},"transport":"local"}}',
   '{"type":"assistant/message","seq":4,"time":1784974100829,"data":{"turn":1,"step":1,"content":[{"type":"text","text":"The forward run completed."}],"provenance":{"provider":"deepseek-official","model":"deepseek-v4-flash"}},"surfaceOp":"append"}',
   '{"type":"step/end","seq":5,"time":1784974100830,"data":{"turn":1,"step":1}}',
   '{"type":"turn/end","seq":6,"time":1784974100831,"data":{"turn":1,"reason":{"kind":"completed"}}}',
@@ -116,6 +116,27 @@ describe('web e2e: rheplicant analysis node renders from the log', () => {
     await gatesEl.waitFor({ timeout: 5_000 })
     expect(await gatesEl.locator('[data-gate]').first().getAttribute('data-gate-check')).toBe('C12')
     expect(await gatesEl.locator('[data-gate]').first().innerText()).toContain('departure')
+
+    // C12's departure is the one gate field that is a NUMBER rather than a
+    // sentence, and the three probe scales stay apart because the trend across
+    // them is the diagnosis: "affine until the probe is large" and "not affine
+    // anywhere" are different faults, and a summary renders them identically.
+    // The seed's last probe is `null` — the wire's spelling of a non-finite
+    // measurement, which upstream counts as a FAILURE — so the assertion that
+    // it draws `—` and not `0` is the one that keeps a verdict from inverting
+    // on its way to the screen.
+    const departure = gatesEl.locator('[data-departure-latent="g"]')
+    await departure.waitFor({ timeout: 5_000 })
+    const probes = departure.locator('[data-departure-probe]')
+    expect(await probes.count()).toBe(3)
+    expect(await probes.nth(0).getAttribute('data-departure-scale')).toBe('0.001')
+    expect(await probes.nth(0).innerText()).toBe('0.001× → 1.32e-4')
+    expect(await probes.nth(2).getAttribute('data-departure-scale')).toBe('1000')
+    // The WHOLE string, because the interesting half is what is NOT there: a
+    // `.not.toContain('0')` reads as "no zero rendered" and is satisfied by the
+    // scale's own digits, so it passes on `1000× → 0` too — the exact case it
+    // was written to catch.
+    expect(await probes.nth(2).innerText()).toBe('1000× → —')
 
     const fit = panel.locator('[data-run-name="fit"]')
     await fit.waitFor({ timeout: 5_000 })

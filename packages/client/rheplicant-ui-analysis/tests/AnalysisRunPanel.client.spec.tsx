@@ -232,3 +232,88 @@ describe('a historical event carrying an explicit null', () => {
     expect(document.querySelector('[data-run-name="mmode"]')).toBeTruthy()
   })
 })
+
+
+/**
+ * C12's departure table — the one gate field that is a number rather than a
+ * sentence.
+ *
+ * Upstream renders the same measurement into the finding's message and, since
+ * `LinearityRefused`, also carries it as data; parsing the message back out is
+ * a mapping rheplicant's source will not defend (`docs/project-model.md`
+ * §18.2), which is why the field exists at all. What is worth pinning here is
+ * that the panel keeps the three probes DISTINCT and keeps `null` distinct
+ * from `0` — a summary or a zero would each erase the diagnosis the table is.
+ */
+describe('the linearity departure a C12 finding carries', () => {
+  const GATED = (departure?: AnalysisRunChatData['gates']): AnalysisRunChatData => ({
+    published: false,
+    runs: [{ name: 'fit', kind: 'nuts', status: 'ok' }],
+    ...(departure === undefined ? {} : { gates: departure }),
+  })
+
+  it('draws one row per latent and one entry per probe scale', () => {
+    draw(GATED([{
+      check: 'C12',
+      severity: 'refuse',
+      where: 'inference.parameters.w',
+      message: 'the prediction is not affine in w.',
+      departure: [['w', [[0.001, 1.32e-4], [1, 4.89e-1], [1000, 9.95e-1]]]],
+    }]))
+    const row = document.querySelector('[data-departure-latent="w"]')
+    expect(row).toBeTruthy()
+    expect(row!.querySelectorAll('[data-departure-probe]').length).toBe(3)
+    expect(row!.textContent).toContain('1.32e-4')
+    expect(row!.textContent).toContain('0.995')
+  })
+
+  it('keeps the SCALES apart, because the trend across them is the diagnosis', () => {
+    draw(GATED([{
+      check: 'C12',
+      severity: 'refuse',
+      where: 'inference.parameters.amp',
+      message: 'the prediction is not affine in amp.',
+      departure: [['amp', [[0.001, 1e-5], [1, 8.98], [1000, 45.5]]]],
+    }]))
+    const scales = [...document.querySelectorAll('[data-departure-probe]')]
+      .map(node => node.getAttribute('data-departure-scale'))
+    expect(scales).toEqual(['0.001', '1', '1000'])
+  })
+
+  it('renders a non-finite departure as — and never as zero', () => {
+    // Measured upstream on the shipped refusing document: every scale is `nan`,
+    // which reaches the wire as `null`. It means the linearization could not be
+    // evaluated at that probe — a FAILURE — while `0` is what a latent that
+    // really IS affine measures. Printing one as the other inverts the verdict.
+    draw(GATED([{
+      check: 'C12',
+      severity: 'refuse',
+      where: 'inference.parameters.w',
+      message: 'the prediction is not affine in w.',
+      departure: [['w', [[0.001, null], [1, 0]]]],
+    }]))
+    // The WHOLE string on both, because the interesting half is what is NOT
+    // there. `not.toContain('0')` reads as "no zero rendered" and is satisfied
+    // by the SCALE's own digits -- it fails on the correct output above and
+    // would pass on `0.001× → 0`, the exact rendering it was written to catch.
+    const probes = [...document.querySelectorAll('[data-departure-probe]')]
+      .map(node => node.textContent)
+    expect(probes[0]).toBe('0.001× → —')
+    expect(probes[1]).toBe('1× → 0')
+  })
+
+  it('draws no table at all for a gate that carries none', () => {
+    // `undefined` is "not carried" and is the ONLY absence on this field: a
+    // published execution reads its gates back from `diagnostics.json`, a
+    // closed v1 contract with no room for it, and a non-C12 gate never had
+    // one. Neither case is an empty table, and neither is a row of zeros.
+    draw(GATED([{
+      check: 'C13',
+      severity: 'report',
+      where: 'inference.parameters',
+      message: 'rank 6 of 6.',
+    }]))
+    expect(document.querySelector('[data-gate-check="C13"]')).toBeTruthy()
+    expect(document.querySelector('[data-departure]')).toBeNull()
+  })
+})

@@ -1,13 +1,49 @@
 /** Keyed renderer for the `rheplicant-analysis` Chat node: one row per run, each with its diagnostics panel. */
-import { memo, useCallback } from 'react'
+import { Fragment, memo, useCallback } from 'react'
 import type { ChatNodeViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import type { GateFinding, RunDiagnostics } from '@rheplicant/dsh-rheplicant'
+import type { GateFinding, LatentDeparture, RunDiagnostics } from '@rheplicant/dsh-rheplicant'
 import {
-  Badge, BandChart, HeatMap, TracePlot, formatDiagnostic, formatRunProvenance, groupChains, mcmcRows,
+  Badge, BandChart, HeatMap, TracePlot, formatDiagnostic, formatNumber, formatRunProvenance,
+  groupChains, mcmcRows,
 } from '@rheplicant/dsh-rheplicant-ui-kit/client'
 import { canOpenInProject, openInProject } from './project-bridge.ts'
 import { SignalPath } from './SignalPath.tsx'
 import styles from './analysis-run-panel.module.css'
+
+/**
+ * C12's departure from linearity: the numbers its message renders, as data.
+ *
+ * The whole table and not a worst case. The three probe scales span six orders
+ * of magnitude precisely so the TREND is readable — "departs at 1× and 10³× but
+ * not at 10⁻³×" is a knee or a saturation and names the regime it starts in,
+ * while "departs everywhere" is a wrong parameterization. A maximum would
+ * render those two identically.
+ *
+ * `formatNumber` renders a `null` departure as `—`, which is what it means: the
+ * measurement was not finite, so the linearization could not be evaluated at
+ * that probe. Upstream counts that as a FAILURE (`nan > rtol` is `false`), and
+ * it is emphatically not zero — a latent that really is affine measures `0`,
+ * and that reads as `0` here.
+ */
+const Departure = memo(function Departure({ departure }: { departure: readonly LatentDeparture[] }) {
+  return (
+    <ul data-departure aria-label="relative departure from linearity, by probe scale">
+      {departure.map(([latent, probes]) => (
+        <li key={latent} data-departure-latent={latent}>
+          <strong>{latent}</strong>{' '}
+          {probes.map(([scale, error], index) => (
+            <Fragment key={scale}>
+              {index > 0 ? ', ' : null}
+              <span data-departure-probe data-departure-scale={scale}>
+                {formatNumber(scale)}× → {formatNumber(error)}
+              </span>
+            </Fragment>
+          ))}
+        </li>
+      ))}
+    </ul>
+  )
+})
 
 /** Post-flight gate verdicts, one row per finding. */
 const Gates = memo(function Gates({ gates }: { gates: readonly GateFinding[] }) {
@@ -16,6 +52,15 @@ const Gates = memo(function Gates({ gates }: { gates: readonly GateFinding[] }) 
       {gates.map((gate, index) => (
         <li key={index} data-gate data-gate-check={gate.check} data-gate-severity={gate.severity}>
           <strong>{gate.check}</strong> <span>({gate.severity})</span> — {gate.message}
+          {/*
+            `undefined` is the only absence there is here, and it means NOT
+            CARRIED — a published execution reads its gates back from
+            `diagnostics.json`, a closed v1 contract with no room for this
+            field. Testing the length instead would fold that case together
+            with a table that measured nothing, and the wire never sends one:
+            the service omits the key rather than sending an empty list.
+          */}
+          {gate.departure === undefined ? null : <Departure departure={gate.departure} />}
         </li>
       ))}
     </ul>

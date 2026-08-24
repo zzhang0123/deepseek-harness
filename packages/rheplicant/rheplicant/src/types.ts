@@ -288,6 +288,23 @@ export interface SignalPathGraph {
   readonly mermaid?: string
 }
 
+/**
+ * One probe of a latent's linearity: `[scale, relative departure]`.
+ *
+ * The departure is `null` when the measurement was not finite — the
+ * linearization could not be evaluated at that probe, which upstream counts as
+ * a FAILURE (`nan > rtol` is `false`, so reading it as a pass would be exactly
+ * backwards). `null` is therefore "not a number", never zero, and a renderer
+ * must not print it as one.
+ *
+ * The scale is always finite: C12 probes at rheplicant's own
+ * `DEFAULT_SCALES` — 10⁻³, 1, 10³ — and a document cannot configure them.
+ */
+export type DepartureProbe = readonly [scale: number, error: number | null]
+
+/** One latent's probes, scales ascending. */
+export type LatentDeparture = readonly [latent: string, probes: readonly DepartureProbe[]]
+
 /** One post-flight gate verdict (linearity / identifiability / prior_sensitivity / …). */
 export interface GateFinding {
   /** Schema check id, e.g. `C12` (linearity), `C13` (identifiability). */
@@ -296,6 +313,26 @@ export interface GateFinding {
   /** JSON path into the document the finding names. */
   readonly where: string
   readonly message: string
+  /**
+   * C12 only: the numbers the message renders, as data.
+   *
+   * A list of PAIRS rather than an object, because the scales are floats and
+   * JSON object keys can only be strings — `json.dumps` converts `0.001` to
+   * `"0.001"` silently, and a consumer would have to `parseFloat` it back.
+   *
+   * Read the TREND across the three scales, not a worst case: "departs at 1×
+   * and 10³× but not at 10⁻³×" is a knee or a saturation and names the regime,
+   * while "departs everywhere" is a wrong parameterization. A maximum over the
+   * table cannot tell those apart, which is why the whole table is carried.
+   *
+   * **Absent on a PUBLISHED execution**, and that is not a bug to work around.
+   * Those gates are read back from `diagnostics.json`, whose `finding` object
+   * is a closed v1 contract (`additionalProperties: false`,
+   * `format_version: {const: 1}`) and cannot carry a fifth key without an
+   * upstream version bump. `undefined` here means "not carried" — which is
+   * neither `null` ("carried, and not a number") nor zero.
+   */
+  readonly departure?: readonly LatentDeparture[]
 }
 
 export interface RunOutcome {

@@ -50,6 +50,8 @@ export type {
   ExecutionIdentity,
   GatesReport,
   GateFinding,
+  DepartureProbe,
+  LatentDeparture,
   ProjectExecutionRow,
   ModelField,
   ModelNode,
