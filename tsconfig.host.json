@@ -97,6 +97,7 @@
     "apps/web/tests/rheplicant-ui-console-load.e2e.ts",
     "apps/web/tests/rheplicant-ui-document-load.e2e.ts",
     "apps/web/tests/rheplicant-ui-theme-load.e2e.ts",
+    "apps/web/tests/rheplicant-fixtures.ts",
     "apps/web/stress-tests/reasoning-chunks.stress.ts",
     "apps/cli/tests/**/*.ts",
     "examples/*/src/**/*.ts",
