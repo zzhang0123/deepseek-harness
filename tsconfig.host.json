@@ -87,6 +87,7 @@
     "apps/web/tests/pwsh-terminal.e2e.ts",
     "apps/web/tests/workflow-run.e2e.ts",
     "apps/web/tests/_serve-console.e2e.ts",
+    "apps/web/tests/dsh-bundle-purity.e2e.ts",
     "apps/web/tests/rheplicant-analysis-repeat.e2e.ts",
     "apps/web/tests/rheplicant-analysis.e2e.ts",
     "apps/web/tests/rheplicant-presets-mount.e2e.ts",
