@@ -110,3 +110,19 @@
 .vocabList li {
   white-space: nowrap;
 }
+
+/* One section's `status` from the generated schema. Every row carries one --
+   see GrammarReference.tsx for why -- so `accepted`, which is most of them,
+   is quieted here rather than dropped there. Selecting on the attribute and
+   not on a class means a status this stylesheet has not been taught about
+   keeps the prominent default, which is the safe direction. */
+.sectionStatus {
+  font-size: 0.6875rem;
+  color: var(--dsw-alias-label-primary);
+  opacity: 0.9;
+}
+
+.vocabList li[data-status='accepted'] .sectionStatus {
+  color: var(--dsw-alias-label-secondary);
+  opacity: 0.55;
+}

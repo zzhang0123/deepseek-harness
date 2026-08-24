@@ -2,9 +2,25 @@
  * The config-document grammar, read straight off the generated schema
  * (`schema.ts`, regenerated from `rheplicant.config.schema.json_schema()` by
  * `scripts/gen-schema.mjs`): every top-level section (required ones
- * marked), the exit kinds, and the operator/transform/catalog vocabularies.
+ * marked, and each carrying its status), the exit kinds, and the
+ * operator/transform/catalog vocabularies.
  * A reference, so density is fine — grouped under headings with counts,
  * long lists scrollable rather than a wall of text.
+ *
+ * **Every section shows its `status`, including `accepted`.** It is a
+ * three-valued fact (`reserved` / `deferred` / `accepted`), and a
+ * three-valued fact rendered two ways makes a blank mean `accepted` by
+ * inference — the same reading `unknown` is not `unmet` exists to prevent.
+ * `required` beside it is a boolean and genuinely has a blank half, which is
+ * why the `*` may stay a mark. The quieting of `accepted` is done in CSS by
+ * attribute, never by a comparison here: a status this file has not been
+ * taught about then renders prominently rather than disappearing.
+ *
+ * The word is upstream's own and is passed through unglossed — inventing a
+ * gloss would be a mapping the schema will not defend. `deferred` in
+ * particular reads as "not yet available" and means "read by another layer";
+ * the reason string that would say which layer is dropped on the way here.
+ * `docs/upstream-reports.md` §4.
  * @module @rheplicant/dsh-rheplicant-ui-document/client/GrammarReference
  */
 import { memo } from 'react'
@@ -35,8 +51,17 @@ export const GrammarReference = memo(function GrammarReference() {
         <div className={styles.groupHeading}>Sections ({SCHEMA.sections.length})</div>
         <ul className={styles.vocabList} data-grammar-list="sections">
           {SCHEMA.sections.map(section => (
-            <li key={section.name} data-section={section.name} data-required={section.required}>
+            <li
+              key={section.name}
+              data-section={section.name}
+              data-required={section.required}
+              data-status={section.status}
+            >
               {section.name}{section.required ? ' *' : ''}
+              {' '}
+              <span className={styles.sectionStatus} data-section-status={section.status}>
+                {section.status}
+              </span>
             </li>
           ))}
         </ul>
