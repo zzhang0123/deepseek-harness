@@ -7,6 +7,7 @@
 // and an m-mode spectrum (Spectrum).
 import { writeFileSync } from 'node:fs'
 import { describe, it } from 'vitest'
+import { rheplicantFixtures } from './rheplicant-fixtures.ts'
 import { launchWebScaffold, realizeSeedFixture, seedSession } from './scaffold.ts'
 
 const SEED_ID = 'rheplicant-console-demo'
@@ -172,7 +173,18 @@ const SEED_FIXTURE = [
 
 describe('serve rheplicant console demo', () => {
   it('boots and keeps serving', async () => {
-    const scaffold = await launchWebScaffold({})
+    // Both injection points, like every rheplicant-*.e2e.ts scenario. This file
+    // is one of them in everything but its name, and the leading underscore
+    // keeps it out of that glob — so when the rows left DSH's own bundle it was
+    // left with no way to mount a rheplicant plugin at all, and would have
+    // served a plain DSH UI under a seed built to exercise rheplicant panels.
+    //
+    // NOT verified at runtime: this file fails before the browser opens, on a
+    // pre-existing seed defect (its `seq` runs 5, 9, 6, 7, 8, and the second
+    // execution cannot simply be resequenced because the fixture must end in
+    // turn/end). So this pair is type-checked and consistent with the other
+    // fifteen scenarios, but unexercised until that defect is fixed.
+    const scaffold = await launchWebScaffold({ ...rheplicantFixtures() })
     await seedSession(scaffold, realizeSeedFixture(scaffold, SEED_FIXTURE, SEED_ID), SEED_ID)
     writeFileSync(URL_FILE, `${scaffold.baseUrl}\n${SEED_ID}\n`)
     console.log(`\n\nRHEPLICANT_DEMO_URL=${scaffold.baseUrl}\n\n`)

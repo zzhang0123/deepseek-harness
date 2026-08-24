@@ -13,8 +13,8 @@
  * (`extraOverlayPath`) and none for the second, so rheplicant's rows went into
  * `packages/bundle/web-app/cordis.patch.yml` and its packages into that
  * bundle's and `apps/cli`'s `dependencies` — the only route by which
- * `healProfilesModuleFallback`'s BFS could reach them. All three sites are
- * clean now: the rows live in `./rheplicant.overlay.yml` and the packages in
+ * `healProfilesModuleFallback`'s BFS could reach them. All three are clean now:
+ * the rows live in `./rheplicant.overlay.yml` and the packages in
  * `./rheplicant-anchor/package.json`, reached through the scaffold's
  * `installAnchor` option, so nothing here has to relax for the rheplicant
  * scenarios to pass.
@@ -41,6 +41,7 @@ const REPO_ROOT = fileURLToPath(new URL('../../..', import.meta.url))
 const WEB_BUNDLE_PATCH = 'packages/bundle/web-app/cordis.patch.yml'
 const WEB_BUNDLE_MANIFEST = 'packages/bundle/web-app/package.json'
 const CLI_MANIFEST = 'apps/cli/package.json'
+const ROOT_MANIFEST = 'package.json'
 
 function read(relativePath: string): string {
   return readFileSync(REPO_ROOT + relativePath, 'utf8')
@@ -90,5 +91,23 @@ describe('web e2e: DSH product artifacts carry no rheplicant', () => {
 
   it('the CLI manifest declares no rheplicant package', () => {
     expect(declaredDependencies(CLI_MANIFEST).filter(name => name.includes('rheplicant'))).toEqual([])
+  })
+
+  it('the workspace root keeps its rheplicant packages OUT of the resolving blocks', () => {
+    // The root manifest is the one place a rheplicant name legitimately
+    // appears, and the rule here is about WHICH block rather than whether.
+    //
+    // Four @rheplicant host packages sit in its `devDependencies`, and they
+    // have to: `rheplicant-tools-mount.e2e.ts` and `rheplicant-task-file.e2e.ts`
+    // import them by bare specifier, and the link under the root
+    // `node_modules/@rheplicant/` that makes those imports resolve is created
+    // by exactly that declaration. Deleting them was tried and reverted —
+    // `tsc -b tsconfig.host.json` immediately produced six TS2307s.
+    //
+    // Promoting any of them to `dependencies` or `peerDependencies` WOULD be a
+    // leak of the audited kind, because those are the two blocks
+    // `healProfilesModuleFallback`'s BFS walks. So this asserts the promotion
+    // cannot happen, and deliberately says nothing about `devDependencies`.
+    expect(declaredDependencies(ROOT_MANIFEST).filter(name => name.includes('rheplicant'))).toEqual([])
   })
 })
