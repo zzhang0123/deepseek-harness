@@ -164,10 +164,18 @@ const SEED_FIXTURE = [
   `{"type":"rheplicant/run","seq":5,"time":1784974100830,"ignorable":true,"data":{"document":${DOC},"transport":"local","executionId":"20260822T090000Z-3f9ac2b1-aaaaaa","taskDigest":"3f9ac2b1","taskPath":"tasks/global-signal-fit.yaml","outcome":${JSON.stringify({ ...OUTCOME, resultsPath: '/home/z/rhino-2026/results/tasks/global-signal-fit/20260822T090000Z-3f9ac2b1-aaaaaa' })}}}`,
   // A second execution of the same task, so the header's picker has something
   // to pick between and the current/stale badge means something on screen.
-  `{"type":"rheplicant/run","seq":9,"time":1784974100834,"ignorable":true,"data":{"document":${DOC},"transport":"local","executionId":"20260822T134501Z-3f9ac2b1-k7m2xq","taskDigest":"3f9ac2b1","taskPath":"tasks/global-signal-fit.yaml","outcome":${JSON.stringify({ ...OUTCOME, resultsPath: '/home/z/rhino-2026/results/tasks/global-signal-fit/20260822T134501Z-3f9ac2b1-k7m2xq' })}}}`,
-  '{"type":"assistant/message","seq":6,"time":1784974100831,"data":{"turn":1,"step":1,"content":[{"type":"text","text":"The fit converged (r_hat 1.004, no divergences). Identifiability leaves two blind directions — the weakest identified sits at 0.25 of the best."}],"provenance":{"provider":"deepseek-official","model":"deepseek-v4-flash"}},"surfaceOp":"append"}',
-  '{"type":"step/end","seq":7,"time":1784974100832,"data":{"turn":1,"step":1}}',
-  '{"type":"turn/end","seq":8,"time":1784974100833,"data":{"turn":1,"reason":{"kind":"completed"}}}',
+  //
+  // Its seq is 6 and everything after it shifts up, because a seed is validated
+  // twice over: the coordinator requires `seq` to equal the event's INDEX
+  // (`coordinator.ts` contiguity contract), and `seedSession` requires the last
+  // event to be `turn/end` — an open final turn would be rewritten by resume's
+  // crash repair on first open. This event used to be stamped 9 while sitting
+  // in position 6, which satisfied neither. It is a renumbering, not a move:
+  // the position was always right.
+  `{"type":"rheplicant/run","seq":6,"time":1784974100834,"ignorable":true,"data":{"document":${DOC},"transport":"local","executionId":"20260822T134501Z-3f9ac2b1-k7m2xq","taskDigest":"3f9ac2b1","taskPath":"tasks/global-signal-fit.yaml","outcome":${JSON.stringify({ ...OUTCOME, resultsPath: '/home/z/rhino-2026/results/tasks/global-signal-fit/20260822T134501Z-3f9ac2b1-k7m2xq' })}}}`,
+  '{"type":"assistant/message","seq":7,"time":1784974100831,"data":{"turn":1,"step":1,"content":[{"type":"text","text":"The fit converged (r_hat 1.004, no divergences). Identifiability leaves two blind directions — the weakest identified sits at 0.25 of the best."}],"provenance":{"provider":"deepseek-official","model":"deepseek-v4-flash"}},"surfaceOp":"append"}',
+  '{"type":"step/end","seq":8,"time":1784974100832,"data":{"turn":1,"step":1}}',
+  '{"type":"turn/end","seq":9,"time":1784974100833,"data":{"turn":1,"reason":{"kind":"completed"}}}',
   '',
 ].join('\n')
 
@@ -178,12 +186,6 @@ describe('serve rheplicant console demo', () => {
     // keeps it out of that glob — so when the rows left DSH's own bundle it was
     // left with no way to mount a rheplicant plugin at all, and would have
     // served a plain DSH UI under a seed built to exercise rheplicant panels.
-    //
-    // NOT verified at runtime: this file fails before the browser opens, on a
-    // pre-existing seed defect (its `seq` runs 5, 9, 6, 7, 8, and the second
-    // execution cannot simply be resequenced because the fixture must end in
-    // turn/end). So this pair is type-checked and consistent with the other
-    // fifteen scenarios, but unexercised until that defect is fixed.
     const scaffold = await launchWebScaffold({ ...rheplicantFixtures() })
     await seedSession(scaffold, realizeSeedFixture(scaffold, SEED_FIXTURE, SEED_ID), SEED_ID)
     writeFileSync(URL_FILE, `${scaffold.baseUrl}\n${SEED_ID}\n`)
