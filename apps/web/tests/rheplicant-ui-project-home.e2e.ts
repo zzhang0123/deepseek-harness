@@ -39,7 +39,7 @@ describe('web e2e: rheplicant project home', () => {
     // the one this scenario is about.
     new ComputeRuntime(scaffold.ctx)
     new ProjectRuntime(scaffold.ctx)
-    await scaffold.ctx.plugin(projectApi, {})
+    await scaffold.ctx.plugin(projectApi)
     // The scaffold gives sessions a working directory but registers no
     // WORKSPACE over it, and the home is addressed by workspace id — with an
     // empty registry its picker reads "no workspaces" and it never asks the

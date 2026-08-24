@@ -67,7 +67,7 @@ describe('web e2e: a chat result opens in the project view', () => {
     // state, but not the one this scenario is about.
     new ComputeRuntime(scaffold.ctx)
     new ProjectRuntime(scaffold.ctx)
-    await scaffold.ctx.plugin(projectApi, {})
+    await scaffold.ctx.plugin(projectApi)
     // The action is addressed by WORKSPACE, so the seeded session has to be in
     // one: the selection belongs to a project, and a session in no project has
     // nothing to select into. The scaffold's registry bootstraps from the
