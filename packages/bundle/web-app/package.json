@@ -83,13 +83,6 @@
     "@deepseek-ai/dsh-client-ui-theme": "workspace:^",
     "@deepseek-ai/dsh-client-ui-tool": "workspace:^",
     "@deepseek-ai/dsh-client-ui-workflow-run": "workspace:^",
-    "@deepseek-ai/dsh-client-rheplicant-ui-analysis": "workspace:^",
-    "@deepseek-ai/dsh-client-rheplicant-ui-compute": "workspace:^",
-    "@deepseek-ai/dsh-client-rheplicant-ui-theme": "workspace:^",
-    "@deepseek-ai/dsh-client-rheplicant-ui-console": "workspace:^",
-    "@deepseek-ai/dsh-client-rheplicant-ui-posterior": "workspace:^",
-    "@deepseek-ai/dsh-client-rheplicant-ui-spectrum": "workspace:^",
-    "@deepseek-ai/dsh-client-rheplicant-ui-identifiability": "workspace:^",
     "@deepseek-ai/dsh-client-ui-trajectory": "workspace:^",
     "@deepseek-ai/dsh-client-ui-workspace": "workspace:^",
     "@deepseek-ai/dsh-cmdline": "workspace:^",
@@ -119,10 +112,7 @@
     "@deepseek-ai/dsh-workspace": "workspace:^",
     "@deepseek-ai/schemastery": "workspace:^",
     "commander": "^15.0.0",
-    "open": "^11.0.0",
-    "@deepseek-ai/dsh-client-rheplicant-ui-brand": "workspace:^",
-    "@deepseek-ai/dsh-client-rheplicant-ui-document": "workspace:^",
-    "@deepseek-ai/dsh-client-rheplicant-ui-project": "workspace:^"
+    "open": "^11.0.0"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis-plugin-loader": "workspace:^",

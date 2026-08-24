@@ -315,18 +315,6 @@ importers:
       '@deepseek-ai/dsh-workflow-worker-thread':
         specifier: workspace:^
         version: link:../../packages/workflow/workflow-worker-thread
-      '@rheplicant/dsh-rheplicant':
-        specifier: workspace:^
-        version: link:../../packages/rheplicant/rheplicant
-      '@rheplicant/dsh-rheplicant-local':
-        specifier: workspace:^
-        version: link:../../packages/rheplicant/local
-      '@rheplicant/dsh-rheplicant-tool-run':
-        specifier: workspace:^
-        version: link:../../packages/rheplicant/tool-run
-      '@rheplicant/dsh-rheplicant-transport':
-        specifier: workspace:^
-        version: link:../../packages/rheplicant/transport
       commander:
         specifier: ^15.0.0
         version: 15.0.0
@@ -1365,36 +1353,6 @@ importers:
       '@deepseek-ai/dsh-client-modules':
         specifier: workspace:^
         version: link:../../client/modules
-      '@deepseek-ai/dsh-client-rheplicant-ui-analysis':
-        specifier: workspace:^
-        version: link:../../client/rheplicant-ui-analysis
-      '@deepseek-ai/dsh-client-rheplicant-ui-brand':
-        specifier: workspace:^
-        version: link:../../client/rheplicant-ui-brand
-      '@deepseek-ai/dsh-client-rheplicant-ui-compute':
-        specifier: workspace:^
-        version: link:../../client/rheplicant-ui-compute
-      '@deepseek-ai/dsh-client-rheplicant-ui-console':
-        specifier: workspace:^
-        version: link:../../client/rheplicant-ui-console
-      '@deepseek-ai/dsh-client-rheplicant-ui-document':
-        specifier: workspace:^
-        version: link:../../client/rheplicant-ui-document
-      '@deepseek-ai/dsh-client-rheplicant-ui-identifiability':
-        specifier: workspace:^
-        version: link:../../client/rheplicant-ui-identifiability
-      '@deepseek-ai/dsh-client-rheplicant-ui-posterior':
-        specifier: workspace:^
-        version: link:../../client/rheplicant-ui-posterior
-      '@deepseek-ai/dsh-client-rheplicant-ui-project':
-        specifier: workspace:^
-        version: link:../../client/rheplicant-ui-project
-      '@deepseek-ai/dsh-client-rheplicant-ui-spectrum':
-        specifier: workspace:^
-        version: link:../../client/rheplicant-ui-spectrum
-      '@deepseek-ai/dsh-client-rheplicant-ui-theme':
-        specifier: workspace:^
-        version: link:../../client/rheplicant-ui-theme
       '@deepseek-ai/dsh-client-runtime':
         specifier: workspace:^
         version: link:../../client/runtime
