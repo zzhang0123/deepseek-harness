@@ -100,6 +100,15 @@
     "tests/pwsh-terminal.e2e.ts",
     "tests/workflow-run.e2e.ts",
     "tests/_serve-console.e2e.ts",
+    // Host-side test scenery, excluded for the same reason as scaffold.ts
+    // above: rheplicant-fixtures.ts imports LaunchOptions from scaffold.ts, so
+    // leaving it in this project drags the whole host scaffold — and every
+    // host package it imports — into the client program, which fails with 52
+    // TS6059/TS6307 errors rather than anything about the fixture itself.
+    // A new file under tests/ needs BOTH this exclusion and an entry in
+    // tsconfig.host.json's include; each list is enumerated file by file.
+    "tests/rheplicant-fixtures.ts",
+    "tests/dsh-bundle-purity.e2e.ts",
     "tests/rheplicant-analysis-provenance.e2e.ts",
     "tests/rheplicant-analysis-repeat.e2e.ts",
     "tests/rheplicant-analysis.e2e.ts",
