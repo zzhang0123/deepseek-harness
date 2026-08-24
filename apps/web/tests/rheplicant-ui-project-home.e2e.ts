@@ -17,6 +17,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import ProjectRuntime from '@rheplicant/dsh-rheplicant/project-runtime'
 import * as projectApi from '@rheplicant/dsh-rheplicant/project-api'
 import ComputeRuntime from '@rheplicant/dsh-rheplicant'
+import { rheplicantFixtures } from './rheplicant-fixtures.ts'
 import { launchWebScaffold, type WebScaffold } from './scaffold.ts'
 import { newEnglishPage } from './support.ts'
 
@@ -26,7 +27,7 @@ describe('web e2e: rheplicant project home', () => {
   let page: Page
 
   beforeAll(async () => {
-    scaffold = await launchWebScaffold({})
+    scaffold = await launchWebScaffold({ ...rheplicantFixtures() })
     // A task document in the scaffold's own workspace, so the home has
     // something real to list and something real to offer opening. The home
     // scans the whole workspace, so where it sits is the operator's business —

@@ -10,13 +10,14 @@ import type {} from '@deepseek-ai/dsh-tools'
 import { ComputeRuntime } from '@rheplicant/dsh-rheplicant'
 import * as rheplicantLocal from '@rheplicant/dsh-rheplicant-local'
 import * as toolRun from '@rheplicant/dsh-rheplicant-tool-run'
+import { rheplicantFixtures } from './rheplicant-fixtures.ts'
 import { launchWebScaffold, type WebScaffold } from './scaffold.ts'
 
 describe('web e2e: rheplicant host tools mount on the web profile', () => {
   let scaffold: WebScaffold
 
   beforeAll(async () => {
-    scaffold = await launchWebScaffold({})
+    scaffold = await launchWebScaffold({ ...rheplicantFixtures() })
   }, 120_000)
 
   afterAll(async () => {

@@ -7,6 +7,7 @@
 import type { Browser, Page } from 'playwright'
 import { chromium } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
+import { rheplicantFixtures } from './rheplicant-fixtures.ts'
 import {
   launchWebScaffold, realizeSeedFixture, seedSession, watchConsole, type WebScaffold,
 } from './scaffold.ts'
@@ -18,7 +19,7 @@ describe('web e2e: rheplicant ui-compute bundle loads', () => {
   let page: Page
 
   beforeAll(async () => {
-    scaffold = await launchWebScaffold({})
+    scaffold = await launchWebScaffold({ ...rheplicantFixtures() })
     browser = await chromium.launch()
     page = await newEnglishPage(browser)
     await page.goto(scaffold.baseUrl, { waitUntil: 'load' })
@@ -72,7 +73,7 @@ describe('web e2e: rheplicant Document view renders the exact document + grammar
   let tripwire: ReturnType<typeof watchConsole>
 
   beforeAll(async () => {
-    scaffold = await launchWebScaffold({})
+    scaffold = await launchWebScaffold({ ...rheplicantFixtures() })
     await seedSession(scaffold, realizeSeedFixture(scaffold, DOCUMENT_SEED_FIXTURE, DOCUMENT_SEED_ID), DOCUMENT_SEED_ID)
     browser = await chromium.launch()
     page = await newEnglishPage(browser)

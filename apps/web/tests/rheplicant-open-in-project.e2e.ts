@@ -19,6 +19,7 @@ import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
 import ProjectRuntime from '@rheplicant/dsh-rheplicant/project-runtime'
 import * as projectApi from '@rheplicant/dsh-rheplicant/project-api'
 import ComputeRuntime from '@rheplicant/dsh-rheplicant'
+import { rheplicantFixtures } from './rheplicant-fixtures.ts'
 import {
   launchWebScaffold, realizeSeedFixture, seedSession, watchConsole, type WebScaffold,
 } from './scaffold.ts'
@@ -52,7 +53,7 @@ describe('web e2e: a chat result opens in the project view', () => {
   let tripwire: ReturnType<typeof watchConsole>
 
   beforeAll(async () => {
-    scaffold = await launchWebScaffold({})
+    scaffold = await launchWebScaffold({ ...rheplicantFixtures() })
     // The task the seeded run names, as a real file: the project surface reads
     // the document off the tree, so this is what makes "it arrived selected"
     // observable rather than merely asserted about a store.

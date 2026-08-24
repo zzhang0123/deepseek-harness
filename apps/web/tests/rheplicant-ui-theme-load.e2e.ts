@@ -9,7 +9,7 @@
 import type { Browser, Page } from 'playwright'
 import { chromium } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { RHEPLICANT_ANCHOR, RHEPLICANT_OVERLAY } from './rheplicant-fixtures.ts'
+import { rheplicantFixtures } from './rheplicant-fixtures.ts'
 import { launchWebScaffold, type WebScaffold } from './scaffold.ts'
 import { newEnglishPage } from './support.ts'
 
@@ -25,7 +25,7 @@ describe('web e2e: rheplicant scheme-aware theme applies its tokens', () => {
   let page: Page
 
   beforeAll(async () => {
-    scaffold = await launchWebScaffold({ extraOverlayPath: RHEPLICANT_OVERLAY, installAnchor: RHEPLICANT_ANCHOR })
+    scaffold = await launchWebScaffold({ ...rheplicantFixtures() })
     browser = await chromium.launch()
     page = await newEnglishPage(browser)
     // Explicit rather than relying on Playwright's own light default: the

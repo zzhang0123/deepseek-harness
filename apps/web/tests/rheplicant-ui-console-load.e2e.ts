@@ -20,6 +20,7 @@
 import type { Browser, Page } from 'playwright'
 import { chromium } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
+import { rheplicantFixtures } from './rheplicant-fixtures.ts'
 import {
   launchWebScaffold, realizeSeedFixture, seedSession, watchConsole, type WebScaffold,
 } from './scaffold.ts'
@@ -51,7 +52,7 @@ describe('web e2e: the rheplicant console tab', () => {
   let tripwire: ReturnType<typeof watchConsole>
 
   beforeAll(async () => {
-    scaffold = await launchWebScaffold({})
+    scaffold = await launchWebScaffold({ ...rheplicantFixtures() })
     await seedSession(scaffold, realizeSeedFixture(scaffold, SEED_FIXTURE, SEED_ID), SEED_ID)
     browser = await chromium.launch()
     page = await newEnglishPage(browser)

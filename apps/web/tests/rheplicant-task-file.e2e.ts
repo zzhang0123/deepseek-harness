@@ -29,6 +29,7 @@ import type {
   ComputeInput, ComputeProvider, GatesReport, RunOutcome, SchemaDocument, SignalPathGraph, ValidationReport,
 } from '@rheplicant/dsh-rheplicant'
 import * as toolRun from '@rheplicant/dsh-rheplicant-tool-run'
+import { rheplicantFixtures } from './rheplicant-fixtures.ts'
 import { launchWebScaffold, type WebScaffold } from './scaffold.ts'
 
 const SESSION = SessionId('rheplicant-task-file-web-e2e')
@@ -148,7 +149,7 @@ describe('web e2e: a rheplicant task file is the run input, confined to the sess
   }
 
   beforeAll(async () => {
-    scaffold = await launchWebScaffold({})
+    scaffold = await launchWebScaffold({ ...rheplicantFixtures() })
     provider = new CapturingProvider()
     new ComputeRuntime(scaffold.ctx).registerProvider(['local'], provider)
     await scaffold.ctx.plugin(toolRun, { defaultTransport: 'local' })
