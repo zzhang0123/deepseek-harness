@@ -1,5 +1,5 @@
 /**
- * Pure derivations the project home renders from — no React, no fetch, so the
+ * Pure derivations the workbench renders from — no React, no fetch, so the
  * rules that decide what a project LOOKS like can be tested without a DOM.
  *
  * The same split `ui-console/project-selectors.ts` makes for the header, and

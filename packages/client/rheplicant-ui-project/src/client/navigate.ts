@@ -1,5 +1,5 @@
 /**
- * Leaving the project home for a session — the one thing the home DOES rather
+ * Leaving the workbench for a session — the one thing the home DOES rather
  * than shows.
  *
  * The capabilities this needs (`ctx.workspaces`, `ctx.sessions`, and the

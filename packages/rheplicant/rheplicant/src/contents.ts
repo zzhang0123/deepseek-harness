@@ -8,7 +8,7 @@
  *
  * * **Scan, never a convention.** §7 sketches `tasks/<name>.yaml` and
  *   `inputs/`, and nothing in this codebase enforces either: `readTaskFile`
- *   accepts any path inside the workspace, so a project home that listed only
+ *   accepts any path inside the workspace, so a workbench that listed only
  *   two blessed directories would report an empty project for every layout but
  *   one. The walk covers the whole workspace and the layout stays the
  *   operator's business.
@@ -57,7 +57,7 @@ export const TASK_EXTENSIONS: ReadonlySet<string> = new Set(['yaml', 'yml'])
  * beside them, and `s<N>p` is Touchstone's own conventional spelling.
  *
  * A FILTER, not a format table — see this module's header. Matching here says
- * a file is worth showing in the project home, never how it would be read.
+ * a file is worth showing in the workbench, never how it would be read.
  */
 export const INPUT_EXTENSIONS: ReadonlySet<string> = new Set([
   'npy', 'npz', 'txt', 'csv', 'fits', 'h5', 'hdf5', 's1p', 's2p', 's3p', 's4p',
@@ -74,7 +74,7 @@ export const MAX_SCAN_DEPTH = 8
  *
  * Not a performance tuning knob: a workspace is an arbitrary directory an
  * operator chose, and it can be a home directory. This is the bound that keeps
- * one unlucky choice from hanging the project home, and {@link
+ * one unlucky choice from hanging the workbench, and {@link
  * ProjectContents.truncated} is how the listing admits it hit the bound.
  */
 export const MAX_SCAN_ENTRIES = 4096
@@ -123,7 +123,7 @@ export interface ProjectContents {
  * @param workspace - the project directory.
  * @returns the tasks, the inputs, and whether a cap cut the walk short. A
  *   workspace that does not exist or cannot be read answers empty rather than
- *   throwing: a project home renders "no tasks yet" for a missing directory
+ *   throwing: a workbench renders "no tasks yet" for a missing directory
  *   perfectly well, and has nothing useful to do with an exception.
  */
 export function scanProject(workspace: string): ProjectContents {

@@ -46,13 +46,13 @@ export const HomeTrigger = memo(function HomeTrigger({ wide }: HomeTriggerProps)
       // from somewhere that is not the visible text in that state — and giving
       // it unconditionally keeps one name across both, rather than one that
       // changes when the column resizes.
-      aria-label="Project"
+      aria-label="Workbench"
       aria-pressed={open}
-      title="Project"
+      title="Workbench"
       onClick={toggleHome}
     >
       <span aria-hidden="true" className={styles.triggerMark}>◈</span>
-      {wide && <span className={styles.triggerLabel}>Project</span>}
+      {wide && <span className={styles.triggerLabel}>Workbench</span>}
     </button>
   )
 })

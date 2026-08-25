@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * The project home (`docs/project-model.md` §6.0): the archive surface over one
+ * The workbench (`docs/project-model.md` §6.0): the archive surface over one
  * project's tasks, inputs and executions.
  *
  * The assertions that matter are the state distinctions. "Could not read this
@@ -326,7 +326,7 @@ describe('opening and closing', () => {
     serve({ 'ws-1': overview('rhino') })
     openHome('ws-1')
     mount()
-    await waitFor(() => { expect(screen.getByRole('region', { name: 'Project' })).toBeTruthy() })
+    await waitFor(() => { expect(screen.getByRole('region', { name: 'Workbench' })).toBeTruthy() })
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 

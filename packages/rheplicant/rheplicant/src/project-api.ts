@@ -8,7 +8,7 @@
  * carries.
  *
  * **The workspace never crosses the wire.** A request names a SESSION, or (for
- * §6.0's project home, which is shown when no session is open) a WORKSPACE by
+ * §6.0's workbench, which is shown when no session is open) a WORKSPACE by
  * the id the host minted for it. Either way the handler resolves the directory
  * from a host record and confines every read to it. A client that could name
  * the directory could name any directory, which is the whole reason
@@ -165,7 +165,7 @@ function json(res: ServerResponse, status: number, body: unknown): void {
  * callers and only one of them has a session:
  *
  * * `session=<SessionId>` — the console, which is always inside a conversation.
- * * `workspace=<WorkspaceId>` — the project home, which by §6.0 is shown
+ * * `workspace=<WorkspaceId>` — the workbench, which by §6.0 is shown
  *   exactly when NO session is open and therefore has no session id to send.
  *
  * The second does not widen the boundary. A `WorkspaceId` is a generated uuid
@@ -336,7 +336,7 @@ export function apply(ctx: Context): void {
         return
       }
       // One body from one pair of reads, not three routes the home would have
-      // to stitch: a project home assembled from three round trips could show
+      // to stitch: a workbench assembled from three round trips could show
       // a task whose executions were pruned between two of them.
       const executions = ctx.rheplicantProject.listExecutions(workspace)
       const contents = ctx.rheplicantProject.listContents(workspace)

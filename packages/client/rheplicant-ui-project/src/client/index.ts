@@ -1,5 +1,5 @@
 /**
- * Browser plugin for the rheplicant project home (`docs/project-model.md`
+ * Browser plugin for the rheplicant workbench (`docs/project-model.md`
  * §6.0): the archive surface, root-scoped, over a project's tasks, inputs and
  * executions.
  *
@@ -128,7 +128,7 @@ export function apply(ctx: ClientContext): void {
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({
     name: 'shell.overlay',
     id: 'rheplicant-project-home',
-    label: () => 'Project home',
+    label: () => 'Workbench',
     // The panel layout, on the one entry that indisputably owns the grid
     // (§20.4). Store-instance scope pins to the slot an entry registers INTO,
     // and `shell.overlay` is root-scoped — so this is one layout for the app,
@@ -153,6 +153,6 @@ export function apply(ctx: ClientContext): void {
     // a feature control before a diagnostic one; after it keeps the shipped
     // foot order recognisable.
     order: 10,
-    label: () => 'Project',
+    label: () => 'Workbench',
   }, HomeTrigger))
 }

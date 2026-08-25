@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-client-rheplicant-ui-project",
-  "description": "The rheplicant project home: a root-scoped chooser over a project's tasks, inputs and executions",
+  "description": "The rheplicant workbench: a root-scoped chooser over a project's tasks, inputs and executions",
   "version": "0.1.0-rc.8",
   "type": "module",
   "main": "lib/index.js",

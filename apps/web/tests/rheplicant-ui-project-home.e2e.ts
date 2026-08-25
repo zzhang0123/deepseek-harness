@@ -98,7 +98,7 @@ describe('web e2e: rheplicant project home', () => {
     // IMPLICIT (a named `<section>` is a region), and an attribute selector
     // would report a landmark that is genuinely there as absent.
     expect(await page.getByRole('dialog').count()).toBe(0)
-    expect(await page.getByRole('region', { name: 'Project' }).count()).toBe(1)
+    expect(await page.getByRole('region', { name: 'Workbench' }).count()).toBe(1)
     await page.keyboard.press('Escape')
     // Still here. A modal would be gone.
     expect(await page.locator('[data-project-home]').count()).toBe(1)

@@ -309,7 +309,7 @@ describe('projecting one execution', () => {
 })
 
 describe('naming the project when no session is open', () => {
-  // §6.0's project home is shown exactly when NO session is open, so it has
+  // §6.0's workbench is shown exactly when NO session is open, so it has
   // no session id to send. Resolving a WorkspaceId keeps the trust boundary
   // intact for the same reason a SessionId did: it is a generated uuid the
   // host minted, never a path, so a client still cannot name a directory.

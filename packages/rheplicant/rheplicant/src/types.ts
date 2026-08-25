@@ -734,7 +734,7 @@ export interface ProjectExecutionsBody {
  * One task document as the browser sees it.
  *
  * The `path` is workspace-relative and is the SAME string `rheplicant_run`
- * takes as its `task:` parameter, so the project home can offer a task without
+ * takes as its `task:` parameter, so the workbench can offer a task without
  * inventing a second addressing scheme for one.
  */
 export interface ProjectTaskRow {
@@ -765,7 +765,7 @@ export interface ProjectInputRow {
 }
 
 /**
- * The project home's whole answer: what the project holds and what it has run.
+ * The workbench's whole answer: what the project holds and what it has run.
  *
  * One body rather than three routes, because the three lists are read off ONE
  * walk of the tree and a home assembled from three round trips could show a

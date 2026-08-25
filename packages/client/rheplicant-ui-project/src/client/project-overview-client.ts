@@ -1,9 +1,9 @@
 /**
- * The project home's read of one project, over the host's own route.
+ * The workbench's read of one project, over the host's own route.
  *
  * `docs/project-model.md` §6.0. The console's own client
  * (`ui-console/project-api-client.ts`) asks by SESSION, because it is always
- * inside a conversation. The project home is shown exactly when no session is
+ * inside a conversation. The workbench is shown exactly when no session is
  * open, so it asks by WORKSPACE id — the uuid the host minted and handed the
  * browser through the workspace list. Same trust boundary, different handle:
  * neither surface names a directory, so neither can widen the host's reachable

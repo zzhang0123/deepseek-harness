@@ -1,5 +1,5 @@
 /**
- * The project home: the archive surface, root-scoped, over one project's
+ * The workbench: the archive surface, root-scoped, over one project's
  * tasks, inputs and executions (`docs/project-model.md` §6.0).
  *
  * **Why `shell.overlay` and not §6.0's `conversation.hero.workspace`.** The
@@ -279,7 +279,7 @@ export const ProjectHome = memo(function ProjectHome(
     <div className={styles.layer} data-project-home="">
       {/* A `region` landmark, not a dialog: this is one of the frame's two
           peer sections, and nothing behind it is disabled or dimmed. */}
-      <section className={styles.page} aria-label="Project">
+      <section className={styles.page} aria-label="Workbench">
         <header className={styles.head}>
           <div className={styles.title}>
             <span className={styles.eyebrow}>project</span>

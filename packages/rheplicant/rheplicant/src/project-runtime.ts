@@ -75,7 +75,7 @@ export class ProjectRuntime extends Service {
    * What one project HOLDS: its task documents and its candidate inputs.
    *
    * The companion to {@link listExecutions}, which reports what it has RUN.
-   * A project home needs both, and needs them to describe the same instant —
+   * A workbench needs both, and needs them to describe the same instant —
    * hence one scan returning both lists rather than a method each.
    *
    * @param workspace - the project directory.
