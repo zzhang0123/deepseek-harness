@@ -95,9 +95,12 @@ describe('web e2e: the console tab reads per-latent mcmc diagnostics', () => {
     await sessionRow.click()
     await page.getByText('Open the console view.', { exact: true }).waitFor({ timeout: 10_000 })
 
-    await page.getByRole('tab', { name: 'Console', exact: true }).click()
-    const consoleView = page.locator('[data-rheplicant-console]')
-    await consoleView.waitFor({ timeout: 15_000 })
+    // §23: a session-header disclosure, not a view tab. It opens beside the
+    // session title, so reading what this conversation did no longer costs
+    // leaving the conversation.
+    await page.locator('[data-session-activity-trigger]').click()
+    const activityPanel = page.locator('[data-session-activity-popover]')
+    await activityPanel.waitFor({ timeout: 15_000 })
 
     const rail = page.locator('[data-loop-rail]')
     await rail.waitFor({ timeout: 10_000 })

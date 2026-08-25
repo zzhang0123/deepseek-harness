@@ -136,10 +136,12 @@ describe('web e2e: rheplicant Document view renders the exact document + grammar
 
     // --- This package's `console.panel` occupant is GONE with the grid it
     // sat in (§20.4), and nothing was lost: it rendered the exact document
-    // alone, which is the first half of the tab asserted above. ---
-    await page.getByRole('tab', { name: 'Console', exact: true }).click()
-    const consoleView = page.locator('[data-rheplicant-console]')
-    await consoleView.waitFor({ timeout: 15_000 })
+    // §23: a session-header disclosure, not a view tab. It opens beside the
+    // session title, so reading what this conversation did no longer costs
+    // leaving the conversation.
+    await page.locator('[data-session-activity-trigger]').click()
+    const activityPanel = page.locator('[data-session-activity-popover]')
+    await activityPanel.waitFor({ timeout: 15_000 })
     expect(await page.locator('[data-panel="document"]').count()).toBe(0)
     expect(await page.locator('[data-console-grid]').count()).toBe(0)
   }, 60_000)

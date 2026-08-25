@@ -1,4 +1,6 @@
-/* The workflow-loop rail: full-width strip in the console tab. */
+/* The workflow-loop rail: a wrapping strip of stage cards. It sat full-width
+   in the Console tab until §23 moved it into the session-header disclosure,
+   where `flex-wrap` earns its keep — two stages per row at that width. */
 
 .rail {
   display: flex;

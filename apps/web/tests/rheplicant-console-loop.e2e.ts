@@ -114,11 +114,12 @@ describe('web e2e: rheplicant console workflow loop (LoopRail + Gates panel)', (
     // Confirm the seeded session opened (its user prompt renders).
     await page.getByText('Open the console view.', { exact: true }).waitFor({ timeout: 10_000 })
 
-    // The Console view is a conversation.view tab; select it.
-    await page.getByRole('tab', { name: 'Console', exact: true }).click()
-
-    const consoleView = page.locator('[data-rheplicant-console]')
-    await consoleView.waitFor({ timeout: 15_000 })
+    // §23: a session-header disclosure, not a view tab. It opens beside the
+    // session title, so reading what this conversation did no longer costs
+    // leaving the conversation.
+    await page.locator('[data-session-activity-trigger]').click()
+    const activityPanel = page.locator('[data-session-activity-popover]')
+    await activityPanel.waitFor({ timeout: 15_000 })
 
     // --- LoopRail: ONE rail, because all three events name one task (§19). ---
     const rail = page.locator('[data-loop-rail]')

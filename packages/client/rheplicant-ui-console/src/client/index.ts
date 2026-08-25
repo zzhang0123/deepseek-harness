@@ -1,15 +1,24 @@
 /**
- * Browser plugin for the rheplicant console: a "Console" `conversation.view`
- * tab holding the project header and this conversation's activity rail, plus
- * the `rheplicant-loop` conversation-view target both read, plus the `gates`
- * occupant of the workbench's grid.
+ * Browser plugin for this conversation's own view of the project: a
+ * session-header control holding the project header and the activity rail,
+ * plus the `rheplicant-loop` conversation-view target both read, plus the
+ * `gates` occupant of the workbench's grid.
  *
- * **This package used to DECLARE `console.panel`**, a child grid every viz
- * plugin injected into, and §20.4 removed it: the same occupants were
- * registered twice — here and in ui-project's `task.panel` — and the panels
- * belong to the project, not to whichever conversation happens to be open. The
- * declaration is gone rather than left in place and unrendered, so a new panel
- * has one seat to choose and no way to end up in the wrong one.
+ * **This package has now lost both of the seats it was named for.** It used to
+ * DECLARE `console.panel`, a child grid every viz plugin injected into, and
+ * §20.4 removed it: the same occupants were registered twice — here and in
+ * ui-project's `task.panel` — and the panels belong to the project, not to
+ * whichever conversation happens to be open. Then §23 removed the "Console"
+ * `conversation.view` tab itself, because what §20.4 left behind was a whole
+ * tab holding a header and one rail, and you had to leave the conversation to
+ * read what the conversation had done. Both declarations are gone rather than
+ * left in place and unrendered, so a new panel has one seat to choose and no
+ * way to end up in the wrong one.
+ *
+ * The package NAME still says console, and the word is retiring
+ * (`docs/surface-model.md` §9.5). Renaming it moves a bundle id, a module-table
+ * row and every mirror — the same trade the Workbench rename declined for
+ * identifiers — so it waits for a commit that is about that and nothing else.
  * @module @rheplicant/dsh-rheplicant-ui-console/client
  */
 
@@ -18,7 +27,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-slots'
 // Type-only: loads the SlotMap entry for `task.panel`, the workbench's grid.
 import type {} from '@deepseek-ai/dsh-client-rheplicant-ui-project/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { ConsoleView } from './ConsoleView.tsx'
+import { SessionActivity } from './SessionActivity.tsx'
 import { GatesPanel } from './GatesPanel.tsx'
 import { setSelectionSource } from './selection-bridge.ts'
 import { registerLoopDefinitions } from './loop-definitions.ts'
@@ -57,15 +66,19 @@ export function apply(ctx: ClientContext): void {
   setSelectionSource(() => ctx.get('rheplicantSelection'))
   registerLoopDefinitions(ctx)
   registerLoopConversationView(ctx)
-  // No `children:` and no `store:` any more: this tab declares no grid, so it
-  // has no panel layout to own either (§20.4). The workbench's own
-  // registration owns both now.
-  ctx.slots.inject('conversation.view', () => ctx.slots.register({
-    name: 'conversation.view',
-    id: 'console',
-    order: 5,
-    label: () => 'Console',
-  }, ConsoleView))
+  // A session-header action, not a view tab (§23). `scope: 'session'` is the
+  // requirement, not the preference: every piece below reads the conversation
+  // snapshot, and the frame-wide `shell.overlay` the design first sketched is
+  // root-scoped and never receives `useSession`. `kind: 'list'` means this is
+  // added beside dsh's own header actions rather than shadowing any of them.
+  // Ordered after ui-jobs' (20) so a rheplicant control never displaces a
+  // shipped one.
+  ctx.slots.inject('conversation.session.header.actions', () => ctx.slots.register({
+    name: 'conversation.session.header.actions',
+    id: 'rheplicant-session-activity',
+    order: 30,
+    label: () => 'In this conversation',
+  }, SessionActivity))
   // Gates renders in the WORKBENCH's grid, the only seat there is.
   ctx.slots.inject('task.panel', () => ctx.slots.register({
     name: 'task.panel',

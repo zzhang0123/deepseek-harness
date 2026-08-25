@@ -78,15 +78,18 @@ describe('web e2e: the rheplicant console tab', () => {
     await sessionRow.click()
     await page.getByText('Open the console view.', { exact: true }).waitFor({ timeout: 10_000 })
 
-    await page.getByRole('tab', { name: 'Console', exact: true }).click()
-    const consoleView = page.locator('[data-rheplicant-console]')
-    await consoleView.waitFor({ timeout: 15_000 })
-    expect(await consoleView.count()).toBe(1)
+    // §23: a session-header disclosure, not a view tab. It opens beside the
+    // session title, so reading what this conversation did no longer costs
+    // leaving the conversation.
+    await page.locator('[data-session-activity-trigger]').click()
+    const activityPanel = page.locator('[data-session-activity-popover]')
+    await activityPanel.waitFor({ timeout: 15_000 })
+    expect(await activityPanel.count()).toBe(1)
 
     // The activity strip, and its label — which is load-bearing (§11.4): an
     // unlabelled rail reads as a statement about the TASK, and this one is a
     // statement about the CONVERSATION.
-    const activity = consoleView.locator('[data-session-activity]')
+    const activity = activityPanel.locator('[data-session-activity]')
     await activity.waitFor({ timeout: 10_000 })
     expect((await activity.innerText()).toLowerCase()).toContain('in this conversation')
     await activity.locator('[data-loop-rail]').waitFor({ timeout: 10_000 })

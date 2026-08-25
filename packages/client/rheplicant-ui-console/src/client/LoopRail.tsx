@@ -1,6 +1,7 @@
 /**
  * What THIS CONVERSATION did: five stage segments (Author · Validate · Gates ·
- * Run · Diagnostics) rendered full-width in the console tab.
+ * Run · Diagnostics), rendered in the session-header disclosure (§23; it was
+ * the Console tab until then).
  *
  * **The session half of the split in `docs/project-model.md` §11.4.** It reads
  * the `rheplicant-loop` projection of this session's own durable events, so it

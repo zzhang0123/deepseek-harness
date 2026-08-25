@@ -1,0 +1,90 @@
+/* The session-header disclosure that replaced the Console tab
+   (docs/project-model.md §23). Rules for the tab's full-bleed base surface
+   went with it; what remains is a header control and the panel it opens.
+
+   TOKENS ARE COPIED FROM dsh's OWN HEADER ACTION (ui-jobs' JobListAction),
+   not invented by analogy. Several `--dsw-alias-*` names already used across
+   rheplicant's stylesheets — `bg-elevated`, `bg-hover`, `border-default`,
+   `text-primary|secondary|tertiary` — are defined NOWHERE in either repo, so
+   they resolve to nothing: a colour silently inherits, and a background is
+   silently transparent. This file caught it the loud way, with a popover you
+   could read the transcript through. The real vocabulary is
+   `--dsw-alias-label-*` for text, `--dsw-alias-border-l1..l4` for borders, and
+   `--dsw-specific-menu` for a menu surface. */
+.root {
+  position: relative;
+}
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+  cursor: pointer;
+  /* The mark below is the disclosure affordance; the native triangle beside
+     it would read as a second control. */
+  list-style: none;
+}
+
+.trigger::-webkit-details-marker {
+  display: none;
+}
+
+.trigger:hover,
+.trigger:focus-visible {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.mark {
+  flex: none;
+  font-size: 11px;
+}
+
+.legend {
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Anchored to the trigger and above the conversation, not in its flow: this
+   is a glance, so opening it must not reflow the transcript underneath.
+   Opens to the LEFT of the control's right edge, because the control sits in
+   the header's right half and a left-anchored panel would run off-screen. */
+.popover {
+  position: absolute;
+  top: calc(100% + 5px);
+  right: 0;
+  z-index: 100;
+  box-sizing: border-box;
+  width: 420px;
+  max-width: min(520px, calc(100vw - 32px));
+  max-height: min(520px, calc(100vh - 140px));
+  padding: 8px 0;
+  overflow: auto;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  background: var(--dsw-specific-menu);
+}
+
+/* The session-activity strip. The label is not decoration: without it the
+   rail reads as a statement about the TASK, which is the confusion §11.4
+   exists to remove. */
+.activity {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.activityLabel {
+  padding-inline: 0.75rem;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
