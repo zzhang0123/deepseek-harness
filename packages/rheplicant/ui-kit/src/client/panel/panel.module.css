@@ -105,7 +105,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
-  font-family: var(--dsw-alias-font-mono, ui-monospace, monospace);
+  font-family: var(--dsw-font-mono, ui-monospace, monospace);
   font-size: 0.8125rem;
   color: var(--dsw-alias-label-primary);
 }

@@ -36,7 +36,7 @@
 
 .where {
   margin: 0;
-  font-family: var(--dsw-alias-font-mono, ui-monospace, monospace);
+  font-family: var(--dsw-font-mono, ui-monospace, monospace);
   font-size: 0.75rem;
   color: var(--dsw-alias-label-secondary);
 }
@@ -96,7 +96,7 @@
    an unexplained absence reads as "this document declares no checks". */
 .checksAbsent {
   margin: 0 0 0.5rem;
-  color: var(--dsw-alias-text-tertiary);
+  color: var(--dsw-alias-label-tertiary);
   font-size: 0.75rem;
   line-height: 1.5;
 }

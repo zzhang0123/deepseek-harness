@@ -120,5 +120,5 @@
 .taskLabel {
   font-family: var(--dsw-font-mono, ui-monospace, monospace);
   font-size: 0.6875rem;
-  color: var(--dsw-alias-text-tertiary);
+  color: var(--dsw-alias-label-tertiary);
 }
