@@ -436,12 +436,20 @@ export async function fetchDocumentProjection(
   workspaceId: string,
   path: string,
   signal?: AbortSignal,
+  /**
+   * Project the bytes THIS EXECUTION ran instead of the task as it stands
+   * (§28.1). The `path` is still sent and still ignored by the host in this
+   * mode — it stays in the query so a request is readable in a network log
+   * without cross-referencing an execution id.
+   */
+  executionId?: string,
 ): Promise<ProjectDocumentProjectionBody | 'refused' | undefined> {
   let response: Response
   try {
     response = await fetch(
       `${ROUTE_PREFIX}/projection?workspace=${encodeURIComponent(workspaceId)}`
-      + `&path=${encodeURIComponent(path)}`,
+      + `&path=${encodeURIComponent(path)}`
+      + (executionId === undefined ? '' : `&execution=${encodeURIComponent(executionId)}`),
       { ...(signal === undefined ? {} : { signal }), headers: { accept: 'application/json' } },
     )
   } catch {

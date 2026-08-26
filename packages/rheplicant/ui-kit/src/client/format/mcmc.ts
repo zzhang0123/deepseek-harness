@@ -100,3 +100,76 @@ export function mcmcRows(mcmc: unknown): readonly McmcLatentRow[] {
     }
   })
 }
+
+/** The worst r_hat and the thinnest n_eff a sampler reported, across latents. */
+export interface McmcWorst {
+  /** The LARGEST r_hat, already formatted; `undefined` when none was a number. */
+  readonly rhat: string | undefined
+  /**
+   * Which latent that r_hat belongs to.
+   *
+   * Carried because the two extrema can come from DIFFERENT latents, and a
+   * line reading "worst r_hat 1.42 · thinnest n_eff 83" otherwise reads as one
+   * latent's pair. It is also the single most actionable fact in the summary:
+   * with two latents a reader can go and look, with forty they cannot.
+   */
+  readonly rhatLatent: string | undefined
+  /** The SMALLEST n_eff, already formatted; `undefined` when none was a number. */
+  readonly nEff: string | undefined
+  /** Which latent that n_eff belongs to. */
+  readonly nEffLatent: string | undefined
+  /** How many latents the sampler reported on. */
+  readonly latents: number
+  /** True when the largest r_hat is past {@link RHAT_WARN_ABOVE}. */
+  readonly warn: boolean
+}
+
+/**
+ * The one-line convergence summary — largest r_hat, smallest n_eff, and which
+ * latent each belongs to.
+ *
+ * **Written for `docs/project-model.md` §28.2.** The Posterior and Chains
+ * panels both drew the full per-latent table, measured identical on screen
+ * down to the values; the table is Chains's evidence, because it answers
+ * "did the sampler behave". Posterior still needs a TRUST signal beside the
+ * marginals — that is where somebody decides whether to believe a
+ * distribution — so it gets the worst case and a pointer, and the table is
+ * kept in one place rather than in two that can drift.
+ *
+ * The worst case rather than a mean: a single unconverged latent is the thing
+ * a summary must not average away.
+ *
+ * `null` (the wire's non-finite spelling) is NOT a number and does not
+ * participate in either extremum — but it does count toward `latents`, so a
+ * run whose every latent came back non-finite reports two absent values over a
+ * real count rather than a confident-looking pair over zero.
+ *
+ * **`warn` is keyed on r_hat alone**, which is `mcmcRows`' own convention and
+ * is inherited rather than invented here. It is a real limitation of the
+ * summary and not of the table it replaced: there is no ESS threshold in this
+ * codebase, so `thinnest n_eff 7` cannot turn the line amber. Naming the
+ * latent is what keeps that case findable.
+ *
+ * @param mcmc - `RunDiagnostics.mcmc`, untyped off the wire.
+ * @returns the summary, or `undefined` when the sampler reported no latents at
+ *   all — which is a different fact from reporting them as non-finite, and
+ *   renders as nothing rather than as a line with two dashes.
+ */
+export function mcmcWorst(mcmc: unknown): McmcWorst | undefined {
+  const latents = mcmcLatents(mcmc)
+  if (latents.length === 0) return undefined
+  let worst: McmcLatentDiagnostic | undefined
+  let thinnest: McmcLatentDiagnostic | undefined
+  for (const row of latents) {
+    if (row.rhat !== null && (worst?.rhat == null || row.rhat > worst.rhat)) worst = row
+    if (row.nEff !== null && (thinnest?.nEff == null || row.nEff < thinnest.nEff)) thinnest = row
+  }
+  return {
+    rhat: worst === undefined ? undefined : formatDiagnostic('rhat', worst.rhat),
+    rhatLatent: worst?.latent,
+    nEff: thinnest === undefined ? undefined : formatDiagnostic('n_eff', thinnest.nEff),
+    nEffLatent: thinnest?.latent,
+    latents: latents.length,
+    warn: worst?.rhat != null && worst.rhat > RHAT_WARN_ABOVE,
+  }
+}

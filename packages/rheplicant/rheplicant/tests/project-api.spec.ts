@@ -826,6 +826,104 @@ describe('projecting one task document for display', () => {
     expect(readCalls).toEqual([])
   })
 
+
+  describe('the as-run projection (§28.1)', () => {
+    // The workbench's Model section draws BOTH the declared graph and the one
+    // an execution ran, through this one route — which is what makes the
+    // renderer identical on both sides, so a difference between the two
+    // pictures is a difference in the DOCUMENTS and not in the theme.
+    const AS_RUN = 'model: {as_run: true}\n'
+
+    it('projects the bytes the EXECUTION ran, not the task as it stands now', async () => {
+      task('model: {edited_since: true}\n')
+      execution('tasks/fit', 'EXEC-1', { 'config.input.yaml': AS_RUN })
+      const request = routes({ 'S-1': workspace })
+
+      await request(`${ROUTE_PREFIX}/projection`, 'session=S-1&path=tasks/fit.yaml&execution=EXEC-1')
+
+      expect(projectionCalls).toEqual([AS_RUN])
+    })
+
+    it('answers the digest of THOSE bytes, so the two sides cannot be confused', async () => {
+      task('model: {edited_since: true}\n')
+      execution('tasks/fit', 'EXEC-1', { 'config.input.yaml': AS_RUN })
+      const request = routes({ 'S-1': workspace })
+
+      const response = await request(
+        `${ROUTE_PREFIX}/projection`, 'session=S-1&path=tasks/fit.yaml&execution=EXEC-1')
+
+      const body = JSON.parse(response.body) as { digest: string; path: string }
+      expect(body.digest).toBe(createHash('sha256').update(AS_RUN).digest('hex'))
+    })
+
+    it('still answers when the task file is GONE', async () => {
+      // The point of reading the execution's own copy: an as-run picture must
+      // survive the document being renamed, edited or deleted, because that
+      // is exactly when somebody wants to see what actually ran.
+      execution('tasks/fit', 'EXEC-1', { 'config.input.yaml': AS_RUN })
+      const request = routes({ 'S-1': workspace })
+
+      const response = await request(
+        `${ROUTE_PREFIX}/projection`, 'session=S-1&path=tasks/gone.yaml&execution=EXEC-1')
+
+      expect(response.status).toBe(200)
+      expect(projectionCalls).toEqual([AS_RUN])
+    })
+
+    it('sends back a project-relative path, never the host one', async () => {
+      task()
+      execution('tasks/fit', 'EXEC-1', { 'config.input.yaml': AS_RUN })
+      const request = routes({ 'S-1': workspace })
+
+      const response = await request(
+        `${ROUTE_PREFIX}/projection`, 'session=S-1&path=tasks/fit.yaml&execution=EXEC-1')
+
+      const body = JSON.parse(response.body) as { path: string }
+      expect(body.path).toBe('results/tasks/fit/EXEC-1/config.input.yaml')
+      expect(body.path).not.toContain(workspace)
+    })
+
+    it('refuses an execution this project does not hold', async () => {
+      task()
+      const request = routes({ 'S-1': workspace })
+
+      const response = await request(
+        `${ROUTE_PREFIX}/projection`, 'session=S-1&path=tasks/fit.yaml&execution=NOT-HERE')
+
+      expect(response.status).toBe(404)
+      expect(JSON.parse(response.body).code).toBe('EXECUTION_NOT_FOUND')
+      expect(projectionCalls).toEqual([])
+    })
+
+    it('says the execution is unreadable when its document is not there', async () => {
+      // An execution with no `config.input.yaml` — a refused publication is
+      // the real case (§27.4's sidecar-less tree) — must not fall back to the
+      // task file and present it as what ran.
+      task('model: {edited_since: true}\n')
+      execution('tasks/fit', 'EXEC-1')
+      const request = routes({ 'S-1': workspace })
+
+      const response = await request(
+        `${ROUTE_PREFIX}/projection`, 'session=S-1&path=tasks/fit.yaml&execution=EXEC-1')
+
+      expect(response.status).toBe(409)
+      expect(projectionCalls).toEqual([])
+    })
+
+    it('an EMPTY execution parameter is the declared projection, not an error', async () => {
+      // A client that spells "no execution" as `execution=` rather than by
+      // omitting the key gets the ordinary answer.
+      task('model: {authored: true}\n')
+      const request = routes({ 'S-1': workspace })
+
+      const response = await request(
+        `${ROUTE_PREFIX}/projection`, 'session=S-1&path=tasks/fit.yaml&execution=')
+
+      expect(response.status).toBe(200)
+      expect(projectionCalls).toEqual(['model: {authored: true}\n'])
+    })
+  })
+
   it('refuses a path outside the project with the reader\'s own code', async () => {
     task()
     const request = routes({ 'S-1': workspace })

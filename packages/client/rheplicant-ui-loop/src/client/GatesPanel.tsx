@@ -186,7 +186,17 @@ export const GatesPanel = memo(function GatesPanel({ useSession, layout, executi
   if (layout?.hidden.has(PANEL_ID) === true) return null
   const checks = gates?.report.checks ?? []
   const problem = executionEmptyReason(execution)
-  const hasEvidence = gates !== undefined || (findings !== undefined && findings.length > 0)
+  // `findings !== undefined` and NOT `findings.length > 0` — §28.3. An empty
+  // array off a selected execution is `gatesToRender`'s complete answer ("this
+  // execution recorded no findings"), and counting it as absence threw that
+  // answer away one layer above the selector that took care to make it. What
+  // it cost, measured in a boot: a published `ok` execution rendered *"No
+  // gates evidence yet — ask the agent for a rheplicant_gates or
+  // rheplicant_run call"*, on a surface that had the execution in hand and had
+  // already run it. It also meant `data-gate-checks-absent` — the paragraph
+  // written to explain why the priced checks are not here — could never render
+  // in the workbench, the only place it is needed.
+  const hasEvidence = gates !== undefined || findings !== undefined
   const anyRefuse = checks.some(check => effectiveState(check) === 'refuse') || (findings ?? []).some(f => f.severity === 'refuse')
   const anyWarnLike = checks.some(check => effectiveState(check) === 'warn' || isSkipLike(effectiveState(check)))
     || (findings ?? []).some(f => f.severity === 'warn')
@@ -226,6 +236,19 @@ export const GatesPanel = memo(function GatesPanel({ useSession, layout, executi
             <div data-gate-findings className={styles.findings}>
               {findings.map((finding, index) => <FindingRow key={index} finding={finding} />)}
             </div>
+          ) : null}
+          {/* The empty array, said out loud, and saying ONLY what it is.
+              An earlier draft read "this execution's post-flight checks
+              recorded no findings", which claims the pass RAN — and post-flight
+              is the pass a document can decline (philosophy §2.5), so a run
+              whose checks are all `skip`/`off` produces the same empty array.
+              What is known is that the tree recorded none; that is what it
+              says. Rendering it as blank space is the other wrong answer: a
+              reader could not tell it from a panel that failed to load. */}
+          {findings !== undefined && findings.length === 0 ? (
+            <p data-gate-findings-none className={styles.checksAbsent}>
+              This execution recorded no gate findings.
+            </p>
           ) : null}
           <div data-always-on-checks className={styles.alwaysOn}>
             {ALWAYS_ON_CHECKS.map(entry => <AlwaysOnRow key={entry.id} id={entry.id} summary={entry.summary} detail={entry.detail} />)}

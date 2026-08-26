@@ -141,14 +141,136 @@ describe('the posterior panel over the same run', () => {
     expect(run.querySelector('[data-band-note="wide"]')).toBeTruthy()
   })
 
-  it('reuses the SAME provenance and per-latent derivations, not a second implementation', () => {
+  it('reuses the SAME provenance derivation, not a second implementation', () => {
     drawPosterior()
     const run = document.querySelector('[data-posterior-run][data-run-name="fit"]')!
     expect(run.querySelector('[data-run-provenance]')?.getAttribute('data-run-seq')).toBe('3')
-    expect(run.querySelector('[data-mcmc-latent="centre"] [data-stat="rhat"] [data-stat-verdict]')
-      ?.getAttribute('data-stat-verdict')).toBe('warn')
-    expect(run.querySelectorAll('[data-mcmc-latent="depth"] [data-stat="rhat"] [data-stat-verdict]').length)
-      .toBe(0)
+  })
+
+  describe('the convergence summary that replaced the per-latent table (§28.2)', () => {
+    // The table is Chains's evidence and was drawn in BOTH panels, identical
+    // down to the values. What Posterior owes a reader is whether the
+    // distribution below can be believed, so it keeps the worst case.
+    it('draws no per-latent rows any more — those live in Chains', () => {
+      drawPosterior()
+      const run = document.querySelector('[data-posterior-run][data-run-name="fit"]')!
+      expect(run.querySelectorAll('[data-mcmc-latent]').length).toBe(0)
+    })
+
+    it('carries the WORST r_hat, not the first or the mean', () => {
+      // `centre` is 1.42 and `depth` is 0.9906; a mean would read 1.2 and an
+      // average is exactly how a single unconverged latent gets hidden.
+      drawPosterior()
+      expect(document.querySelector('[data-mcmc-worst]')?.textContent)
+        .toContain('worst r_hat 1.42')
+    })
+
+    it('carries the THINNEST n_eff, over a real latent count', () => {
+      drawPosterior()
+      const text = document.querySelector('[data-mcmc-worst]')?.textContent ?? ''
+      expect(text).toContain('thinnest n_eff 83')
+      expect(text).toContain('across 2 latents')
+    })
+
+    it('still says a latent is over the threshold — the reason a summary is allowed at all', () => {
+      drawPosterior()
+      expect(document.querySelector('[data-mcmc-summary]')?.getAttribute('data-mcmc-warn'))
+        .toBe('true')
+    })
+
+    it('names where the per-latent numbers went', () => {
+      // A summary that replaces a table without saying where the table is is
+      // how the detail becomes unfindable rather than relocated.
+      drawPosterior()
+      expect(document.querySelector('[data-mcmc-pointer]')?.textContent).toContain('Chains')
+    })
+
+    it('names the latent each extremum belongs to', () => {
+      // In this fixture they are DIFFERENT latents — `centre` has the bad
+      // r_hat, `depth` the thinner n_eff — so a line without the names reads
+      // as one latent's pair.
+      drawPosterior()
+      const text = document.querySelector('[data-mcmc-worst]')?.textContent ?? ''
+      expect(text).toContain('(centre)')
+      expect(text).toContain('(depth)')
+    })
+
+    it('draws no per-latent n_eff RECORD either — §28.2 missed that copy', () => {
+      // `diagnostics.n_eff` can arrive as a per-latent object, and both panels
+      // spelled it out. Chains keeps it; this panel folds it into one line.
+      render(
+        <PosteriorPanel
+          {...({
+            useSession,
+            execution: {
+              executionId: 'E9',
+              runs: [{
+                ...FIT,
+                diagnostics: { ...FIT.diagnostics, n_eff: { centre: 91, depth: 83 } },
+              }],
+            },
+          } as unknown as ComponentProps<typeof PosteriorPanel>)}
+        />,
+      )
+      expect(document.querySelectorAll('[data-stat="n_eff-centre"]').length).toBe(0)
+      expect(document.body.textContent).not.toContain('n_eff (centre)')
+    })
+
+    it('carries divergences, which a healthy r_hat would otherwise hide', () => {
+      // The failure mode the summary must not lose: r_hat 1.000, healthy
+      // n_eff, and three hundred divergent transitions.
+      render(
+        <PosteriorPanel
+          {...({
+            useSession,
+            execution: {
+              executionId: 'E8',
+              runs: [{
+                ...FIT,
+                diagnostics: {
+                  ...FIT.diagnostics,
+                  divergences: 300,
+                  mcmc: { depth: { r_hat: 1.0, n_eff: 900 } },
+                },
+              }],
+            },
+          } as unknown as ComponentProps<typeof PosteriorPanel>)}
+        />,
+      )
+      expect(document.querySelector('[data-mcmc-divergences]')?.textContent)
+        .toContain('300 divergences')
+      // And it turns the line amber even though every r_hat is fine.
+      expect(document.querySelector('[data-mcmc-summary]')?.getAttribute('data-mcmc-warn'))
+        .toBe('true')
+    })
+
+    it('says nothing about divergences when there are none', () => {
+      drawPosterior()
+      expect(document.querySelector('[data-mcmc-divergences]')).toBeNull()
+    })
+
+    it('drops the pointer when the Chains panel is HIDDEN', () => {
+      // Sending a reader to a panel that is not on screen is worse than not
+      // sending them. The latent names above are what make this safe.
+      render(
+        <PosteriorPanel
+          {...({
+            useSession,
+            execution: EXECUTION,
+            layout: {
+              collapsed: new Set<string>(),
+              hidden: new Set(['chains']),
+              toggleCollapsed: () => {},
+              hide: () => {},
+              show: () => {},
+            },
+          } as unknown as ComponentProps<typeof PosteriorPanel>)}
+        />,
+      )
+      expect(document.querySelector('[data-mcmc-pointer]')).toBeNull()
+      // The numbers themselves are still there.
+      expect(document.querySelector('[data-mcmc-worst]')).toBeTruthy()
+    })
   })
 
   it('keeps the corner plot closed by default and opens it on the summary', () => {

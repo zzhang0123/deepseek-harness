@@ -1,4 +1,7 @@
-/* The project header: which execution the panels below are showing. */
+/* The session header's execution field: which execution the PROJECT'S
+   SELECTION names. Not "the panels below" — §20.4 moved the panel grid to
+   the workbench, and §28.6 is about exactly this sentence outliving the
+   arrangement it described. */
 .header {
   display: flex;
   flex-wrap: wrap;

@@ -225,6 +225,36 @@ export interface TaskDocument {
 }
 
 /**
+ * Decode document bytes as UTF-8, or refuse.
+ *
+ * **A shared policy and not a convenience.** Both `toString('utf8')` and
+ * `TextDecoder` substitute invalid sequences with U+FFFD silently, so the text
+ * served would differ from the bytes on disk — and for a document someone will
+ * read, diff and DIGEST, refusing beats quietly altering. The digest is the
+ * sharp end: a corrupted decode still hashes, and that hash is what the
+ * workbench compares to decide whether a diagram describes the document it is
+ * being shown against.
+ *
+ * It lives here rather than at the one call site because it stopped being one:
+ * §28.1's as-run projection reads `config.input.yaml` through the ARTIFACT
+ * reader instead of this one, and its first draft reached for a bare
+ * `new TextDecoder().decode(...)` three routes away from this comment. Found
+ * by review, not by a gate.
+ *
+ * @param bytes - the file's exact bytes.
+ * @param where - a PROJECT-RELATIVE name for the message; never a host path.
+ * @returns the decoded text.
+ * @throws ProjectReadError when the bytes are not valid UTF-8.
+ */
+export function decodeDocument(bytes: Buffer, where: string): string {
+  const text = bytes.toString('utf8')
+  if (!Buffer.from(text, 'utf8').equals(bytes)) {
+    throw new ProjectReadError(`${where} is not valid UTF-8.`, 'ARTIFACT_UNREADABLE')
+  }
+  return text
+}
+
+/**
  * Serve one task document by its workspace-relative path.
  *
  * This is a host read at a caller-named path, so it is a trust surface, and
@@ -293,13 +323,7 @@ export function readTaskDocument(workspace: string, relativePath: string): TaskD
     )
   }
   const bytes = readRegularFile(real, MAX_TASK_BYTES)
-  const text = bytes.toString('utf8')
-  // `toString('utf8')` substitutes invalid sequences silently, so the text
-  // served would differ from the bytes on disk. For a document someone will
-  // read and diff, refusing beats quietly altering.
-  if (!Buffer.from(text, 'utf8').equals(bytes)) {
-    throw new ProjectReadError(`${relativePath} is not valid UTF-8.`, 'ARTIFACT_UNREADABLE')
-  }
+  const text = decodeDocument(bytes, relativePath)
   let identity
   try {
     identity = lstatSync(real)

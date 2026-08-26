@@ -49,14 +49,19 @@ describe('the default-collapse rule', () => {
   })
 
   it('never collapses a panel that draws no run product', () => {
-    // `gates` draws post-flight verdicts and `signal-path` draws the declared
-    // model; neither is a product, so neither is the rule's business. Same for
-    // `spectrum`, whose only selector is `arrays` — which every exit writes,
-    // so keying on it would say nothing.
+    // `gates` draws post-flight verdicts; `spectrum`'s only selector is
+    // `arrays`, which every exit writes, so keying on it would say nothing.
+    // Neither is a product, so neither is the rule's business.
+    //
+    // `signal-path` was the third name here until §28.1 merged that panel into
+    // the Model section, and asserting on it now would be a test that cannot
+    // fail — the id is not in the roster, so `not.toContain` holds whatever
+    // the rule does. The two below are pinned against the ROSTER instead, so
+    // this reddens if a future row loses its exemption.
     const collapse = panelsWithNoExit(KNOWN_PANELS, { declared: [] })
-    expect(collapse).not.toContain('gates')
-    expect(collapse).not.toContain('signal-path')
-    expect(collapse).not.toContain('spectrum')
+    const exempt = KNOWN_PANELS.filter(panel => panel.product === undefined).map(panel => panel.id)
+    expect(exempt).toEqual(['gates', 'spectrum'])
+    for (const id of exempt) expect(collapse).not.toContain(id)
   })
 
   it('treats a declared run with no products at all as writing nothing', () => {

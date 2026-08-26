@@ -54,7 +54,15 @@ export function useWorkbenchExecution(
           executionId,
           foreign: false,
           runs: (answer.runs ?? []) as AnalysisRun[],
-          gates: answer.gates ?? [],
+          // `gates` is SPREAD, never defaulted to `[]`. `RunOutcome.gates` is
+          // an optional wire field, so JSON drops the key when nothing was
+          // carried — and `?? []` turned "not carried" into "asked and
+          // answered", which is the one distinction §28.3 turns on. The panel
+          // reads an empty array as a complete answer about the execution;
+          // handing it one the wire never sent makes it state a fact nobody
+          // measured. Found by review, and the spec could not see it because
+          // it supplied `gates: []` to the panel directly.
+          ...(answer.gates === undefined ? {} : { gates: answer.gates }),
           ...(answer.graph === undefined ? {} : { graph: answer.graph }),
         })
       }

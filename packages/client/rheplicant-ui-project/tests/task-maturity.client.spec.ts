@@ -175,3 +175,64 @@ describe('staleness — the one signal that needs a digest', () => {
     expect(stage('document', { newest: undefined, view: undefined })?.stale).toBeUndefined()
   })
 })
+
+describe('a task that has run and whose newest execution was never loaded', () => {
+  // §28.5. The workbench's ORDINARY state: `ProjectHome` supplies `view` only
+  // for the execution somebody selected, so a task with published executions
+  // and no selection reaches here with `newest` set and `view` absent. Before
+  // this, all three evidence stages fell through to their empty-collection
+  // branches and asserted facts about the tree — three panels under a Tasks
+  // row saying "3 executions".
+  const unread = { view: undefined } as Partial<MaturityInput>
+
+  it('does not claim the tree recorded no runs', () => {
+    expect(stage('runs', unread)?.detail).not.toMatch(/no runs recorded/i)
+  })
+
+  it('does not claim the tree recorded no findings', () => {
+    expect(stage('gates', unread)?.detail).not.toMatch(/no findings recorded/i)
+  })
+
+  it('does not claim nothing was diagnosed', () => {
+    expect(stage('diagnostics', unread)?.detail).not.toMatch(/nothing diagnosed/i)
+  })
+
+  it('says the newest was not read, in all three', () => {
+    for (const id of ['runs', 'gates', 'diagnostics']) {
+      expect(stage(id, unread)?.detail).toMatch(/not read/i)
+    }
+  })
+
+  it('stays IDLE rather than warning — nobody asked, so nothing is wrong', () => {
+    // `idle` is not `ok` (§11) and it is not `warn` either: a stage nobody
+    // fetched has no verdict, and painting one amber invents a concern.
+    for (const id of ['runs', 'gates', 'diagnostics']) {
+      expect(stage(id, unread)?.state).toBe('idle')
+    }
+  })
+
+  it('still reports the document, which is read off the tree row', () => {
+    expect(stage('document', unread)).toMatchObject({ state: 'ok' })
+  })
+
+  it('still reports a REFUSED publication, which the tree row carries', () => {
+    // The publication axis is above the unread guard on purpose: it comes off
+    // `newest.status`, which is known whether or not anyone fetched the view.
+    const found = stage('runs', {
+      view: undefined,
+      newest: {
+        executionId: 'E1', task: 'tasks/fit', status: 'refused',
+        path: 'results/tasks/fit/E1.refused-ab/', taskDigest: 'digest-of-fit',
+      },
+    })
+    expect(found).toMatchObject({ state: 'error' })
+    expect(found?.detail).toMatch(/refused/i)
+  })
+
+  it('an EMPTY view is still a real answer, and reads as one', () => {
+    // The distinction the guard exists for: `view: undefined` is "nobody
+    // looked", `view.runs: []` is "we looked and there were none".
+    const found = stage('runs', { view: { executionId: 'E1', runs: [] } })
+    expect(found?.detail).toMatch(/no runs recorded/i)
+  })
+})

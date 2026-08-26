@@ -46,6 +46,14 @@ export const ARTIFACT_MEDIA_TYPES: Readonly<Record<string, string>> = {
   [SIDECAR_NAME]: 'application/json',
 }
 
+/**
+ * The bytes an execution was GIVEN, as opposed to the task document as it
+ * stands now — the as-run half of §15's comparison, and since §28.1 the source
+ * the as-run signal path is projected from. A member of the map above, which
+ * is what makes it servable at all.
+ */
+export const EXECUTED_DOCUMENT = 'config.input.yaml'
+
 /** Ceiling on one artifact, matching the Python reader's own limit. */
 export const ARTIFACT_READ_LIMIT = 64 * 1024 * 1024
 

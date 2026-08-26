@@ -1,5 +1,6 @@
-/* AnalysisRunPanel's own per-run provenance caption — same restrained,
-   secondary-label register as signal-path-panel.module.css's `.legend`. */
+/* AnalysisRunPanel's own per-run provenance caption — the same restrained,
+   secondary-label register ui-kit's panel.module.css uses for this kind of
+   text. (It used to cite signal-path-panel.module.css, which §28.1 deleted.) */
 
 .provenance {
   margin: 0.125rem 0 0.375rem;

@@ -17,7 +17,7 @@ import {
   formatDiagnostic,
   formatRunProvenance,
   groupChains,
-  mcmcRows,
+  mcmcWorst,
   selectAnalysisRuns,
   runsToRender,
   executionEmptyReason,
@@ -89,8 +89,24 @@ const RunMarginals = memo(function RunMarginals({ groups }: { groups: readonly C
   )
 })
 
-/** One run's rhat / n_eff diagnostics, folded into StatRow chips, plus one wrapped pair of StatRows per `mcmc` latent (when the sampler reported per-latent diagnostics). */
-const RunDiagnosticStats = memo(function RunDiagnosticStats({ run }: { run: PosteriorRun }) {
+/**
+ * One run's convergence summary — the worst case, in one line.
+ *
+ * **This drew the whole per-latent table until §28.2**, which is what the
+ * Chains panel beside it also drew: measured on one screen, both headed their
+ * body with the same four rows down to the values. The table answers "did the
+ * sampler behave", which is Chains's question; this panel's is "what is the
+ * posterior", and what it owes a reader is whether the distribution below can
+ * be believed at all. So: the largest r_hat, the thinnest n_eff, and where the
+ * detail lives.
+ *
+ * The run-level `rhat`/`n_eff` chips stay. They are a different reading — the
+ * sampler's own scalar for the run, not a fold over latents — and the panel
+ * renders them only when the wire carried them.
+ */
+const RunDiagnosticStats = memo(function RunDiagnosticStats(
+  { run, layout }: { run: PosteriorRun; layout?: PanelLayoutView },
+) {
   const diagnostics = run.diagnostics
   if (diagnostics === undefined) return null
   const nEff = diagnostics.n_eff
@@ -104,23 +120,80 @@ const RunDiagnosticStats = memo(function RunDiagnosticStats({ run }: { run: Post
         // not silently dropped.
         <StatRow statKey="n_eff" label="n_eff" value={formatDiagnostic('n_eff', nEff)} />
       ) : null}
-      {typeof nEff === 'object' && nEff !== null
-        ? Object.entries(nEff).map(([latent, value]) => (
-            <StatRow key={latent} statKey={`n_eff-${latent}`} label={`n_eff (${latent})`} value={formatDiagnostic('n_eff', value)} />
-          ))
-        : null}
-      {mcmcRows(diagnostics.mcmc).map(row => (
-        <div key={row.latent} data-mcmc-latent={row.latent}>
-          <StatRow
-            statKey={row.rhat.stat}
-            label={row.rhat.label}
-            value={row.rhat.value}
-            {...(row.rhat.verdict === undefined ? {} : { verdict: row.rhat.verdict })}
-          />
-          <StatRow statKey={row.nEff.stat} label={row.nEff.label} value={row.nEff.value} />
-        </div>
-      ))}
+      {/* The per-latent n_eff RECORD used to be spelled out here as well, and
+          §28.2 missed it: it is the same duplication from a second source —
+          Chains draws the identical list — and in this panel it sat directly
+          above a line reading "thinnest n_eff …" derived from a DIFFERENT bag
+          (`diagnostics.mcmc`), so the two could disagree about both the latent
+          set and the minimum. One summary, one source. Chains keeps the list.
+          Found by review, after §28.2 had already been written. */}
+      <McmcSummary mcmc={diagnostics.mcmc} divergences={diagnostics.divergences} layout={layout} />
     </>
+  )
+})
+
+/**
+ * The worst-case convergence line, and the pointer to the table.
+ *
+ * Renders nothing when the sampler reported no latents at all — which is a
+ * different fact from reporting them as non-finite, and a line reading
+ * `r_hat — · n_eff —` over zero latents would be a claim nobody made.
+ *
+ * **Divergences ride here too.** §28.2's first draft dropped them, having
+ * itself observed that the two tables were "one `divergences` row apart" — and
+ * a NUTS run with `r_hat 1.000`, healthy `n_eff` and three hundred divergences
+ * renders marginals that are wrong while every number in this line looks fine.
+ * If the argument for a summary is "a trust signal where somebody decides
+ * whether to believe a distribution", divergences belong in it more than
+ * `n_eff` does.
+ *
+ * **The pointer is conditional**, because `ChainsPanel` returns `null` when
+ * the layout hides it and the Panels menu offers exactly that toggle. Sending
+ * a reader to a panel that is not on screen is worse than not sending them.
+ * With the latent named beside each extremum the pointer is a convenience
+ * rather than a dependency, which is what makes dropping it safe.
+ */
+const McmcSummary = memo(function McmcSummary(
+  { mcmc, divergences, layout }: {
+    mcmc: unknown
+    divergences?: number | null | undefined
+    // `| undefined` explicitly: the dsh program runs with
+    // `exactOptionalPropertyTypes`, so `?:` alone refuses a passed-through
+    // `PanelLayoutView | undefined`. Both of this repo's own typechecks accept
+    // it; only `npm run typecheck` in the dsh checkout does not, which is what
+    // that gate is for.
+    layout?: PanelLayoutView | undefined
+  },
+) {
+  const worst = mcmcWorst(mcmc)
+  const diverged = typeof divergences === 'number' && divergences > 0
+  if (worst === undefined && !diverged) return null
+  const chainsShown = layout === undefined || !layout.hidden.has('chains')
+  return (
+    <p
+      className={styles.mcmcSummary}
+      data-mcmc-summary=""
+      data-mcmc-warn={worst?.warn === true || diverged ? 'true' : 'false'}
+    >
+      {worst !== undefined && (
+        <span data-mcmc-worst="">
+          worst r_hat {worst.rhat ?? '—'}
+          {worst.rhatLatent === undefined ? '' : ` (${worst.rhatLatent})`}
+          {' · '}thinnest n_eff {worst.nEff ?? '—'}
+          {worst.nEffLatent === undefined ? '' : ` (${worst.nEffLatent})`}
+          {' '}across {worst.latents} latent{worst.latents === 1 ? '' : 's'}
+        </span>
+      )}
+      {diverged && (
+        <span data-mcmc-divergences="">
+          {worst === undefined ? '' : ' · '}
+          {divergences} divergence{divergences === 1 ? '' : 's'}
+        </span>
+      )}
+      {chainsShown && (
+        <span data-mcmc-pointer="">{' — '}per-latent numbers are in the Chains panel.</span>
+      )}
+    </p>
   )
 })
 
@@ -182,7 +255,7 @@ export const PosteriorPanel = memo(function PosteriorPanel({ useSession, layout,
             <div key={runCardKey(run)} data-posterior-run data-run-name={run.name}>
               <div><strong>{run.name}</strong> <span>({run.kind})</span></div>
               <RunProvenanceCaption run={run} />
-              <RunDiagnosticStats run={run} />
+              <RunDiagnosticStats run={run} {...(layout === undefined ? {} : { layout })} />
               <RunMarginals groups={groups} />
               <details data-corner-details>
                 <summary>Corner</summary>

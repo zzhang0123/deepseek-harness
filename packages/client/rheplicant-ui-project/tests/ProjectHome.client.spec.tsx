@@ -1145,7 +1145,9 @@ describe('the panel layout the workbench owns (§20.4)', () => {
     await open(withRuns(FORWARD))
     await waitFor(() => { expect(panelOwner?.layout.collapsed.has('posterior')).toBe(true) })
     expect(panelOwner?.layout.collapsed.has('gates')).toBe(false)
-    expect(panelOwner?.layout.collapsed.has('signal-path')).toBe(false)
+    // `spectrum`, not `signal-path`: §28.1 merged that panel into the Model
+    // section, so asserting on its id would be an assertion that cannot fail.
+    expect(panelOwner?.layout.collapsed.has('spectrum')).toBe(false)
   })
 
   it('says in the menu WHY a panel arrived collapsed', async () => {

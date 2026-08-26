@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 /**
- * The console header (`docs/project-model.md` §6.1): which project, task and
- * execution the panels below are showing.
+ * The session header's execution field (`docs/project-model.md` §6.1,
+ * restated §28.6): which project, task and execution the PROJECT'S SELECTION
+ * names. Nothing is "below" it — §20.4 moved the panel grid to the workbench.
  *
  * Presentational only — the selection and its fetches live in
  * `useLoopExecution`, and are tested there.

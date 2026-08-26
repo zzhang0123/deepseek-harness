@@ -62,6 +62,7 @@ import { DocumentDiff } from './DocumentDiff.tsx'
 import { TaskModel } from './TaskModel.tsx'
 import { TaskRuns } from './TaskRuns.tsx'
 import { useDocumentProjection } from './use-document-projection.ts'
+import { useModelSource } from './use-model-source.ts'
 import { useExecutedDocument } from './use-executed-document.ts'
 import { KNOWN_PANELS } from './known-panels.ts'
 import { panelsWithNoExit } from './panel-relevance.ts'
@@ -176,7 +177,6 @@ export const ProjectHome = memo(function ProjectHome(
   // philosophy asks to be "always present on screen" was missing for exactly
   // the task somebody is still authoring.
   const projected = useDocumentProjection(chosen, selection.taskPath, nonce)
-
   const refresh = useCallback(() => { setNonce(value => value + 1) }, [])
   // A failed connect leaves the home open and unchanged, which is the only
   // honest thing it can do: there is nowhere to have gone.
@@ -216,12 +216,19 @@ export const ProjectHome = memo(function ProjectHome(
     if (selectedTask?.newestExecutionId === undefined) return undefined
     return current?.executions.find(row => row.executionId === selectedTask.newestExecutionId)
   }, [current, selectedTask])
-  // Which tasks have run is the join the home is actually for: a document with
-  // no executions is work not yet done, and it should not hide among the rest.
-  const ranSegments = useMemo(
-    () => new Set(byTask.map(group => group.task)),
-    [byTask],
-  )
+  // --- The Model section's two sources (§28.1) -----------------------------
+  const selectedExecution = current?.executions
+    .find(row => row.executionId === selection.executionId)
+  const model = useModelSource({
+    workspaceId: chosen,
+    taskPath: selection.taskPath,
+    executionId: selection.executionId,
+    nonce,
+    task: selectedTask,
+    execution: selectedExecution,
+    documentDigest,
+  })
+
   // Guarded on `shownFor` once, here, so the checklist and the input marks
   // can never disagree about which task they describe.
   const definitionKey = `${chosen ?? ''} ${selection.taskPath ?? ''}`
@@ -400,7 +407,19 @@ export const ProjectHome = memo(function ProjectHome(
                             <span className={styles.mono}>{task.path}</span>
                           </button>
                           <span className={styles.meta}>{formatBytes(task.bytes)}</span>
-                          {ranSegments.has(taskSegmentOf(task.path))
+                          {/* ONE derivation, and it is the count (§28.7). The
+                              badge used to be chosen by a segment join —
+                              `ranSegments.has(taskSegmentOf(task.path))` —
+                              while PRINTING `executionCount` inside it, so a
+                              task whose sidecar `task` string does not equal
+                              `taskSegmentOf(path)` rendered "never run" beside
+                              a nonzero count. They agree in the demo by luck of
+                              naming. `executionCount` is the host's own answer
+                              (`withExecutions` in `project-api.ts`), and it is
+                              the number on screen, so it is the number that
+                              decides. §26.2's rule applies here too: nothing
+                              can be missing, so zero really is zero. */}
+                          {task.executionCount > 0
                             ? (
                               <Badge state="ok">
                                 {`${task.executionCount} execution${task.executionCount === 1 ? '' : 's'}`}
@@ -495,14 +514,30 @@ export const ProjectHome = memo(function ProjectHome(
               )}
 
               {selection.taskPath !== undefined && selectedTask !== undefined && (
-                <Panel id="project-task-model" title="Model" subtitle="the physics this document declares">
+                <Panel
+                  id="project-task-model"
+                  title="Model"
+                  subtitle={model.source.showing === 'as-run'
+                    ? 'the physics an execution ran'
+                    : 'the physics this document declares'}
+                >
                   {projected.shownFor !== `${chosen ?? ''} ${selection.taskPath}` || projected.loading
                     ? <EmptyState message="Projecting the document…" />
                     : projected.projection !== undefined
                       ? (
+                        // The as-run projection when it has arrived, the
+                        // declared one until then. Falling back to the
+                        // declared picture is safe ONLY because the switch
+                        // says which is on screen — and it does, in both
+                        // directions, including while the fetch is in flight.
                         <TaskModel
-                          svg={projected.projection.svg}
-                          model={projected.projection.model}
+                          svg={model.comparing && model.asRun.projection !== undefined
+                            ? model.asRun.projection.svg
+                            : projected.projection.svg}
+                          model={model.comparing && model.asRun.projection !== undefined
+                            ? model.asRun.projection.model
+                            : projected.projection.model}
+                          source={model.source}
                         />
                       )
                       : (
@@ -651,10 +686,16 @@ export const ProjectHome = memo(function ProjectHome(
                   )}
               </Panel>
 
+              {/* The SCOPE is in the subtitle because the position implies the
+                  wrong one (§28.4): this panel sits under five task-scoped
+                  panels and is the PROJECT's, so a task selection does not
+                  narrow it. The dashboard's Runs tab is the same reading one
+                  scope wider — every project — and neither surface said which
+                  it was until the audit. */}
               <Panel
                 id="project-executions"
                 title="Executions"
-                subtitle={`${counts.ok} ok · ${counts.refused} refused · ${counts.error} error`}
+                subtitle={`every task in this project · ${counts.ok} ok · ${counts.refused} refused · ${counts.error} error`}
               >
                 {byTask.length === 0
                   ? (
@@ -670,19 +711,42 @@ export const ProjectHome = memo(function ProjectHome(
                           <h4 className={styles.groupHead}>{group.task}</h4>
                           <ul className={styles.rows}>
                             {group.executions.map(execution => (
+                              // The selection axis §11 is built on was
+                              // invisible on the surface that owns it (§28.7):
+                              // the task row has carried an active mark since
+                              // §11, the execution row carried none. It is also
+                              // why a mismatched pair was so easy to fall into.
                               <li
                                 key={execution.executionId}
-                                className={styles.row}
+                                className={`${styles.row} ${
+                                  selection.executionId === execution.executionId
+                                    ? styles.rowActive
+                                    : ''}`}
                                 data-project-execution={execution.executionId}
+                                data-project-execution-active={
+                                  selection.executionId === execution.executionId ? '' : undefined}
                               >
                                 <button
                                   type="button"
                                   className={styles.rowPick}
                                   data-project-select-execution={execution.executionId}
                                   onClick={() => {
-                                    if (chosen !== undefined) {
-                                      selectInProject(chosen, { executionId: execution.executionId })
-                                    }
+                                    if (chosen === undefined) return
+                                    // The TASK travels with the execution
+                                    // (§28.4). This panel is the project's and
+                                    // lists every task's executions, so picking
+                                    // a row while another task is selected used
+                                    // to leave the two disagreeing — and §28.1's
+                                    // as-run comparison would then diff one
+                                    // document's bytes against another's and
+                                    // report an edit nobody made. The dashboard
+                                    // already sets both; this row did not.
+                                    const owner = current.tasks
+                                      .find(row => taskSegmentOf(row.path) === execution.task)
+                                    selectInProject(chosen, {
+                                      ...(owner === undefined ? {} : { taskPath: owner.path }),
+                                      executionId: execution.executionId,
+                                    })
                                   }}
                                 >
                                   <span className={styles.mono}>{execution.executionId}</span>

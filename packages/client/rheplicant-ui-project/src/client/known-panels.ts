@@ -28,9 +28,11 @@
  * step with the grammar.
  *
  * A panel with NO product is never collapsed by the rule. That is not an
- * oversight — `gates` draws post-flight verdicts and `signal-path` draws the
- * declared model, and neither is a run product at all. Answering "unknown" as
- * "unmet" is the same mistake §12 refused on the definition checklist.
+ * oversight — `gates` draws post-flight verdicts and `spectrum` draws
+ * magnitudes our own service derives, and neither is a run product at all.
+ * Answering "unknown" as "unmet" is the same mistake §12 refused on the
+ * definition checklist. (`signal-path` was the third such panel until §28.1
+ * merged it into the Model section.)
  *
  * @module @rheplicant/dsh-rheplicant-ui-project/client/known-panels
  */
@@ -48,9 +50,13 @@ export interface KnownPanel {
 }
 
 export const KNOWN_PANELS: readonly KnownPanel[] = [
-  // Post-flight verdicts and the declared model: neither is a run product.
+  // Post-flight verdicts: not a run product, so never auto-collapsed.
   { id: 'gates', label: 'Gates' },
-  { id: 'signal-path', label: 'Signal path' },
+  // `signal-path` was here, and §28.1 removed the SEAT rather than the row:
+  // the workbench's Model section already drew the same canonical graph, so
+  // the page carried two copies of one diagram in two different fixed themes.
+  // The declared/as-run comparison the panel was accidentally providing lives
+  // there now, over one renderer.
   // Both read `RunEntry.chains`, which our service derives for every exit whose
   // selectors include `chains` (nuts, npe, plan.sample, conjugate.gcr).
   { id: 'posterior', label: 'Posterior', product: 'chains' },

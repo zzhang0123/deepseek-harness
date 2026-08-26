@@ -28,17 +28,50 @@ const IDLE: DocumentProjectionState = {
 }
 
 /**
- * Project the selected task.
+ * The key a projection is held under, and the one definition of it.
+ *
+ * Exported because the CALLER needs it too: "this state describes the request
+ * I just made" is a different fact from `loading`, and only the key can tell
+ * them apart. Between a caller changing its arguments and the effect below
+ * firing there is a render where `loading` is false and `shownFor` still names
+ * the previous request — and reading that as "settled" is how a panel comes to
+ * report a failure for a fetch that was never attempted.
+ *
+ * @param workspaceId - the project.
+ * @param taskPath - the task.
+ * @param executionId - the execution, for an as-run projection.
+ * @returns the key, or undefined when there is nothing to project.
+ */
+export function projectionKey(
+  workspaceId: string | undefined,
+  taskPath: string | undefined,
+  executionId?: string,
+): string | undefined {
+  if (workspaceId === undefined || taskPath === undefined) return undefined
+  return `${workspaceId} ${taskPath}${executionId === undefined ? '' : ` ${executionId}`}`
+}
+
+/**
+ * Project a document: the selected task, or the bytes an execution ran.
+ *
+ * **One hook, two sources (§28.1).** With `executionId` it projects that
+ * execution's `config.input.yaml` through the same route and therefore the
+ * same renderer, which is what lets the Model section put "as declared"
+ * beside "as run" without the two differing in colour before they differ in
+ * content.
  *
  * @param workspaceId - the project, or undefined when none is chosen.
  * @param taskPath - the task, or undefined when none is chosen.
  * @param nonce - bump to re-project the same task.
+ * @param executionId - project what THIS execution ran instead of the task as
+ *   it stands. Absent for the declared projection.
  * @returns the projection and the states around it.
  */
 export function useDocumentProjection(
   workspaceId: string | undefined,
   taskPath: string | undefined,
   nonce = 0,
+  executionId?: string,
 ): DocumentProjectionState {
   const [state, setState] = useState<DocumentProjectionState>(IDLE)
 
@@ -48,7 +81,9 @@ export function useDocumentProjection(
       return
     }
     const controller = new AbortController()
-    const key = `${workspaceId} ${taskPath}`
+    // The execution is IN the key: a diagram held across a change of execution
+    // would be believed, which is the same hazard the task key exists for.
+    const key = projectionKey(workspaceId, taskPath, executionId) as string
     setState(current => ({
       // Held across a refresh of the same task only. A diagram carried across
       // a change of task would be believed, which is the whole hazard.
@@ -57,7 +92,9 @@ export function useDocumentProjection(
       refused: false,
       shownFor: key,
     }))
-    void fetchDocumentProjection(workspaceId, taskPath, controller.signal).then((answer) => {
+    void fetchDocumentProjection(
+      workspaceId, taskPath, controller.signal, executionId,
+    ).then((answer) => {
       if (controller.signal.aborted) return
       setState({
         projection: answer === 'refused' || answer === undefined ? undefined : answer,
@@ -67,7 +104,7 @@ export function useDocumentProjection(
       })
     })
     return () => { controller.abort() }
-  }, [workspaceId, taskPath, nonce])
+  }, [workspaceId, taskPath, nonce, executionId])
 
   return state
 }

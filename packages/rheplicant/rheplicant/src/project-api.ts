@@ -35,7 +35,8 @@ import { createHash } from 'node:crypto'
 import { basename, join, sep } from 'node:path'
 
 import {
-  ARTIFACT_MEDIA_TYPES, MARKER_NAME, ProjectReadError, type ExecutionSummary,
+  ARTIFACT_MEDIA_TYPES, EXECUTED_DOCUMENT, MARKER_NAME, ProjectReadError,
+  type ExecutionSummary,
 } from './executions.ts'
 import type { ProjectTaskDocumentBody } from './types.ts'
 import type {
@@ -44,6 +45,7 @@ import type {
   ProjectTriggerRow, ProjectTriggersBody, Transport,
 } from './types.ts'
 import { isTransport } from './types.ts'
+import { decodeDocument } from './contents.ts'
 import { RESULTS_ROOT, taskSegment } from './project.ts'
 import { nextFireAt, readTriggers, type TriggerRecord } from './triggers.ts'
 import type {} from './project-runtime.ts'
@@ -461,18 +463,71 @@ export function apply(ctx: Context): void {
       }
       const transport = transportOf(url, res)
       if (transport === undefined) return
-      // Read host-side through the same reader every other document route
-      // uses, so the confinement is inherited rather than restated.
-      let document
-      try {
-        document = ctx.rheplicantProject.readTask(workspace, url.searchParams.get('path') ?? '')
-      } catch (error) {
-        const code = error instanceof ProjectReadError ? error.code : 'ARTIFACT_UNREADABLE'
-        json(res, code === 'PATH_ESCAPES_PROJECT' || code === 'ARTIFACT_NOT_ALLOWED' ? 400 : 404, {
-          error: 'this task document could not be read',
-          code,
-        })
-        return
+      // ONE ROUTE, TWO SOURCES (`docs/project-model.md` §28.1). Without
+      // `execution=` this projects the AUTHORED task; with it, the bytes that
+      // execution was actually GIVEN — `config.input.yaml`, already on P3's
+      // allow-list and already read by §15's diff.
+      //
+      // The alternative was to keep drawing the as-run graph from the SVG the
+      // run stored, and that is what made two copies of one diagram disagree
+      // about their colours: `server.py`'s `_graph` renders `theme="dark"`
+      // while `gui/document.py` takes `to_svg`'s `"light"` default, so on
+      // either scheme one of the two was wrong. Projecting both through this
+      // one route makes the renderer identical, which is also what makes the
+      // comparison mean something: any difference between the two pictures is
+      // then a difference in the DOCUMENTS.
+      const executionId = url.searchParams.get('execution')
+      let document: { readonly path: string; readonly text: string }
+      if (executionId !== null && executionId !== '') {
+        // The identity is taken from THIS listing, never from the request —
+        // the same rule the artifact route states, for the same reason.
+        const found = locate(ctx, workspace, executionId)
+        if (found === undefined) {
+          json(res, 404, {
+            error: `no readable execution ${executionId} in this project`,
+            code: 'EXECUTION_NOT_FOUND',
+          })
+          return
+        }
+        try {
+          const artifact = ctx.rheplicantProject.readArtifact(workspace, {
+            resultsPath: found.resultsPath,
+            markerId: found.markerId,
+            device: found.device,
+            inode: found.inode,
+            name: EXECUTED_DOCUMENT,
+          })
+          // `relativePath` and not `resultsPath`: the first is what the rest
+          // of this module lets the browser see, the second is a host path.
+          const shown = `${relativePath(workspace, found.resultsPath)}${EXECUTED_DOCUMENT}`
+          // `decodeDocument` and NOT `new TextDecoder().decode(...)`: the
+          // latter substitutes invalid sequences silently, and that text would
+          // then be projected AND hashed into the `digest` below — the field
+          // whose whole job is to stop a diagram being shown against the wrong
+          // version of a document. One policy, stated once, beside the reader
+          // that established it.
+          document = { path: shown, text: decodeDocument(artifact.bytes, shown) }
+        } catch (error) {
+          const code = error instanceof ProjectReadError ? error.code : 'ARTIFACT_UNREADABLE'
+          json(res, code === 'EXECUTION_NOT_FOUND' ? 404 : 409, {
+            error: 'this execution is no longer readable — refresh the list',
+            code,
+          })
+          return
+        }
+      } else {
+        // Read host-side through the same reader every other document route
+        // uses, so the confinement is inherited rather than restated.
+        try {
+          document = ctx.rheplicantProject.readTask(workspace, url.searchParams.get('path') ?? '')
+        } catch (error) {
+          const code = error instanceof ProjectReadError ? error.code : 'ARTIFACT_UNREADABLE'
+          json(res, code === 'PATH_ESCAPES_PROJECT' || code === 'ARTIFACT_NOT_ALLOWED' ? 400 : 404, {
+            error: 'this task document could not be read',
+            code,
+          })
+          return
+        }
       }
       try {
         const projected = await ctx.rheplicant.projectDocument(document.text, { transport })

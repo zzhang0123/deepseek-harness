@@ -1,6 +1,15 @@
 /**
- * The console header: which project, which task, and which execution the
- * panels below are showing (`docs/project-model.md` §6.1).
+ * The session header's execution field: which project, which task, and which
+ * execution THE PROJECT'S SELECTION currently names (`docs/project-model.md`
+ * §6.1, restated §28.6).
+ *
+ * **It used to say "the panels below".** §20.4 moved the panel grid to the
+ * workbench, so nothing is below this any more — the picker here changes a
+ * selection whose consequences are drawn on another surface. That is not a
+ * defect (§28.6 keeps both entry points: one beside the conversation, one
+ * beside the evidence) but the sentence had outlived the arrangement it
+ * described, which is the failure mode the HANDOVER vocabulary table was
+ * rewritten for.
  *
  * Everything here is read off the `rheplicant-loop` projection — the same
  * folded run events the rest of the console reads. The header asks the host for

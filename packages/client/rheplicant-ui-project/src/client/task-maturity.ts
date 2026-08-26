@@ -90,6 +90,16 @@ export function taskMaturity(input: MaturityInput): readonly MaturityStage[] {
   const runs = (input.view?.runs ?? []) as readonly ProjectedRun[]
   const gates = (input.view?.gates ?? []) as readonly ProjectedGate[]
   const neverRan = input.newest === undefined
+  // §28.5. The task HAS run and nobody loaded the result — which is the
+  // workbench's ordinary state, because `ProjectHome` supplies `view` only for
+  // the execution somebody selected. Without this the three stages below fall
+  // through to their empty-collection branches and assert *"no runs
+  // recorded"*, *"no findings recorded"* and *"nothing diagnosed"* — three
+  // claims ABOUT THE TREE, printed three panels under a Tasks row that says
+  // "3 executions". `unknown` is not `unmet`, in the one rail whose siblings
+  // enforce that distinction three times over; the tell was never in the code,
+  // it was that one screen said both things at once.
+  const unread = !neverRan && input.view === undefined
 
   return [
     {
@@ -99,10 +109,24 @@ export function taskMaturity(input: MaturityInput): readonly MaturityStage[] {
       detail: `${input.task.bytes} bytes`,
       ...withStale(stale),
     },
-    { id: 'runs', label: 'Runs', ...runStage(input, runs, neverRan), ...withStale(stale) },
-    { id: 'gates', label: 'Gates', ...gateStage(gates, neverRan) },
-    { id: 'diagnostics', label: 'Diagnostics', ...diagnosticsStage(runs, neverRan) },
+    { id: 'runs', label: 'Runs', ...runStage(input, runs, neverRan, unread), ...withStale(stale) },
+    { id: 'gates', label: 'Gates', ...gateStage(gates, neverRan, unread) },
+    { id: 'diagnostics', label: 'Diagnostics', ...diagnosticsStage(runs, neverRan, unread) },
   ]
+}
+
+/**
+ * What a stage reads when its evidence exists and was never fetched.
+ *
+ * It names the NEWEST execution specifically, because that is the only one
+ * that lifts this state: `ProjectHome` supplies `view` only when the selected
+ * execution IS the newest. An earlier draft said "select an execution", which
+ * a review pointed out reads as broken the moment somebody selects an older
+ * one — the rail keeps saying it with an execution plainly selected.
+ */
+const UNREAD: { state: MaturityState; detail: string } = {
+  state: 'idle',
+  detail: 'newest not read — select this task\'s newest execution',
 }
 
 /** The run stage's verdict, keeping the two status axes apart. */
@@ -110,6 +134,7 @@ function runStage(
   input: MaturityInput,
   runs: readonly ProjectedRun[],
   neverRan: boolean,
+  unread: boolean,
 ): { state: MaturityState; detail: string } {
   if (neverRan) return { state: 'idle', detail: 'never run' }
   // A results tree that could not be read says nothing about the runs, and
@@ -124,6 +149,9 @@ function runStage(
   if (input.newest !== undefined && input.newest.status !== 'ok') {
     return { state: 'error', detail: `publication ${input.newest.status}` }
   }
+  // BELOW the publication axis on purpose: `newest.status` is read off the
+  // tree row, so it is known whether or not anyone fetched the view.
+  if (unread) return UNREAD
   if (runs.length === 0) return { state: 'idle', detail: 'no runs recorded' }
   const ok = runs.filter(run => run.status === 'ok').length
   return {
@@ -136,8 +164,10 @@ function runStage(
 function gateStage(
   gates: readonly ProjectedGate[],
   neverRan: boolean,
+  unread: boolean,
 ): { state: MaturityState; detail: string } {
   if (neverRan) return { state: 'idle', detail: 'never run' }
+  if (unread) return UNREAD
   if (gates.length === 0) return { state: 'idle', detail: 'no findings recorded' }
   const refused = gates.filter(gate => gate.severity === 'refuse').length
   const warned = gates.filter(gate => gate.severity === 'warn').length
@@ -150,8 +180,10 @@ function gateStage(
 function diagnosticsStage(
   runs: readonly ProjectedRun[],
   neverRan: boolean,
+  unread: boolean,
 ): { state: MaturityState; detail: string } {
   if (neverRan) return { state: 'idle', detail: 'never run' }
+  if (unread) return UNREAD
   const diagnosed = runs.filter(run => run.diagnostics?.converged !== undefined
     && run.diagnostics.converged !== null)
   // Nothing to believe is not the same as nothing to worry about, so this is

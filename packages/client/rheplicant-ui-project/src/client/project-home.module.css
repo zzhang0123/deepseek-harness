@@ -460,6 +460,58 @@
   opacity: 0.6;
 }
 
+/* The declared/as-run switch (§28.1). Sits above the diagram rather than in
+   the panel header: the panel is "Model", and this chooses which model — a
+   control in the header would read as a control over the panel itself. */
+.modelSource {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+
+.modelSourceButton {
+  /* `<button>` does not inherit `<div>` box-sizing in this shell — HANDOVER
+     hard rule 6 — so it is stated here rather than assumed. */
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+.modelSourceButton[aria-pressed='true'] {
+  border-color: var(--dsw-alias-brand-primary);
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+/* The same/different-bytes mark. A chip beside the buttons rather than prose
+   inside the note: it is the reason to press the switch, so it has to read at
+   a glance and before the press. */
+.modelSourceMark {
+  font-size: 0.72rem;
+  padding: 0.08rem 0.4rem;
+  border-radius: 999px;
+  background: var(--dsw-rh-state-ok-bg);
+  color: var(--dsw-alias-state-success-primary);
+}
+
+.modelSourceMarkDiffers {
+  background: var(--dsw-rh-stale-bg);
+  color: var(--dsw-rh-stale-text);
+}
+
+.modelSourceNote {
+  font-size: 0.78rem;
+  color: var(--dsw-alias-label-tertiary);
+}
+
 /* The declared-physics catalogue (§17). */
 .modelDiagram {
   margin-bottom: 0.75rem;

@@ -107,6 +107,63 @@ describe('the gates panel', () => {
     expect(document.querySelectorAll('[data-gate-finding]').length).toBe(0)
   })
 
+  describe('a published execution with no conversation — the workbench\'s ordinary state', () => {
+    // §28.3. `gatesToRender` returns the execution's EMPTY array as a complete
+    // answer ("this execution recorded no findings") and the panel used to
+    // require `length > 0` to count it as evidence — so a published `ok`
+    // execution rendered *"No gates evidence yet — ask the agent for a
+    // rheplicant_gates or rheplicant_run call"*, on a surface that had the
+    // execution in hand and had already run it. Measured in a real boot
+    // against `20260826T084336Z-9d643d56-bcs4zs`.
+    const noSession = <T,>(selector: (s: ConversationSnapshot) => T): T => selector({
+      views: new Map(), chat: { nodes: new Map() }, nodes: [],
+    } as unknown as ConversationSnapshot)
+
+    function clean(): void {
+      render(
+        <GatesPanel
+          {...({
+            useSession: noSession,
+            execution: { executionId: 'E4', runs: [{ name: 'fit' }], gates: [] },
+          } as unknown as ComponentProps<typeof GatesPanel>)}
+        />,
+      )
+    }
+
+    it('does not tell you to ask the agent for a run it has already got', () => {
+      // Pinned on the EMPTY STATE's own sentence, not on `rheplicant_gates` —
+      // that token also appears in the checks-absent paragraph, which is
+      // CORRECT here, so a substring assertion would have gone red on the
+      // fixed panel for the wrong reason. HANDOVER records the same trap
+      // twice under `.not.toContain('0')`.
+      clean()
+      expect(document.body.textContent).not.toContain('No gates evidence yet')
+    })
+
+    it('says the post-flight checks recorded nothing, rather than showing blank', () => {
+      clean()
+      expect(document.querySelector('[data-gate-findings-none]')).toBeTruthy()
+    })
+
+    it('explains why the priced checks are absent — the paragraph written for it', () => {
+      // That paragraph could never render here before: the empty state took
+      // the branch above it, on the one surface where it is the answer.
+      clean()
+      expect(document.querySelector('[data-gate-checks-absent]')).toBeTruthy()
+    })
+
+    it('still shows the empty state when there is NO execution at all', () => {
+      // The distinction the fix turns on: `undefined` is nobody asked, `[]` is
+      // asked and answered. Only the first is an empty state.
+      render(
+        <GatesPanel
+          {...({ useSession: noSession } as unknown as ComponentProps<typeof GatesPanel>)}
+        />,
+      )
+      expect(document.body.textContent).toContain('No gates evidence yet')
+    })
+  })
+
   it('says the execution could not be read, rather than that nothing ran', () => {
     render(
       <GatesPanel

@@ -1,10 +1,23 @@
 /* Shared between PosteriorPanel and ChainsPanel: the quiet per-run
-   provenance caption (wall-clock time · transport · seq) — same restrained,
-   secondary-label conventions ui-kit's panel.module.css and ui-analysis's
-   signal-path-panel.module.css already use for this register of text. */
+   provenance caption (wall-clock time · transport · seq) — the same restrained,
+   secondary-label conventions ui-kit's panel.module.css already uses for this
+   register of text. (It used to cite signal-path-panel.module.css too, which
+   §28.1 deleted.) */
 
 .provenance {
   margin: 0.125rem 0 0.5rem;
   font-size: 0.75rem;
   color: var(--dsw-alias-label-secondary);
 }
+
+/* The worst-case convergence line (§28.2), in the same quiet secondary-label
+   register the provenance caption uses: it is a pointer, not a headline. */
+.mcmcSummary {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  color: var(--dsw-alias-label-secondary);
+}
+
+/* An r_hat past the threshold is the one case this line must not stay quiet
+   about — it is the whole reason a summary is allowed to replace a table. */
+.mcmcSummary[data-mcmc-warn='true'] { color: var(--dsw-alias-state-warn-primary); }
