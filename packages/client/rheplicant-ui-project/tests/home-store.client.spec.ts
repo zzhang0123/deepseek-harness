@@ -1,25 +1,25 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
-  closeHome, openHome, readHome, resetHome, selectProject, toggleHome,
+  closeHome, openHome, readHome, resetHome, selectProject, showSection, toggleHome, toggleSection,
 } from '../src/client/home-store.ts'
 
 afterEach(() => { resetHome() })
 
 describe('the shared section state', () => {
   it('starts on the conversation with nothing selected', () => {
-    expect(readHome()).toEqual({ open: false, workspaceId: undefined })
+    expect(readHome()).toEqual({ section: 'conversation', workspaceId: undefined })
   })
 
   it('opens, closes and toggles', () => {
     openHome()
-    expect(readHome().open).toBe(true)
+    expect(readHome().section).toBe('workbench')
     closeHome()
-    expect(readHome().open).toBe(false)
+    expect(readHome().section).toBe('conversation')
     toggleHome()
-    expect(readHome().open).toBe(true)
+    expect(readHome().section).toBe('workbench')
     toggleHome()
-    expect(readHome().open).toBe(false)
+    expect(readHome().section).toBe('conversation')
   })
 
   it('remembers the project across a close, so reopening resumes where it was', () => {
@@ -28,7 +28,7 @@ describe('the shared section state', () => {
     closeHome()
     expect(readHome().workspaceId).toBe('ws-1')
     openHome()
-    expect(readHome()).toEqual({ open: true, workspaceId: 'ws-1' })
+    expect(readHome()).toEqual({ section: 'workbench', workspaceId: 'ws-1' })
   })
 
   it('opens on a named project without disturbing an existing selection when none is named', () => {
@@ -45,7 +45,57 @@ describe('what the trigger and the page actually share', () => {
   // so nothing else connects them. One module instance is the connection.
   it('is one value, so a write from one reader is visible to the other', () => {
     openHome('ws-1')
-    expect(readHome()).toEqual({ open: true, workspaceId: 'ws-1' })
+    expect(readHome()).toEqual({ section: 'workbench', workspaceId: 'ws-1' })
+  })
+})
+
+describe('more than one section (§25)', () => {
+  it('holds ONE section, so two can never both be showing', () => {
+    showSection('workbench')
+    showSection('dashboard')
+    expect(readHome().section).toBe('dashboard')
+  })
+
+  it('toggles a row against the CONVERSATION, not against "some section"', () => {
+    // Pressing the row you are on returns you to the transcript...
+    toggleSection('dashboard')
+    expect(readHome().section).toBe('dashboard')
+    toggleSection('dashboard')
+    expect(readHome().section).toBe('conversation')
+    // ...and pressing a different row switches straight to it, rather than
+    // going back to the conversation first.
+    toggleSection('workbench')
+    toggleSection('dashboard')
+    expect(readHome().section).toBe('dashboard')
+  })
+
+  it('remembers a section that is not the workbench', async () => {
+    showSection('dashboard')
+    expect(localStorage.getItem('rheplicant.project.section')).toBe('dashboard')
+    vi.resetModules()
+    const reloaded = await import('../src/client/home-store.ts')
+    expect(reloaded.readHome().section).toBe('dashboard')
+    reloaded.resetHome()
+  })
+
+  it('reads a name this build does not know as the conversation', async () => {
+    // Storage outlives the code that wrote it. Trusting an unknown name would
+    // leave a blank column with no way back; the conversation always exists.
+    localStorage.setItem('rheplicant.project.section', 'plugins')
+    vi.resetModules()
+    const reloaded = await import('../src/client/home-store.ts')
+    expect(reloaded.readHome().section).toBe('conversation')
+    reloaded.resetHome()
+  })
+
+  it('accepts the pre-§25 name for the workbench', async () => {
+    // Builds before the section was named wrote `project`. Somebody who left
+    // the app in the workbench should find it there.
+    localStorage.setItem('rheplicant.project.section', 'project')
+    vi.resetModules()
+    const reloaded = await import('../src/client/home-store.ts')
+    expect(reloaded.readHome().section).toBe('workbench')
+    reloaded.resetHome()
   })
 })
 
@@ -80,7 +130,7 @@ describe('the section is remembered, the project is not (§20.2)', () => {
 
   it('writes the section on a change and clears it on the way back', () => {
     openHome()
-    expect(localStorage.getItem(KEY)).toBe('project')
+    expect(localStorage.getItem(KEY)).toBe('workbench')
     closeHome()
     expect(localStorage.getItem(KEY)).toBeNull()
   })
@@ -97,7 +147,7 @@ describe('the section is remembered, the project is not (§20.2)', () => {
     localStorage.setItem(KEY, 'project')
     vi.resetModules()
     const reloaded = await import('../src/client/home-store.ts')
-    expect(reloaded.readHome().open).toBe(true)
+    expect(reloaded.readHome().section).toBe('workbench')
     reloaded.resetHome()
   })
 
@@ -105,7 +155,7 @@ describe('the section is remembered, the project is not (§20.2)', () => {
     localStorage.removeItem(KEY)
     vi.resetModules()
     const reloaded = await import('../src/client/home-store.ts')
-    expect(reloaded.readHome().open).toBe(false)
+    expect(reloaded.readHome().section).toBe('conversation')
   })
 
   it('still works when storage refuses — a page that would not mount because it could not remember a tab is worse than one that forgets', async () => {
@@ -118,9 +168,9 @@ describe('the section is remembered, the project is not (§20.2)', () => {
     try {
       vi.resetModules()
       const reloaded = await import('../src/client/home-store.ts')
-      expect(reloaded.readHome().open).toBe(false)
+      expect(reloaded.readHome().section).toBe('conversation')
       expect(() => { reloaded.openHome('ws-1') }).not.toThrow()
-      expect(reloaded.readHome().open).toBe(true)
+      expect(reloaded.readHome().section).toBe('workbench')
     } finally {
       getItem.mockRestore()
       setItem.mockRestore()

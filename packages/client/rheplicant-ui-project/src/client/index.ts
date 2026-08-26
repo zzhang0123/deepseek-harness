@@ -37,6 +37,8 @@ import type {} from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import { createWorkbenchLayoutStore } from './layout-store.ts'
+import { Dashboard } from './Dashboard.tsx'
+import { DashboardTrigger } from './DashboardTrigger.tsx'
 import { HomeTrigger } from './HomeTrigger.tsx'
 import { ProjectHome } from './ProjectHome.tsx'
 import { setNavigator } from './navigate.ts'
@@ -83,7 +85,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 }
 
 export {
-  closeHome, openHome, readHome, resetHome, selectProject, subscribeHome, toggleHome, useHome,
+  closeHome, openHome, readHome, resetHome, selectProject, showSection, subscribeHome,
+  toggleHome, toggleSection, useHome, type Section,
 } from './home-store.ts'
 export type { HomeState } from './home-store.ts'
 export {
@@ -154,6 +157,23 @@ export function apply(ctx: ClientContext): void {
       'task.panel': { kind: 'list', scope: 'root' },
     },
   }, ProjectHome))
+  // The cross-project level (§25). A SECOND `section` occupant beside the
+  // workbench: the slot is a list, and `home-store`'s one section name makes
+  // them mutually exclusive by construction rather than by either page
+  // checking on the other.
+  ctx.slots.inject('section', () => ctx.slots.register({
+    name: 'section',
+    id: 'rheplicant-dashboard',
+    label: () => 'Dashboard',
+  }, Dashboard))
+  // Above the Workbench row: a dashboard is where you arrive, a workbench is
+  // where you go next.
+  ctx.slots.inject('sidebar.nav', () => ctx.slots.register({
+    name: 'sidebar.nav',
+    id: 'rheplicant-dashboard-trigger',
+    order: 5,
+    label: () => 'Dashboard',
+  }, DashboardTrigger))
   // Primary navigation, beside New Session — not the foot beside Settings
   // (§24). The foot was the only additive seat this column had, so a switch to
   // a whole peer surface read as a utility filed under the session list. It is

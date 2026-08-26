@@ -36,19 +36,19 @@ interface HomeTriggerProps {
 }
 
 export const HomeTrigger = memo(function HomeTrigger({ wide }: HomeTriggerProps) {
-  const { open } = useHome()
+  const { section } = useHome()
   return (
     <button
       type="button"
       className={wide ? styles.trigger : `${styles.trigger} ${styles.triggerRail ?? ''}`}
       data-project-home-trigger=""
-      data-project-section={open ? 'project' : 'conversation'}
+      data-project-section={section === 'workbench' ? 'project' : 'conversation'}
       // The rail has no room for the label, so the accessible name has to come
       // from somewhere that is not the visible text in that state — and giving
       // it unconditionally keeps one name across both, rather than one that
       // changes when the column resizes.
       aria-label="Workbench"
-      aria-pressed={open}
+      aria-pressed={section === 'workbench'}
       title="Workbench"
       onClick={toggleHome}
     >

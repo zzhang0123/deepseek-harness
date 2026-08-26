@@ -141,7 +141,7 @@ const readNoSession = <T,>(selector: (snapshot: ConversationSnapshot) => T): T =
 export const ProjectHome = memo(function ProjectHome(
   { useWorkspaces, renderSlot, useStore, actions }: ProjectHomeProps,
 ) {
-  const { open, workspaceId } = useHome()
+  const { section, workspaceId } = useHome()
   const [nonce, setNonce] = useState(0)
   const workspaces = useWorkspaces(state => state.items)
   const recent = useWorkspaces(state => state.recentWorkspaceId)
@@ -152,7 +152,7 @@ export const ProjectHome = memo(function ProjectHome(
   // "which project is this person in", so it seeds the view — and the picker
   // stays on screen, so it is visibly a starting point rather than a scope.
   const chosen = workspaceId ?? recent ?? workspaces[0]?.workspaceId
-  const { loading, overview, shownFor } = useProjectOverview(chosen, open, nonce)
+  const { loading, overview, shownFor } = useProjectOverview(chosen, section === 'workbench', nonce)
   // The workbench renders the PROJECT's selection — the same one the console
   // reads (`docs/project-model.md` §11.2), so the two never disagree about
   // which task is in view.
@@ -273,7 +273,7 @@ export const ProjectHome = memo(function ProjectHome(
   }, [withoutExit, actions])
 
 
-  if (!open) return null
+  if (section !== 'workbench') return null
 
   return (
     <div className={styles.layer} data-project-home="">

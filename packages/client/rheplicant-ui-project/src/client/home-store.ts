@@ -1,9 +1,13 @@
 /**
- * Which of the two peer sections is on screen — the project, or the
- * conversation — shared between the switch and the page.
+ * Which peer section is on screen — the conversation, or one of the surfaces
+ * beside it — shared between every nav row and every page.
  *
- * `docs/project-model.md` §20.2. This was an OPEN/CLOSED flag for a modal
- * overlay; it is a SECTION flag now, and the difference is not cosmetic. A
+ * `docs/project-model.md` §20.2 and §25. This was an OPEN/CLOSED flag for a
+ * modal overlay, then a two-valued section flag, and it is a NAMED section now
+ * because there is more than one place to be. Mutual exclusion is structural:
+ * one variable holds one name, so two sections cannot both paint the column,
+ * and a new nav row costs a member of the union rather than a second flag that
+ * has to be kept false. A
  * modal is a thing you dismiss before you can work; a section is a place you
  * are, and a place you are is a thing the app should still know about after a
  * reload. So this persists, where the modal deliberately did not — its own
@@ -12,11 +16,10 @@
  * true of an overlay and is not true of a section.
  *
  * A module-level store rather than a framework one, and the reason is
- * structural: the two halves of this feature occupy two DIFFERENT slots —
- * `sidebar.footer.action` for the switch and `shell.overlay` for the page —
- * so no React context spans them and no owner-props channel connects them
- * (that channel runs from one owner to ITS occupants, and these two have
- * different owners).
+ * structural: the halves of this feature occupy DIFFERENT slots —
+ * `sidebar.nav` for the rows and `section` for the pages — so no React context
+ * spans them and no owner-props channel connects them (that channel runs from
+ * one owner to ITS occupants, and these have different owners).
  *
  * This is safe here for exactly the reason the same trick is NOT safe in
  * `ui-kit`: ui-kit is INLINED into each consuming plugin's bundle, so a
@@ -36,14 +39,25 @@
 
 import { useSyncExternalStore } from 'react'
 
-/** What the workbench is showing: the section flag, and the project in view. */
+/**
+ * Where you are.
+ *
+ * `conversation` is the transcript — the absence of a section, and the only
+ * member that names no page. Every other member names a `section` occupant.
+ */
+export type Section = 'conversation' | 'workbench' | 'dashboard'
+
+/** Which section is on screen, and the project in view. */
 export interface HomeState {
-  readonly open: boolean
+  readonly section: Section
   /** The workspace whose project is being inspected, when one is chosen. */
   readonly workspaceId: string | undefined
 }
 
-const CLOSED: HomeState = { open: false, workspaceId: undefined }
+const CLOSED: HomeState = { section: 'conversation', workspaceId: undefined }
+
+/** The stored names, so a value written by an older build is not trusted. */
+const SECTIONS: readonly Section[] = ['conversation', 'workbench', 'dashboard']
 
 /**
  * Where the section flag is remembered.
@@ -61,35 +75,45 @@ const SECTION_KEY = 'rheplicant.project.section'
  * storage disabled, and a page that failed to mount because it could not
  * remember which tab you were on would be a worse page than one that forgets.
  *
- * @returns true when the project section was the one on screen.
+ * A name this build does not know is read as the conversation rather than
+ * trusted: storage outlives the code that wrote it, and the failure of the
+ * alternative is a blank column with no way back.
+ *
+ * `project` is accepted as a synonym for `workbench` because that is what
+ * builds before §25 wrote, and a person who left the app in the workbench
+ * should find it there.
+ *
+ * @returns the remembered section.
  */
-function rememberedSection(): boolean {
+function rememberedSection(): Section {
   try {
-    return globalThis.localStorage?.getItem(SECTION_KEY) === 'project'
+    const stored = globalThis.localStorage?.getItem(SECTION_KEY)
+    if (stored === 'project') return 'workbench'
+    return SECTIONS.find(name => name === stored) ?? 'conversation'
   } catch {
-    return false
+    return 'conversation'
   }
 }
 
 /** Remember the section, or forget it. Failures are not worth a broken page. */
-function remember(open: boolean): void {
+function remember(section: Section): void {
   try {
-    if (open) globalThis.localStorage?.setItem(SECTION_KEY, 'project')
-    else globalThis.localStorage?.removeItem(SECTION_KEY)
+    if (section === 'conversation') globalThis.localStorage?.removeItem(SECTION_KEY)
+    else globalThis.localStorage?.setItem(SECTION_KEY, section)
   } catch {
     // Storage refused. The section still works for this page load.
   }
 }
 
-let state: HomeState = { open: rememberedSection(), workspaceId: undefined }
+let state: HomeState = { section: rememberedSection(), workspaceId: undefined }
 const listeners = new Set<() => void>()
 
 /** Publish a new state and wake every subscriber. */
 function commit(next: HomeState): void {
   // Referential equality is the subscription contract `useSyncExternalStore`
   // relies on, so a no-op write must not produce a new object.
-  if (next.open === state.open && next.workspaceId === state.workspaceId) return
-  if (next.open !== state.open) remember(next.open)
+  if (next.section === state.section && next.workspaceId === state.workspaceId) return
+  if (next.section !== state.section) remember(next.section)
   state = next
   for (const listener of listeners) listener()
 }
@@ -106,19 +130,35 @@ export function subscribeHome(listener: () => void): () => void {
   return () => { listeners.delete(listener) }
 }
 
-/** Show the project section, optionally on a specific project. */
+/** Show one section, optionally on a specific project. */
+export function showSection(section: Section, workspaceId?: string): void {
+  commit({ section, workspaceId: workspaceId ?? state.workspaceId })
+}
+
+/** Show the workbench, optionally on a specific project. */
 export function openHome(workspaceId?: string): void {
-  commit({ open: true, workspaceId: workspaceId ?? state.workspaceId })
+  showSection('workbench', workspaceId)
 }
 
 /** Go back to the conversation, remembering which project was being inspected. */
 export function closeHome(): void {
-  commit({ ...state, open: false })
+  commit({ ...state, section: 'conversation' })
 }
 
-/** Switch between the two sections — what the sidebar control does. */
+/**
+ * Toggle one section against the conversation — what a nav row does.
+ *
+ * Pressing the row you are already on returns you to the transcript, and
+ * pressing a different row switches directly to it: the row is a toggle for
+ * ITS section, never a toggle of "some section is showing".
+ */
+export function toggleSection(section: Section): void {
+  commit({ ...state, section: state.section === section ? 'conversation' : section })
+}
+
+/** Switch the workbench against the conversation. */
 export function toggleHome(): void {
-  commit({ ...state, open: !state.open })
+  toggleSection('workbench')
 }
 
 /** Choose which project the workbench inspects. */
@@ -132,7 +172,7 @@ export function selectProject(workspaceId: string): void {
  */
 export function resetHome(): void {
   commit(CLOSED)
-  remember(false)
+  remember('conversation')
 }
 
 /** Read the current state without subscribing. */

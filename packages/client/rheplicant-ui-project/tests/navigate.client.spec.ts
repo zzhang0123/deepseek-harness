@@ -28,7 +28,7 @@ describe('without a navigator', () => {
   it('does nothing rather than throwing, so the home stays a usable chooser', async () => {
     openHome('ws-1')
     await expect(openProject('ws-1', { executionId: 'EXEC-1' })).resolves.toBeUndefined()
-    expect(readHome().open).toBe(true)
+    expect(readHome().section).toBe('workbench')
   })
 
   it('sets no selection either — nothing happened, so nothing is claimed', async () => {
@@ -78,7 +78,7 @@ describe('opening a project', () => {
     recording()
     openHome('ws-1')
     await openProject('ws-1', { executionId: 'EXEC-1' })
-    expect(readHome().open).toBe(false)
+    expect(readHome().section).toBe('conversation')
   })
 
   it('keeps each project\'s selection to itself', async () => {
@@ -97,7 +97,7 @@ describe('when connecting fails', () => {
     })
     openHome('ws-1')
     await expect(openProject('ws-1', { executionId: 'EXEC-1' })).rejects.toThrow('offline')
-    expect(readHome().open).toBe(true)
+    expect(readHome().section).toBe('workbench')
   })
 
   it('never opens a session it could not connect', async () => {
