@@ -51,6 +51,18 @@ export interface TaskFile {
   readonly path: string
   /** The canonical absolute path the bytes were read from (symlinks resolved). */
   readonly resolvedPath: string
+  /**
+   * The canonical form of the ROOT the file was resolved inside.
+   *
+   * Returned rather than discarded because the confinement check computes it
+   * anyway, and a caller that needs it — anything deriving a publication path —
+   * would otherwise recompute it with its own implementation. Measured
+   * 2026-08-26: doing exactly that put `/var/folders/…` and
+   * `/private/var/folders/…` (the same directory, two spellings) into one
+   * `relative()` call, and the execution directory came out as a `../` chain
+   * that escaped the project entirely. One canonicalisation, one spelling.
+   */
+  readonly root: string
   /** The file's exact bytes as UTF-8 text: the run input, unparsed. */
   readonly text: string
   /** sha256 of the exact bytes, lowercase hex. */
@@ -166,6 +178,7 @@ export function readTaskFile(taskPath: string, cwd: string | undefined, tool: st
   return {
     path: taskPath,
     resolvedPath: target,
+    root,
     text,
     digest: createHash('sha256').update(bytes).digest('hex'),
   }

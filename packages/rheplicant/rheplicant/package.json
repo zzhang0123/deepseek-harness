@@ -22,6 +22,10 @@
       "types": "./lib/project.d.ts",
       "default": "./lib/project.js"
     },
+    "./publish": {
+      "types": "./lib/publish.d.ts",
+      "default": "./lib/publish.js"
+    },
     "./project-runtime": {
       "types": "./lib/project-runtime.d.ts",
       "default": "./lib/project-runtime.js"
