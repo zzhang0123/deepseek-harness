@@ -15,7 +15,7 @@
  * @module @rheplicant/dsh-rheplicant-ui-project/client/dashboard-selectors
  */
 
-import type { ProjectExecutionRow, ProjectTaskRow } from '@rheplicant/dsh-rheplicant/types'
+import type { ProjectExecutionRow, ProjectTaskRow, ProjectTriggerRow } from '@rheplicant/dsh-rheplicant/types'
 import type { ProjectCard } from './use-all-projects.ts'
 
 /** One project's counts, or undefined throughout when it could not be read. */
@@ -163,4 +163,158 @@ export function allTasks(cards: readonly ProjectCard[]): DashboardTask[] {
  */
 export function neverRun(task: DashboardTask): boolean {
   return task.executionCount === 0
+}
+
+/**
+ * Whether the project can say that a trigger's task is there.
+ *
+ * THREE states, and the third is the one a two-state answer would have lost.
+ * A project whose overview never arrived has no task list to compare against,
+ * and one whose scan was TRUNCATED has an incomplete one — so absence from the
+ * list is not evidence of absence. Rendering either as "names a task that is
+ * not here" would state a fact nothing established.
+ *
+ * Presence, by contrast, is conclusive in every case: a task that IS in a
+ * truncated listing is in the project.
+ */
+export type TaskPresence = 'present' | 'missing' | 'unknown'
+
+/** One trigger, carrying the project it belongs to and what became of its task. */
+export interface DashboardTrigger extends ProjectTriggerRow {
+  readonly workspaceId: string
+  readonly project: string
+  readonly taskPresence: TaskPresence
+}
+
+/**
+ * One task path as this comparison spells it.
+ *
+ * The registry holds whatever the agent wrote — `tasks/fit.yaml`,
+ * `./tasks/fit.yaml`, and on a Windows host possibly `tasks\fit.yaml`. The
+ * listing's `path` is always workspace-relative POSIX with no prefix. Compared
+ * raw, a trigger written with a leading `./` would report its own task missing,
+ * which is the one state on this surface that must never be wrong.
+ */
+function samePathAs(path: string): string {
+  return path.replace(/\\/g, '/').replace(/^(?:\.\/)+/, '').replace(/^\/+/, '')
+}
+
+/** Whether one card's task list holds the task a trigger names. */
+function presenceOf(card: ProjectCard, task: string): TaskPresence {
+  const overview = card.overview
+  const wanted = samePathAs(task)
+  // Positive evidence first, and it is conclusive even from a partial listing.
+  if (overview?.tasks.some(row => samePathAs(row.path) === wanted) === true) return 'present'
+  if (overview === undefined || overview.truncated) return 'unknown'
+  return 'missing'
+}
+
+/**
+ * Every readable registry's triggers as one list, in registry order.
+ *
+ * A project whose registry is `absent` or `unreadable` contributes nothing —
+ * `unreadable` is reported separately by {@link unreadableRegistries}, because
+ * a corrupt file is a fact about the project rather than a trigger of its own.
+ * The project NAME comes off the triggers body when it can, so a project whose
+ * overview never arrived is still named correctly beside its schedules.
+ */
+export function allTriggers(cards: readonly ProjectCard[]): DashboardTrigger[] {
+  const rows: DashboardTrigger[] = []
+  for (const card of cards) {
+    if (card.triggers?.state !== 'ok') continue
+    const project = card.triggers.project === '' ? card.title : card.triggers.project
+    for (const trigger of card.triggers.triggers) {
+      rows.push({
+        ...trigger,
+        workspaceId: card.workspaceId,
+        project,
+        taskPresence: presenceOf(card, trigger.task),
+      })
+    }
+  }
+  return rows
+}
+
+/** One project whose registry exists and could not be read. */
+export interface UnreadableRegistry {
+  readonly workspaceId: string
+  readonly project: string
+  readonly reason: string
+}
+
+/**
+ * Every project whose registry could not be read.
+ *
+ * Said out loud, never swallowed. `absent` and `unreadable` both mean nothing
+ * will fire, and a surface that showed them the same way would render a corrupt
+ * file as "this project has no schedules" — a confident answer to a question
+ * nothing could answer.
+ *
+ * A project whose triggers ROUTE could not be reached at all is deliberately
+ * NOT here: its card already says it could not be read, and saying it twice
+ * would read as two faults.
+ */
+export function unreadableRegistries(cards: readonly ProjectCard[]): UnreadableRegistry[] {
+  const rows: UnreadableRegistry[] = []
+  for (const card of cards) {
+    if (card.triggers?.state !== 'unreadable') continue
+    rows.push({
+      workspaceId: card.workspaceId,
+      project: card.triggers.project === '' ? card.title : card.triggers.project,
+      reason: card.triggers.reason ?? 'the host did not say why',
+    })
+  }
+  return rows
+}
+
+/** The triggers that name one task, in registry order. */
+export function triggersForTask(
+  triggers: readonly DashboardTrigger[],
+  task: DashboardTask,
+): DashboardTrigger[] {
+  const wanted = samePathAs(task.path)
+  return triggers.filter(trigger =>
+    trigger.workspaceId === task.workspaceId && samePathAs(trigger.task) === wanted)
+}
+
+/**
+ * The triggers with no task row to sit on.
+ *
+ * `missing` and `unknown` both land here, because both lack a row to attach to
+ * — but they are not the same claim, and the surface must render them
+ * differently: one says the task is gone, the other says we cannot tell. This
+ * is the state that made identity the trigger's own name rather than the task
+ * path (design §3): keyed by path, such a trigger would be unrepresentable.
+ */
+export function orphanTriggers(triggers: readonly DashboardTrigger[]): DashboardTrigger[] {
+  return triggers.filter(trigger => trigger.taskPresence !== 'present')
+}
+
+/**
+ * When a trigger next fires, as a phrase.
+ *
+ * `due now` covers both the never-fired trigger and the overdue one, because
+ * they are the same fact — the next window is at or before now — and the
+ * difference between them is not something a person can act on differently.
+ * Note what it does NOT say: nothing here promises the run will happen, which
+ * is why the surface prints "only while this harness is running" beside it.
+ *
+ * @param trigger - the row.
+ * @param now - the reader's clock.
+ * @returns a phrase for the next-fire cell.
+ */
+export function nextFireLabel(trigger: DashboardTrigger, now: number): string {
+  if (!trigger.enabled) return 'disabled'
+  const at = trigger.nextFireAt === undefined ? Number.NaN : Date.parse(trigger.nextFireAt)
+  // An enabled trigger with no usable next fire cannot occur in a registry the
+  // host read as `ok`, since an unusable cadence makes the whole file
+  // unreadable. Answered anyway rather than assumed away: this value crossed a
+  // process boundary.
+  if (Number.isNaN(at)) return 'next fire unknown'
+  const wait = at - now
+  if (wait <= 0) return 'due now'
+  if (wait < 60_000) return 'in under a minute'
+  if (wait < 3_600_000) return `in ${Math.round(wait / 60_000)} min`
+  if (wait < 86_400_000) return `in ${Math.round(wait / 3_600_000)} h`
+  return `in ${Math.round(wait / 86_400_000)} d`
 }

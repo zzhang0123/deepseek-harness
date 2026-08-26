@@ -64,6 +64,8 @@ export type {
   ProjectOverviewBody,
   ProjectTaskDocumentBody,
   ProjectTaskRow,
+  ProjectTriggerRow,
+  ProjectTriggersBody,
   RunCost,
   RunDiagnostics,
   RunEntry,

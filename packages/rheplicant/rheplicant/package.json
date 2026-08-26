@@ -30,6 +30,10 @@
       "types": "./lib/triggers.d.ts",
       "default": "./lib/triggers.js"
     },
+    "./trigger-loop": {
+      "types": "./lib/trigger-loop.d.ts",
+      "default": "./lib/trigger-loop.js"
+    },
     "./project-runtime": {
       "types": "./lib/project-runtime.d.ts",
       "default": "./lib/project-runtime.js"

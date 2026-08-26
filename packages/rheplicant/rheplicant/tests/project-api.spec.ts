@@ -862,3 +862,173 @@ describe('projecting one task document for display', () => {
     expect(JSON.parse(response.body).code).toBe('INVALID_TRANSPORT')
   })
 })
+
+describe('what the trigger registry says', () => {
+  /** Write a registry file verbatim, so a malformed one can be tested. */
+  function registry(text: string): void {
+    mkdirSync(join(workspace, '.rheplicant-agent'), { recursive: true })
+    writeFileSync(join(workspace, '.rheplicant-agent', 'triggers.json'), text)
+  }
+
+  it('answers a project with no registry as absent, not as an error', async () => {
+    const request = routes({ 'S-1': workspace })
+
+    const response = await request(`${ROUTE_PREFIX}/triggers`, 'session=S-1')
+
+    expect(response.status).toBe(200)
+    const body = JSON.parse(response.body)
+    expect(body.state).toBe('absent')
+    expect(body.triggers).toEqual([])
+    expect(body.reason).toBeUndefined()
+  })
+
+  it('keeps `unreadable` apart from `absent`, and answers 200 for both', async () => {
+    // The distinction the whole design leads with. A corrupt file rendered as
+    // "this project has no schedules" is a confident answer to a question
+    // nothing could answer — and a 5xx here would be indistinguishable on the
+    // client from the route not being mounted, which is the same collapse
+    // wearing a different status code.
+    registry('{ not json')
+    const request = routes({ 'S-1': workspace })
+
+    const response = await request(`${ROUTE_PREFIX}/triggers`, 'session=S-1')
+
+    expect(response.status).toBe(200)
+    const body = JSON.parse(response.body)
+    expect(body.state).toBe('unreadable')
+    expect(body.triggers).toEqual([])
+    expect(typeof body.reason).toBe('string')
+  })
+
+  it('carries the cadence verbatim rather than reformatting it', async () => {
+    // §6's first non-negotiable is that the surface states what is true, and
+    // `PT10M` is what the person wrote.
+    registry(JSON.stringify([
+      { name: 'nightly', task: 'tasks/fit.yaml', every: 'P1D', enabled: true },
+    ]))
+    const request = routes({ 'S-1': workspace })
+
+    const response = await request(`${ROUTE_PREFIX}/triggers`, 'session=S-1')
+
+    const [only] = JSON.parse(response.body).triggers
+    expect(only.every).toBe('P1D')
+    expect(only.name).toBe('nightly')
+    expect(only.task).toBe('tasks/fit.yaml')
+  })
+
+  it('derives the next fire from lastFiredAt plus the cadence', async () => {
+    registry(JSON.stringify([
+      {
+        name: 'ten', task: 'tasks/fit.yaml', every: 'PT10M', enabled: true,
+        lastFiredAt: '2026-08-26T00:00:00.000Z',
+      },
+    ]))
+    const request = routes({ 'S-1': workspace })
+
+    const response = await request(`${ROUTE_PREFIX}/triggers`, 'session=S-1')
+
+    const [only] = JSON.parse(response.body).triggers
+    expect(only.nextFireAt).toBe('2026-08-26T00:10:00.000Z')
+  })
+
+  it('leaves an overdue next fire IN THE PAST rather than clamping it to now', async () => {
+    // A harness that was down across a window has an overdue trigger, and
+    // moving that instant forward would erase the evidence for the one
+    // limitation §6 states first: it fires only while the harness is running.
+    registry(JSON.stringify([
+      {
+        name: 'ten', task: 'tasks/fit.yaml', every: 'PT10M', enabled: true,
+        lastFiredAt: '2020-01-01T00:00:00.000Z',
+      },
+    ]))
+    const request = routes({ 'S-1': workspace })
+
+    const response = await request(`${ROUTE_PREFIX}/triggers`, 'session=S-1')
+
+    const [only] = JSON.parse(response.body).triggers
+    expect(only.nextFireAt).toBe('2020-01-01T00:10:00.000Z')
+    expect(Date.parse(only.nextFireAt)).toBeLessThan(Date.now())
+  })
+
+  it('gives a never-fired trigger a next fire at or before now, so one rule covers both', async () => {
+    registry(JSON.stringify([
+      { name: 'ten', task: 'tasks/fit.yaml', every: 'PT10M', enabled: true },
+    ]))
+    const request = routes({ 'S-1': workspace })
+
+    const response = await request(`${ROUTE_PREFIX}/triggers`, 'session=S-1')
+
+    const [only] = JSON.parse(response.body).triggers
+    expect(only.lastFiredAt).toBeUndefined()
+    expect(Date.parse(only.nextFireAt)).toBeLessThanOrEqual(Date.now())
+  })
+
+  it('gives a disabled trigger no next fire at all, rather than a date it will not keep', async () => {
+    registry(JSON.stringify([
+      {
+        name: 'off', task: 'tasks/fit.yaml', every: 'PT10M', enabled: false,
+        lastFiredAt: '2026-08-26T00:00:00.000Z',
+      },
+    ]))
+    const request = routes({ 'S-1': workspace })
+
+    const response = await request(`${ROUTE_PREFIX}/triggers`, 'session=S-1')
+
+    const [only] = JSON.parse(response.body).triggers
+    expect(only.enabled).toBe(false)
+    expect(only.nextFireAt).toBeUndefined()
+  })
+
+  it('sends a trigger whose task is not in this project, rather than dropping it', async () => {
+    // The reason identity is the trigger's own name and not the task path: a
+    // trigger that names a task that is gone must survive to SAY so.
+    registry(JSON.stringify([
+      { name: 'orphan', task: 'tasks/deleted.yaml', every: 'PT10M', enabled: true },
+    ]))
+    const request = routes({ 'S-1': workspace })
+
+    const response = await request(`${ROUTE_PREFIX}/triggers`, 'session=S-1')
+
+    expect(JSON.parse(response.body).triggers).toHaveLength(1)
+    expect(JSON.parse(response.body).triggers[0].task).toBe('tasks/deleted.yaml')
+  })
+
+  it('refuses a request that names no project', async () => {
+    const request = routes({ 'S-1': workspace })
+
+    const response = await request(`${ROUTE_PREFIX}/triggers`, 'session=S-nope')
+
+    expect(response.status).toBe(404)
+    expect(JSON.parse(response.body).code).toBe('PROJECT_NOT_FOUND')
+  })
+
+  it('is reachable by workspace id, which is how the dashboard asks', async () => {
+    registry(JSON.stringify([
+      { name: 'ten', task: 'tasks/fit.yaml', every: 'PT10M', enabled: true },
+    ]))
+    const request = routes({}, [{ path: workspace, sessionIds: [], id: 'W-1' }])
+
+    const response = await request(`${ROUTE_PREFIX}/triggers`, 'workspace=W-1')
+
+    expect(response.status).toBe(200)
+    expect(JSON.parse(response.body).project).toBe(basename(workspace))
+  })
+
+  it('never sends the host directory, not even in the reason', async () => {
+    registry('[ { "name": "x" } ]')
+    const request = routes({ 'S-1': workspace })
+
+    const response = await request(`${ROUTE_PREFIX}/triggers`, 'session=S-1')
+
+    expect(JSON.parse(response.body).state).toBe('unreadable')
+    expect(response.body).not.toContain(workspace)
+  })
+
+  it('is never cached: a registry changes under the browser', async () => {
+    const request = routes({ 'S-1': workspace })
+
+    const response = await request(`${ROUTE_PREFIX}/triggers`, 'session=S-1')
+
+    expect(response.headers['cache-control']).toBe('no-store')
+  })
+})

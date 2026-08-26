@@ -899,3 +899,63 @@ export interface UndecidedFields {
    */
   readonly excludes: readonly string[]
 }
+
+/**
+ * One trigger as the browser sees it.
+ *
+ * `docs/superpowers/specs/2026-08-26-trigger-registry-design.md` §5. The record
+ * verbatim — the cadence is NOT reformatted into prose here, because §6's first
+ * non-negotiable is that the surface states what is true, and `PT10M` is what
+ * the person wrote — plus the one derived field a listing cannot compute for
+ * itself.
+ *
+ * The `task` is a NAME, not a key (§3). It may name a task that is not in the
+ * project, and that state is the whole reason identity is the trigger's own
+ * name: keyed by task path, a renamed task would silently turn a trigger into a
+ * trigger for nothing, where one that NAMES a task can say the task is gone.
+ */
+export interface ProjectTriggerRow {
+  /** This trigger's identity within its project. */
+  readonly name: string
+  /** The task it names, workspace-relative, as the registry holds it. */
+  readonly task: string
+  /** The cadence, verbatim: an ISO-8601 duration such as `PT10M`. */
+  readonly every: string
+  readonly enabled: boolean
+  /** When it last ATTEMPTED to fire, absent until the first attempt. */
+  readonly lastFiredAt?: string
+  /**
+   * When it is next due — `lastFiredAt` plus the cadence, ISO-8601.
+   *
+   * The one derived field, and it may be IN THE PAST: a harness that was down
+   * across a window has an overdue trigger, and clamping that to "now" would
+   * hide exactly the state §6's "it fires only while the harness is running"
+   * warns about. A reader treats `nextFireAt <= now` as due.
+   *
+   * Absent when the trigger is disabled, which is the only state in an `ok`
+   * registry that has no answer — an unusable cadence makes the whole file
+   * `unreadable` rather than producing a row with no next fire.
+   */
+  readonly nextFireAt?: string
+}
+
+/**
+ * What one project's trigger registry says — in THREE states, never two.
+ *
+ * `absent` and `unreadable` both mean "nothing will fire", and reporting them
+ * the same way would render a corrupt file as "this project has no schedules" —
+ * a confident answer to a question nothing could answer (design §9.2). The
+ * route answers 200 for all three: the question *what does this registry say*
+ * was answered, and the answer to it can legitimately be "we cannot say". A
+ * 5xx would be indistinguishable from the route not being mounted, which is the
+ * collapse this distinction exists to prevent.
+ */
+export interface ProjectTriggersBody {
+  /** The project's own name — the workspace directory's basename. */
+  readonly project: string
+  readonly state: 'absent' | 'ok' | 'unreadable'
+  /** Empty for `absent` and for `unreadable`; the registry's list for `ok`. */
+  readonly triggers: readonly ProjectTriggerRow[]
+  /** Why the registry could not be read, present only when it could not. */
+  readonly reason?: string
+}

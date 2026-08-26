@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  fetchExecutionArtifact, fetchProjectOverview, fetchTaskDefinition,
+  fetchExecutionArtifact, fetchProjectOverview, fetchProjectTriggers, fetchTaskDefinition,
 } from '../src/client/project-overview-client.ts'
 
 /** A complete, well-formed body, which each test then damages one way. */
@@ -207,5 +207,81 @@ describe('reading one execution artifact', () => {
       { ok: false, reason: 'unreadable' }
     // @ts-expect-error `text` does not exist on the failure arm — the point.
     expect(answer.text).toBeUndefined()
+  })
+})
+
+describe('reading one project\'s trigger registry', () => {
+  /** A well-formed registry answer, which each test then damages one way. */
+  function triggers(over: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      project: 'rhino-2026',
+      state: 'ok',
+      triggers: [{
+        name: 'nightly', task: 'tasks/fit.yaml', every: 'P1D', enabled: true,
+        nextFireAt: '2026-08-27T00:00:00.000Z',
+      }],
+      ...over,
+    }
+  }
+
+  it('names the workspace by id and never sends a path', async () => {
+    answer(200, triggers())
+    await fetchProjectTriggers('ws-1')
+    const [url] = (globalThis.fetch as unknown as { mock: { calls: [string][] } }).mock.calls[0]!
+    expect(url).toBe('/rheplicant/project/triggers?workspace=ws-1')
+  })
+
+  it('decodes the registry with its cadence and next fire intact', async () => {
+    answer(200, triggers())
+    const found = await fetchProjectTriggers('ws-1')
+    expect(found?.state).toBe('ok')
+    expect(found?.triggers[0]).toMatchObject({ name: 'nightly', every: 'P1D' })
+  })
+
+  it('keeps `absent` and `unreadable` apart, with the reason', async () => {
+    answer(200, triggers({ state: 'absent', triggers: [] }))
+    expect(await fetchProjectTriggers('ws-1')).toMatchObject({ state: 'absent' })
+
+    answer(200, triggers({ state: 'unreadable', triggers: [], reason: 'the file is not valid JSON' }))
+    expect(await fetchProjectTriggers('ws-1')).toMatchObject({
+      state: 'unreadable', reason: 'the file is not valid JSON',
+    })
+  })
+
+  it('supplies a reason when the host reported none, so the state is never bare', async () => {
+    answer(200, triggers({ state: 'unreadable', triggers: [] }))
+    expect(await fetchProjectTriggers('ws-1')).toMatchObject({ reason: 'the host did not say why' })
+  })
+
+  it('makes the WHOLE answer unreadable when one row cannot be read', async () => {
+    // Deliberately unlike `fetchProjectOverview`, which drops an unreadable
+    // task. One missing task is a shorter listing; one missing trigger is a
+    // schedule silently doing less than the person asked for.
+    answer(200, triggers({
+      triggers: [
+        { name: 'nightly', task: 'tasks/fit.yaml', every: 'P1D', enabled: true },
+        { name: 'broken' },
+      ],
+    }))
+    const found = await fetchProjectTriggers('ws-1')
+    expect(found?.state).toBe('unreadable')
+    expect(found?.triggers).toEqual([])
+  })
+
+  it('answers undefined for a state this build does not know', async () => {
+    // Not "absent": every other answer here is a claim about what will fire,
+    // and this build cannot make one about a word it has never seen.
+    answer(200, triggers({ state: 'paused' }))
+    expect(await fetchProjectTriggers('ws-1')).toBeUndefined()
+  })
+
+  it('answers undefined when the route is not there to ask', async () => {
+    answer(404, { error: 'unknown project' })
+    expect(await fetchProjectTriggers('ws-1')).toBeUndefined()
+  })
+
+  it('answers undefined rather than throwing when the fetch itself fails', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('offline'))))
+    expect(await fetchProjectTriggers('ws-1')).toBeUndefined()
   })
 })

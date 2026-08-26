@@ -23,10 +23,30 @@
  *   would assert a hazard the lock says does not exist.
  * * **No archived-session filter.** §9.3: this surface does not address by
  *   session, so there is nothing to filter by.
- * * **No trigger badge or next-fire column.** `surface-model.md` §9.2 drafts a
- *   trigger registry and the Setups tab is where it would render, but no such
- *   entity exists — nothing persists "run X every 10 minutes". A column showing
- *   "manual" for every row would be an invented uniformity, not a reading.
+ * * **No `manual` on a task with no trigger.** The trigger registry now exists
+ *   (`docs/superpowers/specs/2026-08-26-trigger-registry-design.md`) and the
+ *   Setups rows carry it — but a task nothing schedules renders an EMPTY
+ *   schedule cell, not the word "manual". Nothing persists "this one is run by
+ *   hand"; a column that said so on every unscheduled row would be an invented
+ *   uniformity rather than a reading, which was §26.3's objection to the column
+ *   and survives the entity that answered the rest of it.
+ *
+ * WHAT THE SETUPS TAB NOW SAYS ABOUT SCHEDULES, and why each part is load-bearing:
+ *
+ * * The cadence **verbatim** (`PT10M`), never rewritten as prose — it is what
+ *   the person wrote and what `rheplicant_trigger` takes back.
+ * * **"only while this harness is running"**, printed once above the rows and
+ *   only when something is actually enabled. Design §6 makes this the first
+ *   thing stated rather than the last: a schedule that silently does not run is
+ *   worse than no schedule, and this surface is where somebody would otherwise
+ *   conclude that it had.
+ * * **"names a task that is not here"** for a trigger with no document. This is
+ *   the entire reason identity is `(workspace, triggerName)` and not the task
+ *   path (design §3): keyed by path, such a trigger would be unrepresentable
+ *   rather than merely wrong.
+ * * A registry that could not be READ says so, per project. `absent` and
+ *   `unreadable` are not the same fact, and a corrupt file rendered as "no
+ *   schedules" is the failure the whole design leads with.
  *
  * TWO TABS OVER ONE SCOPE, which is a decision against this document's own
  * earlier sketch. `surface-model.md` §2 drew Tasks as a separate sidebar entry;
@@ -45,8 +65,9 @@ import { showSection, useHome } from './home-store.ts'
 import { selectInProject } from './selection.ts'
 import { useAllProjects } from './use-all-projects.ts'
 import {
-  allExecutions, allTasks, kindsPresent, matchesKind, neverRun, projectTotals,
-  type DashboardExecution, type DashboardTask,
+  allExecutions, allTasks, allTriggers, kindsPresent, matchesKind, neverRun,
+  nextFireLabel, orphanTriggers, projectTotals, triggersForTask, unreadableRegistries,
+  type DashboardExecution, type DashboardTask, type DashboardTrigger,
 } from './dashboard-selectors.ts'
 import styles from './dashboard.module.css'
 
@@ -66,6 +87,24 @@ const Count = memo(function Count({ label, value }: { label: string; value: numb
     <span className={styles.count} data-count={label}>
       <span className={styles.countValue}>{value ?? '—'}</span>
       <span className={styles.countLabel}>{label}</span>
+    </span>
+  )
+})
+
+/**
+ * One trigger's identity, cadence and next fire.
+ *
+ * The cadence is rendered VERBATIM rather than as prose. `PT10M` is what the
+ * person wrote, what the registry holds and what `rheplicant_trigger` accepts
+ * back; "every ten minutes" would be a translation this surface would then own
+ * for every duration the grammar allows.
+ */
+const Schedule = memo(function Schedule({ trigger, now }: { trigger: DashboardTrigger; now: number }) {
+  return (
+    <span className={styles.trigger} data-trigger={trigger.name}>
+      <span className={styles.triggerName}>{trigger.name}</span>
+      <code className={styles.cadence}>{trigger.every}</code>
+      <span className={styles.fire}>{nextFireLabel(trigger, now)}</span>
     </span>
   )
 })
@@ -95,6 +134,15 @@ export const Dashboard = memo(function Dashboard({ useWorkspaces }: DashboardPro
   const kinds = useMemo(() => kindsPresent(rows), [rows])
   const shown = useMemo(() => rows.filter(row => matchesKind(row, kind)), [rows, kind])
   const tasks = useMemo(() => allTasks(cards), [cards])
+  const triggers = useMemo(() => allTriggers(cards), [cards])
+  const orphans = useMemo(() => orphanTriggers(triggers), [triggers])
+  const unreadable = useMemo(() => unreadableRegistries(cards), [cards])
+  // Read once per answer, not once per render: every "in 8 min" on the page
+  // then describes the same instant, and the labels move when the data does
+  // rather than drifting under a component that happened to re-render.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `cards` is the
+  // arrival of new data, which is exactly when this clock should be re-read.
+  const now = useMemo(() => Date.now(), [cards])
 
   if (section !== 'dashboard') return null
 
@@ -225,41 +273,118 @@ export const Dashboard = memo(function Dashboard({ useWorkspaces }: DashboardPro
                   )}
                 </div>
 
-                {tab === 'setups' && (tasks.length === 0
-                  ? (
-                    <p className={styles.empty} data-tasks-empty>
-                      {loading ? 'Reading projects…' : 'No task documents yet in any project.'}
-                    </p>
-                    )
-                  : (
-                    <ul className={styles.rows} data-dashboard-tasks>
-                      {tasks.map(task => (
-                        <li key={`${task.workspaceId} ${task.path}`} className={styles.row}>
-                          <button
-                            type="button"
-                            className={styles.taskOpen}
-                            data-task-open={task.path}
-                            onClick={() => { openTask(task) }}
-                          >
-                            <span className={styles.rowProject}>{task.project}</span>
-                            <span className={styles.rowTask}>{task.path}</span>
-                            <span className={styles.rowId}>{task.bytes} B</span>
-                            {/* A count the tree answered, so zero really is
-                                zero — an unreadable project contributes no
-                                tasks at all, so there is no unknown here to
-                                confuse with none. */}
-                            {neverRun(task)
-                              ? <Badge state="off">never run</Badge>
-                              : (
-                                <Badge state="ok">
-                                  {task.executionCount === 1 ? '1 execution' : `${task.executionCount} executions`}
-                                </Badge>
-                                )}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                    ))}
+                {tab === 'setups' && (
+                  <>
+                    {/* A registry that EXISTS and could not be read. Said out
+                        loud per project: `absent` and `unreadable` both mean
+                        nothing fires, and showing them the same way would
+                        render a corrupt file as "no schedules here". */}
+                    {unreadable.length > 0 && (
+                      <ul className={styles.notices} data-trigger-unreadable>
+                        {unreadable.map(entry => (
+                          <li key={entry.workspaceId} className={styles.notice}>
+                            <Badge state="warn">schedules unreadable</Badge>
+                            <span>
+                              {entry.project}: {entry.reason}. Nothing in it will fire.
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+
+                    {/* Design §6's first non-negotiable, and the reason it is
+                        printed rather than assumed: someone who reads "every
+                        10 minutes" and closes the app will otherwise be wrong
+                        about what happened. Shown only when something is
+                        actually enabled — a caveat about firing has nothing to
+                        qualify when nothing fires. */}
+                    {triggers.some(trigger => trigger.enabled) && (
+                      <p className={styles.caveat} data-trigger-caveat>
+                        Triggers fire only while this harness is running.
+                      </p>
+                    )}
+
+                    {tasks.length === 0
+                      ? (
+                        <p className={styles.empty} data-tasks-empty>
+                          {loading ? 'Reading projects…' : 'No task documents yet in any project.'}
+                        </p>
+                        )
+                      : (
+                        <ul className={styles.rows} data-dashboard-tasks>
+                          {tasks.map(task => (
+                            <li key={`${task.workspaceId} ${task.path}`} className={styles.row}>
+                              <button
+                                type="button"
+                                className={styles.taskOpen}
+                                data-task-open={task.path}
+                                onClick={() => { openTask(task) }}
+                              >
+                                <span className={styles.rowProject}>{task.project}</span>
+                                <span className={styles.rowTask}>{task.path}</span>
+                                <span className={styles.rowId}>{task.bytes} B</span>
+                                {/* EMPTY for a task nothing schedules, never
+                                    "manual": nothing persists "this one is run
+                                    by hand", and a word on every unscheduled
+                                    row would be an invented uniformity. */}
+                                <span className={styles.rowTriggers}>
+                                  {triggersForTask(triggers, task).map(trigger => (
+                                    <Schedule key={trigger.name} trigger={trigger} now={now} />
+                                  ))}
+                                </span>
+                                {/* A count the tree answered, so zero really is
+                                    zero — an unreadable project contributes no
+                                    tasks at all, so there is no unknown here to
+                                    confuse with none. */}
+                                {neverRun(task)
+                                  ? <Badge state="off">never run</Badge>
+                                  : (
+                                    <Badge state="ok">
+                                      {task.executionCount === 1 ? '1 execution' : `${task.executionCount} executions`}
+                                    </Badge>
+                                    )}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                        )}
+
+                    {/* Triggers with no row above to sit on. This is the entire
+                        reason a trigger is identified by its own name and not
+                        by the task path (design §3): keyed by path, a trigger
+                        whose document was renamed away would be a trigger for
+                        nothing, and unrepresentable rather than merely wrong. */}
+                    {orphans.length > 0 && (
+                      <>
+                        <p className={styles.caption} data-orphan-caption>
+                          Scheduled, with no document in the listing above
+                        </p>
+                        <ul className={styles.rows} data-dashboard-orphan-triggers>
+                          {orphans.map(trigger => (
+                            <li key={`${trigger.workspaceId} ${trigger.name}`} className={styles.row}>
+                              <div className={styles.orphanRow} data-orphan-trigger={trigger.name}>
+                                <span className={styles.rowProject}>{trigger.project}</span>
+                                <span className={styles.rowTask}>{trigger.task}</span>
+                                <span className={styles.rowTriggers}>
+                                  <Schedule trigger={trigger} now={now} />
+                                </span>
+                                {/* "gone" and "cannot tell" are different
+                                    claims and must not share a rendering: the
+                                    second happens when the project could not be
+                                    listed, or when a scan cap truncated it, and
+                                    absence from a partial list is not evidence
+                                    of absence. */}
+                                {trigger.taskPresence === 'missing'
+                                  ? <Badge state="failed">names a task that is not here</Badge>
+                                  : <Badge state="off">cannot tell if this task is here</Badge>}
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+                  </>
+                )}
 
                 {tab === 'runs' && (shown.length === 0
                   ? (

@@ -20,7 +20,7 @@
 import type {
   ProjectDefinitionBody, ProjectDocumentProjectionBody, ProjectExecutionRow, ProjectInputRow,
   ProjectOverviewBody,
-  ProjectTaskRow,
+  ProjectTaskRow, ProjectTriggerRow, ProjectTriggersBody,
 } from '@rheplicant/dsh-rheplicant'
 
 /** Where the host mounts the project routes. */
@@ -104,7 +104,92 @@ export async function fetchProjectOverview(
   }
 }
 
-export type { ProjectExecutionRow, ProjectInputRow, ProjectOverviewBody, ProjectTaskRow }
+export type {
+  ProjectExecutionRow, ProjectInputRow, ProjectOverviewBody, ProjectTaskRow,
+  ProjectTriggerRow, ProjectTriggersBody,
+}
+
+/** Whether one decoded value is a usable trigger row. */
+function isTrigger(value: unknown): value is ProjectTriggerRow {
+  if (typeof value !== 'object' || value === null) return false
+  const row = value as Record<string, unknown>
+  return typeof row.name === 'string'
+    && typeof row.task === 'string'
+    && typeof row.every === 'string'
+    && typeof row.enabled === 'boolean'
+}
+
+/**
+ * What one project's trigger registry says.
+ *
+ * FOUR states, and the fourth is this function's own. The host answers three
+ * (`absent`, `ok`, `unreadable`) and the difference between the first and the
+ * third is the whole point of the design: a corrupt file rendered as "this
+ * project has no schedules" is a confident answer to a question nothing could
+ * answer. `undefined` adds the state the host cannot report about itself — the
+ * route could not be reached at all, which is a composition without the plugin,
+ * an id the registry dropped, or an offline server. That is not "no schedules"
+ * either.
+ *
+ * **A row this build cannot read makes the whole answer `unreadable`**, rather
+ * than being filtered out the way `fetchProjectOverview` filters tasks. The
+ * difference is what a dropped row would MEAN: one missing task is a shorter
+ * listing, one missing trigger is a schedule silently running less than the
+ * person asked for — which is the exact failure the design leads with, moved
+ * from the host into the browser.
+ *
+ * @param workspaceId - the project the host minted an id for.
+ * @param signal - abort when the dashboard closes or refreshes.
+ * @returns the registry's answer, or `undefined` when the route could not be
+ *   asked.
+ */
+export async function fetchProjectTriggers(
+  workspaceId: string,
+  signal?: AbortSignal,
+): Promise<ProjectTriggersBody | undefined> {
+  let response: Response
+  try {
+    response = await fetch(
+      `${ROUTE_PREFIX}/triggers?workspace=${encodeURIComponent(workspaceId)}`,
+      { ...(signal === undefined ? {} : { signal }), headers: { accept: 'application/json' } },
+    )
+  } catch {
+    return undefined
+  }
+  if (!response.ok) return undefined
+  let body: unknown
+  try {
+    body = await response.json()
+  } catch {
+    return undefined
+  }
+  if (typeof body !== 'object' || body === null) return undefined
+  const decoded = body as Record<string, unknown>
+  const project = typeof decoded.project === 'string' ? decoded.project : ''
+  const state = decoded.state
+  // A state this build does not know is not a state it may guess at. Every
+  // other answer here is a claim about what will fire.
+  if (state !== 'absent' && state !== 'ok' && state !== 'unreadable') return undefined
+  if (!Array.isArray(decoded.triggers)) return undefined
+  if (state === 'unreadable') {
+    return {
+      project,
+      state,
+      triggers: [],
+      reason: typeof decoded.reason === 'string' ? decoded.reason : 'the host did not say why',
+    }
+  }
+  const triggers = decoded.triggers.filter(isTrigger)
+  if (triggers.length !== decoded.triggers.length) {
+    return {
+      project,
+      state: 'unreadable',
+      triggers: [],
+      reason: 'the host sent a trigger this build cannot read',
+    }
+  }
+  return { project, state, triggers }
+}
 
 /** One task document, as the host returns it. */
 export interface TaskDocumentBody {

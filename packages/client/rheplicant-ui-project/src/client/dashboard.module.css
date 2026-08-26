@@ -180,10 +180,11 @@
 }
 
 /* The setups row: no analysis column, and an execution COUNT where a run row
-   carries a status — a definition has no outcome. */
+   carries a status — a definition has no outcome. The fourth column is the
+   SCHEDULE, and it is empty rather than "manual" for a task nothing triggers. */
 .taskOpen {
   display: grid;
-  grid-template-columns: minmax(6rem, 1fr) minmax(10rem, 2fr) auto auto;
+  grid-template-columns: minmax(6rem, 1fr) minmax(10rem, 2fr) auto minmax(0, 1.5fr) auto;
   align-items: center;
   gap: 0.75rem;
   width: 100%;
@@ -287,4 +288,114 @@
   color: var(--dsw-alias-label-tertiary);
   font-size: 0.8125rem;
   text-align: center;
+}
+
+/* --- schedules (the trigger registry, docs/superpowers/specs/
+   2026-08-26-trigger-registry-design.md §5) ------------------------------- */
+
+/* Said once above the rows, not on each of them: design §6's first
+   non-negotiable is that this is STATED, and a sentence repeated twenty times
+   is a sentence nobody reads. */
+.caveat {
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 0.75rem;
+}
+
+/* A registry that exists and could not be read — a different fact from a
+   project with no schedules, and it must not render as one. */
+.notices {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 0.375rem;
+  background: var(--dsw-rh-state-warn-bg);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 0.75rem;
+}
+
+.caption {
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* The schedule cell. A task with no trigger leaves it EMPTY on purpose. */
+.rowTriggers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.trigger {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.triggerName {
+  color: var(--dsw-alias-label-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The cadence VERBATIM — `PT10M`, not "every ten minutes". Monospaced because
+   it is a value the person can hand straight back to `rheplicant_trigger`. */
+.cadence {
+  padding: 0.05rem 0.3rem;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 0.25rem;
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-primary);
+  font-family: var(--dsw-font-mono, ui-monospace, monospace);
+  font-size: 0.6875rem;
+  white-space: nowrap;
+}
+
+.fire {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 0.6875rem;
+  white-space: nowrap;
+}
+
+/* A trigger with no task row above to sit on. Not a button: there is no
+   document to open — that is the whole point of the row.
+   `box-sizing` is NOT inherited from the sibling rows: those are <button>s,
+   which the UA sheet already gives border-box, and a <div> here does not get
+   it — measured 2026-08-26 in a real boot, where `width: 100%` plus the
+   padding pushed the badge past `.rows`'s `overflow: hidden` and clipped the
+   one sentence this row exists to say. */
+.orphanRow {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(6rem, 1fr) minmax(8rem, 1.5fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.45rem 0.75rem;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 0.75rem;
+}
+
+/* Every grid child may shrink; without this a nowrap cell keeps its intrinsic
+   width and pushes the row past its container. */
+.orphanRow > * {
+  min-width: 0;
 }

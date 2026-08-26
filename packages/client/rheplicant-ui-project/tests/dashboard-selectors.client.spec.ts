@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
-  allExecutions, allTasks, kindsPresent, matchesKind, neverRun, projectTotals,
-  type DashboardExecution, type DashboardTask,
+  allExecutions, allTasks, allTriggers, kindsPresent, matchesKind, neverRun,
+  nextFireLabel, orphanTriggers, projectTotals, triggersForTask, unreadableRegistries,
+  type DashboardExecution, type DashboardTask, type DashboardTrigger,
 } from '../src/client/dashboard-selectors.ts'
 import type { ProjectCard } from '../src/client/use-all-projects.ts'
+import type { ProjectTriggerRow } from '@rheplicant/dsh-rheplicant/types'
 
 /** One execution row, with only what a given assertion needs stated. */
 function execution(over: Partial<DashboardExecution> = {}): DashboardExecution {
@@ -21,11 +23,27 @@ function task(over: Partial<DashboardTask> = {}): DashboardTask {
   }
 }
 
-/** One project card, readable unless `overview` is explicitly undefined. */
+/** One trigger row, with only what a given assertion needs stated. */
+function trigger(over: Partial<ProjectTriggerRow> = {}): ProjectTriggerRow {
+  return { name: 'nightly', task: 'tasks/demo.yaml', every: 'P1D', enabled: true, ...over }
+}
+
+/**
+ * One project card, readable unless `overview` is explicitly undefined.
+ *
+ * `triggers` defaults to a registry that is ABSENT rather than one that is
+ * missing: most assertions here are about tasks and executions, and a card with
+ * no registry answer at all would exercise the route-unreachable path by
+ * accident.
+ */
 function card(
-  over: Partial<ProjectCard> & { executions?: DashboardExecution[]; tasks?: DashboardTask[] } = {},
+  over: Partial<ProjectCard> & {
+    executions?: DashboardExecution[]
+    tasks?: DashboardTask[]
+    scheduled?: ProjectTriggerRow[]
+  } = {},
 ): ProjectCard {
-  const { executions, tasks, ...rest } = over
+  const { executions, tasks, scheduled, ...rest } = over
   return {
     workspaceId: 'ws-1',
     title: 'alpha',
@@ -33,6 +51,9 @@ function card(
       project: 'alpha', tasks: tasks ?? [], inputs: [], truncated: false,
       executions: executions ?? [],
     },
+    triggers: scheduled === undefined
+      ? { project: 'alpha', state: 'absent', triggers: [] }
+      : { project: 'alpha', state: 'ok', triggers: scheduled },
     ...rest,
   }
 }
@@ -183,5 +204,194 @@ describe('the cross-project task list (the Setups tab)', () => {
     // no tasks at all, so a task that IS here came with a real count.
     expect(neverRun(task({ executionCount: 0 }))).toBe(true)
     expect(neverRun(task({ executionCount: 1 }))).toBe(false)
+  })
+})
+
+describe('what a project has scheduled', () => {
+  it('carries the cadence verbatim, and the trigger name as its identity', () => {
+    const [only] = allTriggers([card({ scheduled: [trigger({ name: 'ten', every: 'PT10M' })] })])
+    expect(only?.name).toBe('ten')
+    expect(only?.every).toBe('PT10M')
+  })
+
+  it('contributes nothing from a project with no registry', () => {
+    expect(allTriggers([card()])).toEqual([])
+  })
+
+  it('contributes nothing from a registry that could not be READ, and says so separately', () => {
+    // `absent` and `unreadable` both mean nothing fires, and a surface that
+    // showed them the same way would render a corrupt file as "this project has
+    // no schedules" — a confident answer to a question nothing could answer.
+    const corrupt = card({
+      triggers: { project: 'alpha', state: 'unreadable', triggers: [], reason: 'the file is not valid JSON' },
+    })
+    expect(allTriggers([corrupt])).toEqual([])
+    expect(unreadableRegistries([corrupt])).toEqual([
+      { workspaceId: 'ws-1', project: 'alpha', reason: 'the file is not valid JSON' },
+    ])
+  })
+
+  it('does not report a project whose triggers route could not be reached at all', () => {
+    // Its card already says it could not be read; saying it twice would read
+    // as two faults where there is one.
+    expect(unreadableRegistries([card({ triggers: undefined })])).toEqual([])
+  })
+
+  it('names the project from the registry answer, so an unreadable overview still labels it', () => {
+    const [only] = allTriggers([card({
+      overview: undefined,
+      triggers: { project: 'beta', state: 'ok', triggers: [trigger()] },
+    })])
+    expect(only?.project).toBe('beta')
+  })
+})
+
+describe('whether the task a trigger names is there', () => {
+  it('is PRESENT when the listing holds it', () => {
+    const [only] = allTriggers([card({
+      tasks: [task({ path: 'tasks/demo.yaml' })],
+      scheduled: [trigger({ task: 'tasks/demo.yaml' })],
+    })])
+    expect(only?.taskPresence).toBe('present')
+  })
+
+  it('is MISSING when a complete listing does not', () => {
+    // The state that made identity the trigger's own name rather than the task
+    // path: keyed by path, this would be unrepresentable rather than merely
+    // wrong.
+    const [only] = allTriggers([card({
+      tasks: [task({ path: 'tasks/other.yaml' })],
+      scheduled: [trigger({ task: 'tasks/deleted.yaml' })],
+    })])
+    expect(only?.taskPresence).toBe('missing')
+  })
+
+  it('is UNKNOWN when a scan cap truncated the listing', () => {
+    // Absence from a partial listing is not evidence of absence, and rendering
+    // it as "names a task that is not here" would state a fact nothing
+    // established.
+    const partial = card({ scheduled: [trigger({ task: 'tasks/deleted.yaml' })] })
+    const [only] = allTriggers([{
+      ...partial,
+      overview: { ...partial.overview!, truncated: true },
+    }])
+    expect(only?.taskPresence).toBe('unknown')
+  })
+
+  it('is PRESENT even from a truncated listing, because presence is conclusive', () => {
+    const partial = card({
+      tasks: [task({ path: 'tasks/demo.yaml' })],
+      scheduled: [trigger({ task: 'tasks/demo.yaml' })],
+    })
+    const [only] = allTriggers([{
+      ...partial,
+      overview: { ...partial.overview!, truncated: true, tasks: partial.overview!.tasks },
+    }])
+    expect(only?.taskPresence).toBe('present')
+  })
+
+  it('is UNKNOWN when the project could not be listed at all', () => {
+    const [only] = allTriggers([card({
+      overview: undefined,
+      triggers: { project: 'alpha', state: 'ok', triggers: [trigger()] },
+    })])
+    expect(only?.taskPresence).toBe('unknown')
+  })
+
+  it('matches a task written with a leading ./, which the listing never carries', () => {
+    // The registry holds whatever the agent wrote. Compared raw, this trigger
+    // would report its own task missing — the one state on this surface that
+    // must never be wrong.
+    const [only] = allTriggers([card({
+      tasks: [task({ path: 'tasks/demo.yaml' })],
+      scheduled: [trigger({ task: './tasks/demo.yaml' })],
+    })])
+    expect(only?.taskPresence).toBe('present')
+  })
+})
+
+describe('attaching schedules to rows', () => {
+  it('gives a task only the triggers from its OWN project', () => {
+    const triggers = allTriggers([
+      card({ tasks: [task()], scheduled: [trigger({ name: 'mine' })] }),
+      {
+        workspaceId: 'ws-2',
+        title: 'beta',
+        overview: { project: 'beta', tasks: [], inputs: [], executions: [], truncated: false },
+        triggers: { project: 'beta', state: 'ok', triggers: [trigger({ name: 'theirs' })] },
+      },
+    ])
+    const attached = triggersForTask(triggers, task({ workspaceId: 'ws-1', path: 'tasks/demo.yaml' }))
+    expect(attached.map(row => row.name)).toEqual(['mine'])
+  })
+
+  it('gives a task with nothing scheduled an empty list, never a placeholder', () => {
+    // The row renders EMPTY, not "manual": nothing persists "this one is run by
+    // hand", so a word there would be an invented uniformity.
+    const triggers = allTriggers([card({ tasks: [task()] })])
+    expect(triggersForTask(triggers, task())).toEqual([])
+  })
+
+  it('gives one task both of the triggers that name it', () => {
+    const triggers = allTriggers([card({
+      tasks: [task()],
+      scheduled: [trigger({ name: 'a' }), trigger({ name: 'b', every: 'PT10M' })],
+    })])
+    expect(triggersForTask(triggers, task()).map(row => row.name)).toEqual(['a', 'b'])
+  })
+
+  it('sends every trigger with no task row to the orphan list, whichever way it lacks one', () => {
+    const triggers = allTriggers([card({
+      tasks: [task({ path: 'tasks/demo.yaml' })],
+      scheduled: [
+        trigger({ name: 'attached', task: 'tasks/demo.yaml' }),
+        trigger({ name: 'gone', task: 'tasks/deleted.yaml' }),
+      ],
+    })])
+    expect(orphanTriggers(triggers).map(row => row.name)).toEqual(['gone'])
+  })
+})
+
+describe('when a trigger next fires', () => {
+  const NOON = Date.parse('2026-08-26T12:00:00.000Z')
+
+  /** One dashboard trigger, at the presence a next-fire label never reads. */
+  function row(over: Partial<DashboardTrigger> = {}): DashboardTrigger {
+    return {
+      ...trigger(), workspaceId: 'ws-1', project: 'alpha', taskPresence: 'present', ...over,
+    }
+  }
+
+  it('says `disabled` before it says anything about time', () => {
+    expect(nextFireLabel(row({ enabled: false, nextFireAt: '2026-08-26T13:00:00.000Z' }), NOON))
+      .toBe('disabled')
+  })
+
+  it('says `due now` for a window that has passed, not a date in the past', () => {
+    // Overdue and never-fired are the same fact — the next window is at or
+    // before now — and the difference is not something a person acts on.
+    expect(nextFireLabel(row({ nextFireAt: '2020-01-01T00:00:00.000Z' }), NOON)).toBe('due now')
+  })
+
+  it('says `due now` at the boundary itself', () => {
+    expect(nextFireLabel(row({ nextFireAt: '2026-08-26T12:00:00.000Z' }), NOON)).toBe('due now')
+  })
+
+  it('counts in minutes, hours and days as the wait grows', () => {
+    expect(nextFireLabel(row({ nextFireAt: '2026-08-26T12:00:30.000Z' }), NOON)).toBe('in under a minute')
+    expect(nextFireLabel(row({ nextFireAt: '2026-08-26T12:08:00.000Z' }), NOON)).toBe('in 8 min')
+    expect(nextFireLabel(row({ nextFireAt: '2026-08-26T15:00:00.000Z' }), NOON)).toBe('in 3 h')
+    expect(nextFireLabel(row({ nextFireAt: '2026-08-29T12:00:00.000Z' }), NOON)).toBe('in 3 d')
+  })
+
+  it('says the next fire is unknown rather than inventing one', () => {
+    // Unreachable from a registry the host read as `ok` — an unusable cadence
+    // makes the whole file unreadable — but this value crossed a process
+    // boundary, so it is answered rather than assumed away.
+    // OMITTED, not explicitly `undefined`: the field is optional under
+    // `exactOptionalPropertyTypes`, so passing the word is a type error — and
+    // absent is the state the wire actually produces.
+    expect(nextFireLabel(row(), NOON)).toBe('next fire unknown')
+    expect(nextFireLabel(row({ nextFireAt: 'soon' }), NOON)).toBe('next fire unknown')
   })
 })

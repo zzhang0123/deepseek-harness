@@ -41,10 +41,11 @@ import type { ProjectTaskDocumentBody } from './types.ts'
 import type {
   DocumentInputReference, ProjectDefinitionBody, ProjectExecutionRow, ProjectExecutionsBody,
   ProjectDocumentProjectionBody, ProjectInputReference, ProjectOverviewBody, ProjectTaskRow,
-  Transport,
+  ProjectTriggerRow, ProjectTriggersBody, Transport,
 } from './types.ts'
 import { isTransport } from './types.ts'
 import { RESULTS_ROOT, taskSegment } from './project.ts'
+import { nextFireAt, readTriggers, type TriggerRecord } from './triggers.ts'
 import type {} from './project-runtime.ts'
 
 /** Stable Cordis plugin name. */
@@ -143,6 +144,33 @@ function withExecutions(
       ...(found[0] === undefined ? {} : { newestExecutionId: found[0].executionId }),
     }
   })
+}
+
+/**
+ * One trigger record with its next fire derived, and nothing added.
+ *
+ * `nextFireAt` is the ONE derived field (design §5). It is not clamped to the
+ * present: a harness that was down across a window leaves an overdue trigger,
+ * and moving that instant forward to "now" would erase the evidence for §6's
+ * limitation — that a schedule fires only while the harness is running. A
+ * reader treats any instant at or before now as due.
+ *
+ * @param trigger - the record, verbatim from the file.
+ * @param now - the host's reading of the clock, for a trigger that has never
+ *   fired: it is due immediately, and saying so as an instant lets one rule
+ *   (`nextFireAt <= now`) cover both never-fired and overdue.
+ * @returns the browser-facing row.
+ */
+function triggerRow(trigger: TriggerRecord, now: number): ProjectTriggerRow {
+  const due = nextFireAt(trigger, now)
+  return {
+    name: trigger.name,
+    task: trigger.task,
+    every: trigger.every,
+    enabled: trigger.enabled,
+    ...(trigger.lastFiredAt === undefined ? {} : { lastFiredAt: trigger.lastFiredAt }),
+    ...(due === undefined ? {} : { nextFireAt: new Date(due).toISOString() }),
+  }
 }
 
 /** Answer with one JSON body and a no-store policy. */
@@ -353,6 +381,36 @@ export function apply(ctx: Context): void {
         executions: executions.map(summary => row(workspace, summary)),
         truncated: contents.truncated,
       } satisfies ProjectOverviewBody)
+    },
+  }))
+
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'exact',
+    path: `${ROUTE_PREFIX}/triggers`,
+    handler: (req, res) => {
+      const url = requestUrl(req)
+      const workspace = url === undefined ? undefined : workspaceFor(ctx, url)
+      if (workspace === undefined) {
+        json(res, 404, { error: 'unknown project', code: 'PROJECT_NOT_FOUND' })
+        return
+      }
+      const registry = readTriggers(workspace)
+      // 200 FOR ALL THREE STATES, including `unreadable`, and the reason is
+      // that the question this route answers — *what does this project's
+      // registry say* — was answered. "We cannot say" is a legitimate answer
+      // to it, and a 5xx would be indistinguishable on the client from the
+      // route not being mounted at all: exactly the collapse of `unreadable`
+      // into `absent` that design §9.2 refuses.
+      const now = Date.now()
+      json(res, 200, {
+        project: basename(workspace),
+        state: registry.state,
+        triggers: registry.triggers.map(trigger => triggerRow(trigger, now)),
+        // `readTriggers` names the entry and the fault, never a path — a
+        // reason that leaked the host directory would undo what the whole
+        // module is for.
+        ...(registry.state === 'unreadable' ? { reason: registry.reason } : {}),
+      } satisfies ProjectTriggersBody)
     },
   }))
 
