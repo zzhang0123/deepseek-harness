@@ -26,6 +26,10 @@
       "types": "./lib/publish.d.ts",
       "default": "./lib/publish.js"
     },
+    "./triggers": {
+      "types": "./lib/triggers.d.ts",
+      "default": "./lib/triggers.js"
+    },
     "./project-runtime": {
       "types": "./lib/project-runtime.d.ts",
       "default": "./lib/project-runtime.js"
