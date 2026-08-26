@@ -59,6 +59,44 @@ describe('GrammarReference sections', () => {
     for (const badge of badges) expect(badge.textContent).toBeTruthy()
   })
 
+  describe('the reason a section is not accepted', () => {
+    // `docs/upstream-reports.md` §4: the schema kept only the MEMBERSHIP, so
+    // this panel could say `deferred` and could not say "handled by the
+    // command line" — the half a reader needs. Upstream carries the sentence
+    // now, and it is rendered verbatim.
+    it('shows it wherever the schema carries one', () => {
+      const { container } = render(<GrammarReference />)
+      const withReason = SCHEMA.sections.filter(section => section.reason !== null)
+      expect(withReason.length, 'the schema carries no reasons at all').toBeGreaterThan(0)
+      for (const section of withReason) {
+        const line = container.querySelector(`[data-section="${section.name}"] [data-section-reason]`)
+        expect(line?.textContent, section.name).toBe(section.reason)
+      }
+    })
+
+    it('renders NOTHING where the schema carries null', () => {
+      // An accepted section has no reason to give, and a blank line where a
+      // sentence goes reads as a sentence that failed to load.
+      const { container } = render(<GrammarReference />)
+      const withoutReason = SCHEMA.sections.filter(section => section.reason === null)
+      expect(withoutReason.length, 'every section has a reason').toBeGreaterThan(0)
+      for (const section of withoutReason) {
+        expect(
+          container.querySelector(`[data-section="${section.name}"] [data-section-reason]`),
+          section.name,
+        ).toBeNull()
+      }
+    })
+
+    it('renders exactly as many reasons as the schema carries', () => {
+      // Guards the guard, like the status test above: were `reason` to vanish
+      // from the generated schema, both tests above would pass vacuously.
+      const { container } = render(<GrammarReference />)
+      expect(container.querySelectorAll('[data-section-reason]'))
+        .toHaveLength(SCHEMA.sections.filter(section => section.reason !== null).length)
+    })
+  })
+
   it('still marks the required sections', () => {
     const { container } = render(<GrammarReference />)
     for (const section of SCHEMA.sections) {

@@ -133,3 +133,15 @@
   color: var(--dsw-alias-label-secondary);
   opacity: 0.55;
 }
+
+/* The reason a section is not `accepted` — upstream's own sentence, verbatim.
+   A block rather than an inline run: it is prose beside two chips, and reading
+   it as a continuation of the status word is exactly the misreading the status
+   word already suffers from. */
+.sectionReason {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--dsw-alias-label-tertiary);
+}

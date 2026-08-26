@@ -18,9 +18,19 @@
  *
  * The word is upstream's own and is passed through unglossed — inventing a
  * gloss would be a mapping the schema will not defend. `deferred` in
- * particular reads as "not yet available" and means "read by another layer";
- * the reason string that would say which layer is dropped on the way here.
- * `docs/upstream-reports.md` §4.
+ * particular reads as "not yet available" and means "read by another layer".
+ *
+ * **The sentence that says WHICH layer is here now** (`docs/upstream-reports.md`
+ * §4, closed by e-RHINO `e871665`'s predecessor). It used to be dropped on the
+ * way: `_NOT_YET` is a mapping from section to where it is read instead,
+ * preflight spent that route on the user, and the schema kept only the
+ * membership — so this panel could say `deferred` and could not say "handled
+ * by the command line", which is the half a reader needs. It is upstream's own
+ * wording, verbatim, for the same reason the status word is.
+ *
+ * `null` renders NOTHING rather than an empty line: an accepted section has no
+ * reason to give, and a blank where a sentence goes reads as a sentence that
+ * failed to load.
  * @module @rheplicant/dsh-rheplicant-ui-document/client/GrammarReference
  */
 import { memo } from 'react'
@@ -62,6 +72,11 @@ export const GrammarReference = memo(function GrammarReference() {
               <span className={styles.sectionStatus} data-section-status={section.status}>
                 {section.status}
               </span>
+              {section.reason !== null && (
+                <span className={styles.sectionReason} data-section-reason="">
+                  {section.reason}
+                </span>
+              )}
             </li>
           ))}
         </ul>
