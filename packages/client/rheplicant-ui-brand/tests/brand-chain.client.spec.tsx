@@ -54,4 +54,26 @@ describe('brand registrations against a composition missing the newest slot', ()
       'sidebar.brand.mark', 'sidebar.brand.name', 'conversation.hero.brand.mark',
     ])
   })
+
+  it('still registers the SIDEBAR seats when the hero mark slot is absent', () => {
+    // The case the first version of this spec missed, found by an adversarial
+    // review 2026-08-26: the two sidebar registers hung inside
+    // `inject('conversation.hero.brand.mark')`, so a composition without that
+    // ui-conversation slot lost the sidebar mark, the wordmark and — since the
+    // tab title rides the sidebar seat — the product's whole tab identity.
+    const { ctx, registered } = slotsWith(ALL.filter(k => k !== 'conversation.hero.brand.mark'))
+    apply(ctx as never)
+    // The headline still registers: it is its own chain and its slot is here.
+    // That it survives is the split working, not noise.
+    expect(registered).toEqual([
+      'sidebar.brand.mark', 'sidebar.brand.name', 'conversation.hero.headline',
+    ])
+  })
+
+  it('registers the hero mark when the SIDEBAR slots are absent', () => {
+    // The inverse, so neither direction can quietly re-couple.
+    const { ctx, registered } = slotsWith(['conversation.hero.brand.mark', 'conversation.hero.headline'])
+    apply(ctx as never)
+    expect(registered).toEqual(['conversation.hero.brand.mark', 'conversation.hero.headline'])
+  })
 })

@@ -12,15 +12,25 @@ export const inject = ['slots', 'locale']
 
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-brand: dictionaries')
-  // The three marks, in one chain because they have always shipped together.
+  // ONE CHAIN PER OWNING PACKAGE. The two sidebar seats are declared together
+  // by ui-sidebar, so they may gate each other; nothing else may gate them.
+  //
+  // They used to hang inside `inject('conversation.hero.brand.mark')`, which
+  // made the mark, the wordmark AND the browser tab title conditional on a
+  // slot owned by ui-conversation — a package the sidebar has nothing to do
+  // with. The header of `tests/brand-chain.client.spec.tsx` states that rule
+  // and the fix below is what makes it true; the earlier split took the
+  // headline out of this chain and left this coupling in place, which an
+  // adversarial review found and the spec had not covered.
   ctx.slots.inject('sidebar.brand.mark', () =>
-    ctx.slots.inject('sidebar.brand.name', () =>
-      ctx.slots.inject('conversation.hero.brand.mark', function* () {
-        // The sidebar's seat carries the tab title too — see `Brand.tsx`.
-        yield ctx.slots.register({ name: 'sidebar.brand.mark' }, RheplicantSidebarBrand)
-        yield ctx.slots.register({ name: 'sidebar.brand.name' }, RheplicantBrandName)
-        yield ctx.slots.register({ name: 'conversation.hero.brand.mark' }, RheplicantBrandMark)
-      })))
+    ctx.slots.inject('sidebar.brand.name', function* () {
+      // The sidebar's seat carries the tab title too — see `Brand.tsx`.
+      yield ctx.slots.register({ name: 'sidebar.brand.mark' }, RheplicantSidebarBrand)
+      yield ctx.slots.register({ name: 'sidebar.brand.name' }, RheplicantBrandName)
+    }))
+  // The hero mark, on its own, for the same reason.
+  ctx.slots.inject('conversation.hero.brand.mark', () =>
+    ctx.slots.register({ name: 'conversation.hero.brand.mark' }, RheplicantBrandMark))
   // The headline is a SEPARATE chain, and that is the whole point of this
   // comment. `inject` WAITS for a slot to be declared, so a chain is only as
   // available as its least available link — and this link is the newest thing
