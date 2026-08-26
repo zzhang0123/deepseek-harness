@@ -3,7 +3,9 @@ import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
-import { RheplicantBrandMark, RheplicantBrandName, RheplicantHeroHeadline } from './Brand.tsx'
+import {
+  RheplicantBrandMark, RheplicantBrandName, RheplicantHeroHeadline, RheplicantSidebarBrand,
+} from './Brand.tsx'
 import { NS, en, zh } from './locales.ts'
 
 export const inject = ['slots', 'locale']
@@ -14,7 +16,8 @@ export function apply(ctx: ClientContext): void {
   ctx.slots.inject('sidebar.brand.mark', () =>
     ctx.slots.inject('sidebar.brand.name', () =>
       ctx.slots.inject('conversation.hero.brand.mark', function* () {
-        yield ctx.slots.register({ name: 'sidebar.brand.mark' }, RheplicantBrandMark)
+        // The sidebar's seat carries the tab title too — see `Brand.tsx`.
+        yield ctx.slots.register({ name: 'sidebar.brand.mark' }, RheplicantSidebarBrand)
         yield ctx.slots.register({ name: 'sidebar.brand.name' }, RheplicantBrandName)
         yield ctx.slots.register({ name: 'conversation.hero.brand.mark' }, RheplicantBrandMark)
       })))
