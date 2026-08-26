@@ -25,6 +25,7 @@ import z from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { JsonValue } from '@deepseek-ai/dsh-tools'
 import { ComputeError } from '@rheplicant/dsh-rheplicant'
+import { ensureResultsIgnored } from '@rheplicant/dsh-rheplicant/project'
 import {
   TRIGGERS_FILE, durationMs, nextFireAt, readTriggers, writeTriggers,
   type TriggerRecord,
@@ -47,6 +48,8 @@ interface TriggerResult {
   readonly triggers: readonly TriggerRecord[]
   /** The file this call wrote, absent for a read. */
   readonly written?: string
+  /** The `.gitignore` this call created or brought up to date, announced once. */
+  readonly gitignoreWritten?: string
   /** Why the registry could not be read, when it could not. */
   readonly unreadable?: string
 }
@@ -127,12 +130,17 @@ export function apply(ctx: Context, _config: Config): void {
           }).join('\n')
         // Announced once, naming the file (§9.1's rule for the managed
         // `.gitignore`, for the same reason: a silent write to a file the user
-        // owns is exactly the wrongness §4.4 refuses).
+        // owns is exactly the wrongness §4.4 refuses). BOTH files are named:
+        // the second is somebody else's file, so it is the one that most needs
+        // saying out loud.
         const wrote = result.written === undefined ? '' : `\nWrote ${result.written}.`
+        const ignored = result.gitignoreWritten === undefined
+          ? ''
+          : `\nUpdated ${result.gitignoreWritten} so this stays out of git.`
         const caveat = result.triggers.some(trigger => trigger.enabled)
           ? '\nTriggers fire only while this harness is running.'
           : ''
-        return [{ type: 'text', text: `Triggers:\n${rows}${wrote}${caveat}` }]
+        return [{ type: 'text', text: `Triggers:\n${rows}${wrote}${ignored}${caveat}` }]
       },
     },
     // Synchronous work in an async signature: the registry is a small local
@@ -156,9 +164,20 @@ export function apply(ctx: Context, _config: Config): void {
       }
 
       /** Persist and answer. */
-      const commit = (triggers: readonly TriggerRecord[]): TriggerResult => ({
-        action, triggers, written: writeTriggers(workspace, triggers),
-      })
+      const commit = (triggers: readonly TriggerRecord[]): TriggerResult => {
+        // BEFORE the file lands, not after — the same ordering the run path
+        // uses (§9.1). The registry lives in the state directory the managed
+        // block ignores, and a schedule that showed up as untracked source in
+        // the user's next `git status` would be this layer littering in a
+        // repository it does not own.
+        const gitignoreWritten = ensureResultsIgnored(workspace)
+        return {
+          action,
+          triggers,
+          written: writeTriggers(workspace, triggers),
+          ...(gitignoreWritten === undefined ? {} : { gitignoreWritten }),
+        }
+      }
 
       if (action === 'list') {
         return { action, triggers: existing } as unknown as Record<string, JsonValue>

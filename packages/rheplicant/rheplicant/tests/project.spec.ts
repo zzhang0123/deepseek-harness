@@ -6,6 +6,7 @@ import {
   SIDECAR_NAME,
   ensureResultsIgnored,
   executionDirectory,
+  replaceManagedBlock,
   taskSegment,
   writeSidecar,
 } from '@rheplicant/dsh-rheplicant/project'
@@ -92,6 +93,42 @@ describe('ensureResultsIgnored', () => {
     expect(readFileSync(join(workspace, '.gitignore'), 'utf8')).toBe(after)
   })
 
+  it('ignores the state directory too, not only the execution trees', () => {
+    // The trigger registry lives there. Without this line a schedule turns up
+    // as untracked source in the next `git status` — this layer littering in a
+    // repository it does not own.
+    ensureResultsIgnored(workspace)
+    expect(readFileSync(join(workspace, '.gitignore'), 'utf8')).toContain('/.rheplicant-agent/')
+  })
+
+  it('REWRITES a block an older version wrote, which is why the block is versionless', () => {
+    // The original returned the moment the START marker appeared anywhere, so
+    // a block written before the state directory existed would have kept
+    // ignoring only `results/` forever — while its own text promised "the block
+    // is rewritten". The behaviour now matches the promise.
+    const stale = [
+      'node_modules/',
+      '# >>> rheplicant-agent (managed) >>>',
+      '# an older comment nobody will read again',
+      '/results/',
+      '# <<< rheplicant-agent (managed) <<<',
+      'coverage/',
+      '',
+    ].join('\n')
+    writeFileSync(join(workspace, '.gitignore'), stale, 'utf8')
+
+    expect(ensureResultsIgnored(workspace)).toBe(join(workspace, '.gitignore'))
+
+    const body = readFileSync(join(workspace, '.gitignore'), 'utf8')
+    expect(body).toContain('/.rheplicant-agent/')
+    expect(body).not.toContain('an older comment nobody will read again')
+    // Everything outside the markers survives, on both sides.
+    expect(body.startsWith('node_modules/\n')).toBe(true)
+    expect(body).toContain('coverage/')
+    // Exactly one block, not a second appended beside the old one.
+    expect(body.split('# >>> rheplicant-agent (managed) >>>')).toHaveLength(2)
+  })
+
   it('does nothing at all outside a git repository', () => {
     const plain = mkdtempSync(join(tmpdir(), 'rheplicant-plain-'))
     expect(ensureResultsIgnored(plain)).toBeUndefined()
@@ -129,5 +166,53 @@ describe('writeSidecar', () => {
     const blocked = join(workspace, 'blocked')
     writeFileSync(blocked, 'not a directory', 'utf8')
     expect(writeSidecar(join(blocked, 'EXEC-1'), facts)).toBeUndefined()
+  })
+})
+
+describe('replacing the managed block', () => {
+  const START = '# >>> rheplicant-agent (managed) >>>'
+  const END = '# <<< rheplicant-agent (managed) <<<'
+  const BLOCK = `${START}\n/results/\n${END}`
+
+  it('appends to a file that has no block, keeping a trailing newline', () => {
+    expect(replaceManagedBlock('node_modules/\n', BLOCK)).toBe(`node_modules/\n${BLOCK}\n`)
+  })
+
+  it('adds the missing newline when the file did not end with one', () => {
+    expect(replaceManagedBlock('node_modules/', BLOCK)).toBe(`node_modules/\n${BLOCK}\n`)
+  })
+
+  it('writes only the block into a project that has no .gitignore', () => {
+    expect(replaceManagedBlock('', BLOCK)).toBe(`${BLOCK}\n`)
+  })
+
+  it('leaves an already-current file completely alone', () => {
+    expect(replaceManagedBlock(`a\n${BLOCK}\nb\n`, BLOCK)).toBeUndefined()
+  })
+
+  it('swaps a stale block in place, byte for byte on both sides', () => {
+    const before = `a\n${START}\n/old/\n${END}\nb\n`
+    expect(replaceManagedBlock(before, BLOCK)).toBe(`a\n${BLOCK}\nb\n`)
+  })
+
+  it('refuses a half-marked block rather than guessing where our text ends', () => {
+    // A START with no END means someone truncated the file or deleted a
+    // marker. Guessing the extent risks deleting lines the user wrote, which is
+    // worse than failing to ignore a directory.
+    expect(replaceManagedBlock(`a\n${START}\n/old/\n`, BLOCK)).toBeUndefined()
+  })
+
+  it('never matches an END that precedes the START', () => {
+    // A scrambled file. Matching the earlier END would splice out every user
+    // line between the two markers.
+    const scrambled = `${END}\nkeep me\n${START}\n/old/\n`
+    expect(replaceManagedBlock(scrambled, BLOCK)).toBeUndefined()
+  })
+
+  it('replaces the FIRST block when a copy-paste left two, and eats nothing between', () => {
+    const twice = `${START}\n/old/\n${END}\nmine\n${START}\n/old/\n${END}\n`
+    const after = replaceManagedBlock(twice, BLOCK)
+    expect(after).toBe(`${BLOCK}\nmine\n${START}\n/old/\n${END}\n`)
+    expect(after).toContain('mine')
   })
 })

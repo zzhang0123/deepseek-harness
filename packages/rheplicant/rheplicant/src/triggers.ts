@@ -24,16 +24,14 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
-/** The directory this layer keeps its own project-level state in. */
-export const STATE_DIR = '.rheplicant-agent'
+import { STATE_DIR } from './project.ts'
 
-/**
- * Where the registry lives, project-relative.
- *
- * Close to the per-execution sidecar's name (`.rheplicant-agent.json`) on
- * purpose — both are marked as this layer's own — but a DIRECTORY at the
- * project root rather than a file inside a tree. They never collide.
- */
+// Re-exported at its historical name: `project.ts` owns the layout, because
+// that is the module the managed `.gitignore` block is written from and a path
+// it must ignore cannot be owned by a module it does not import.
+export { STATE_DIR }
+
+/** Where the registry lives, project-relative. */
 export const TRIGGERS_FILE = join(STATE_DIR, 'triggers.json')
 
 /** One trigger, as the file holds it. */

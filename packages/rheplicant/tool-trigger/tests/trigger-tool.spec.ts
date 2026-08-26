@@ -154,3 +154,59 @@ describe('what it refuses', () => {
       .rejects.toThrow(/no working directory/)
   })
 })
+
+describe('keeping the registry out of git', () => {
+  /** Make the workspace look like a git working tree. */
+  function asRepository(): void {
+    mkdirSync(join(workspace, '.git'), { recursive: true })
+  }
+
+  it('ignores its own file, so a schedule is never untracked source', async () => {
+    // The registry lives in the state directory. Without this the very first
+    // `rheplicant_trigger` call would leave a new untracked file in a
+    // repository this layer does not own — the littering §9.1 exists to stop.
+    asRepository()
+    const { call } = tool()
+    await call({ action: 'set', name: 'nightly', task: 'tasks/demo.yaml', every: 'P1D' })
+
+    const ignore = readFileSync(join(workspace, '.gitignore'), 'utf8')
+    expect(ignore).toContain('/.rheplicant-agent/')
+  })
+
+  it('names the .gitignore it touched, because that file is not ours', async () => {
+    asRepository()
+    const { call, render } = tool()
+    const result = await call({ action: 'set', name: 'nightly', task: 'tasks/demo.yaml', every: 'P1D' })
+
+    expect(render(result)).toContain('.gitignore')
+    expect(render(result)).toContain('stays out of git')
+  })
+
+  it('says nothing about a .gitignore on the second call, having written it once', async () => {
+    asRepository()
+    const { call, render } = tool()
+    await call({ action: 'set', name: 'a', task: 'a.yaml', every: 'P1D' })
+    const second = await call({ action: 'set', name: 'b', task: 'b.yaml', every: 'P1D' })
+
+    expect(render(second)).not.toContain('stays out of git')
+  })
+
+  it('writes no .gitignore at all outside a repository', async () => {
+    // Nothing here runs `git`, and creating a `.gitignore` in a directory that
+    // is not a working tree would be a file nobody asked for.
+    const { call, render } = tool()
+    const result = await call({ action: 'set', name: 'n', task: 't.yaml', every: 'P1D' })
+
+    expect(() => readFileSync(join(workspace, '.gitignore'), 'utf8')).toThrow()
+    expect(render(result)).not.toContain('stays out of git')
+  })
+
+  it('does not touch a .gitignore for a read', async () => {
+    asRepository()
+    const { call, render } = tool()
+    const result = await call({ action: 'list' })
+
+    expect(() => readFileSync(join(workspace, '.gitignore'), 'utf8')).toThrow()
+    expect(render(result)).not.toContain('stays out of git')
+  })
+})
