@@ -187,6 +187,13 @@ export function SidebarRoot({
         </button>
       </Tooltip>
 
+      {/* Primary navigation: destinations, between the New Session control and
+          the sessions they are peers of. Bare rather than wrapped, so a
+          deployment that registers nothing leaves this column's DOM exactly as
+          it was; an occupant owns its own row and matches the control above by
+          reading `wide`. */}
+      {renderSlot('sidebar.nav', { wide })}
+
       {/* The browsing region fills the column between the controls and the
           foot in both states; its rail icon column rides the same slot. */}
       <div className={css.regionArea}>

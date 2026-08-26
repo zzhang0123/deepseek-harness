@@ -70,6 +70,14 @@
   border: 1px solid var(--dsw-alias-border-l2);
   border-radius: 12px;
   background: var(--dsw-specific-menu);
+  /* Required, not decorative: dsh's `scrollbar-styles` invariant refuses a
+     sheet that SCROLLS on an ELEVATED surface without rebinding the thumb to
+     the matching elevation — the base-surface thumb is tuned for the page
+     behind this panel, not for the menu fill on top of it. Copied from
+     ui-jobs' `.menu`, which is the same seat and the same surface; the first
+     draft took that rule's background and left these two behind. */
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
 }
 
 /* The session-activity strip. The label is not decoration: without it the

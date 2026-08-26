@@ -71,6 +71,21 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      */
     'details': { kind: 'single'; scope: 'session'; owner: DetailsOwnerProps }
     /**
+     * A PEER OF THE CONVERSATION, in the conversation's own column: a
+     * top-level surface a deployment adds beside the transcript rather than
+     * over it. Entries paint the column when they choose to be on screen and
+     * render nothing when they do not, so the conversation stays mounted
+     * underneath and keeps its state.
+     *
+     * Use this, not `shell.overlay`, for anything that IS a place. The overlay
+     * floats above every column, so an occupant that wants to sit beside the
+     * sidebar has to work out where the sidebar ends — and this frame publishes
+     * its track widths only as the inline `gridTemplateColumns` it writes on
+     * itself, never as a custom property. A `section` occupant is bounded by
+     * the column, so there is nothing to reconstruct.
+     */
+    'section': { kind: 'list'; scope: 'root' }
+    /**
      * Frame-wide floating layer, above every column and outside their scroll
      * containers. Deliberately generic and unowned by any feature: a badge, a
      * toast stack or a status pill all belong here, and entries order among
@@ -123,6 +138,7 @@ export function apply(ctx: ClientContext): void {
         'sidebar': { kind: 'single', scope: 'root' },
         'conversation': { kind: 'single', scope: 'session-maybe' },
         'details': { kind: 'single', scope: 'session' },
+        'section': { kind: 'list', scope: 'root' },
         'shell.overlay': { kind: 'list', scope: 'root' },
       },
       // Exclusive store: the factory itself — the framework instantiates per

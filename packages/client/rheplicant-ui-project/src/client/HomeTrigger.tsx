@@ -1,12 +1,12 @@
 /**
- * The sidebar-foot control that switches between the two peer sections.
+ * The primary-navigation row that switches between the two peer sections.
  *
- * `sidebar.footer.action` is a root-scoped LIST slot with `replaceRisk: none`,
- * so this is added beside the shipped Settings row rather than shadowing
- * anything — the reason this seat was chosen over §6.0's original
- * `conversation.hero.workspace`, which is a single-occupant popover already
- * owned by the shipped WorkspacePicker (see `docs/project-model.md` §6.0's
- * implementation note).
+ * `sidebar.nav` is a root-scoped LIST slot, so this is added beside the
+ * shipped controls rather than shadowing anything. It lived at
+ * `sidebar.footer.action` until §24: that was the only additive seat this
+ * column had, so a switch to a whole peer surface sat under Settings, below
+ * the session list, reading as a utility. It is a destination, and it now sits
+ * with New Session where destinations go.
  *
  * **A switch, not an opener (§20.2).** While the project section was a modal
  * this was a disclosure — `aria-expanded`, "Project home", press to reveal. It
@@ -16,10 +16,11 @@
  * being revealed beneath it, which was never true and is now not even the
  * shape of the thing.
  *
- * §20.1 costs the ALTERNATIVE seat — the sidebar's primary navigation, which
- * would need an additive edit to a shipped package — at about a week. The foot
- * is the plugin-only answer, and whether it proves wrong is a question for use,
- * not for a document.
+ * §20.1 costed this seat — the sidebar's primary navigation, needing an
+ * additive edit to a shipped package — at about a week, and said the foot
+ * would do until it proved wrong IN USE. It did, and the report named both
+ * halves: no button where buttons belong, and a surface that stacked on the
+ * conversation instead of replacing it. §24 took the edit.
  *
  * @module @rheplicant/dsh-rheplicant-ui-project/client/HomeTrigger
  */
@@ -39,7 +40,7 @@ export const HomeTrigger = memo(function HomeTrigger({ wide }: HomeTriggerProps)
   return (
     <button
       type="button"
-      className={styles.trigger}
+      className={wide ? styles.trigger : `${styles.trigger} ${styles.triggerRail ?? ''}`}
       data-project-home-trigger=""
       data-project-section={open ? 'project' : 'conversation'}
       // The rail has no room for the label, so the accessible name has to come

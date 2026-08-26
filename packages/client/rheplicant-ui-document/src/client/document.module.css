@@ -58,6 +58,13 @@
   background: var(--dsw-alias-bg-layer-2);
   border: 1px solid var(--dsw-alias-border-l1);
   border-radius: 0.5rem;
+  /* dsh's `scrollbar-styles` invariant: a sheet that SCROLLS on an ELEVATED
+     surface must rebind the thumb to that elevation. The l1 thumb differs from
+     l2 only in the dark palette and only on this surface, so the omission is
+     invisible in review and in a light screenshot alike — which is why it is a
+     test and not a convention. */
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
   font-family: var(--dsw-font-mono, ui-monospace, monospace);
   font-size: 0.75rem;
   line-height: 1.5;

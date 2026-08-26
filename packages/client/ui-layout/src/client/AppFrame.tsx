@@ -20,7 +20,7 @@ import css from './AppFrame.module.css'
 /** Full composed props: runtime share + child-slot render share + store share. */
 export type AppFrameProps =
   & PropsRuntime<'root'>
-  & PropsRenderSlots<'sidebar' | 'conversation' | 'details' | 'shell.overlay'>
+  & PropsRenderSlots<'sidebar' | 'conversation' | 'details' | 'section' | 'shell.overlay'>
   & PropsStore<ReturnType<typeof createLayoutStore>>
 
 /** Center column grid item (session-body building block). */
@@ -187,7 +187,23 @@ export function AppFrame({
             the shell's own pending rendering. The conversation
             is session-maybe; the strict details entry naturally renders
             empty while no session is current. */}
-        <CenterColumn>{renderSlot('conversation', {})}</CenterColumn>
+        <CenterColumn>
+          {renderSlot('conversation', {})}
+          {/* A peer of the conversation, in the conversation's own column.
+              A section paints over the transcript and is BOUNDED BY THE
+              COLUMN, which is the whole point of the seat: the alternative
+              additive seat, `shell.overlay`, floats above every column, so an
+              occupant that wanted to sit beside the sidebar had to recompute
+              where the sidebar ends — and the frame publishes its track widths
+              only as the inline `gridTemplateColumns` below, never as a custom
+              property. Measured 2026-08-26 in the rheplicant profile: a
+              hardcoded 19rem guess left a 23px strip of transcript showing at
+              the default width and a 248px strip once the column collapsed to
+              its rail. Nothing to guess here.
+              Empty by default — no occupant, no DOM, so a deployment that
+              registers nothing renders exactly what it rendered before. */}
+          {renderSlot('section', {})}
+        </CenterColumn>
         <DetailsColumn>{renderSlot('details', {})}</DetailsColumn>
       </>
       <div className={css.overlayLayer} data-shell-overlay>

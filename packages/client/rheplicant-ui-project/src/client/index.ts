@@ -125,13 +125,21 @@ export function apply(ctx: ClientContext): void {
     })
     return () => { setNavigator(undefined) }
   })
-  ctx.slots.inject('shell.overlay', () => ctx.slots.register({
-    name: 'shell.overlay',
-    id: 'rheplicant-project-home',
+  // `section`, not `shell.overlay` (§24). The overlay floats above every
+  // column, so a surface that wanted to sit BESIDE the sidebar had to work out
+  // where the sidebar ends — and the frame publishes its track widths only as
+  // an inline `gridTemplateColumns`, never as a custom property. The guess was
+  // a hardcoded 19rem, and it was wrong at every width: 23px of transcript
+  // showed at the default column, 248px once the column collapsed to its rail.
+  // A `section` occupant is bounded by the centre column itself, so there is
+  // nothing to guess.
+  ctx.slots.inject('section', () => ctx.slots.register({
+    name: 'section',
+    id: 'rheplicant-workbench',
     label: () => 'Workbench',
     // The panel layout, on the one entry that indisputably owns the grid
     // (§20.4). Store-instance scope pins to the slot an entry registers INTO,
-    // and `shell.overlay` is root-scoped — so this is one layout for the app,
+    // and `section` is root-scoped — so this is one layout for the app,
     // where the console's was one per session. Which is what it should always
     // have been: hiding a panel says how you want to read results, not which
     // conversation you were in when you said so.
@@ -146,12 +154,13 @@ export function apply(ctx: ClientContext): void {
       'task.panel': { kind: 'list', scope: 'root' },
     },
   }, ProjectHome))
-  ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register({
-    name: 'sidebar.footer.action',
-    id: 'rheplicant-project-home-trigger',
-    // Ahead of the shipped Cordis panel action (order 0 by default) would put
-    // a feature control before a diagnostic one; after it keeps the shipped
-    // foot order recognisable.
+  // Primary navigation, beside New Session — not the foot beside Settings
+  // (§24). The foot was the only additive seat this column had, so a switch to
+  // a whole peer surface read as a utility filed under the session list. It is
+  // a destination, and it now sits where destinations go.
+  ctx.slots.inject('sidebar.nav', () => ctx.slots.register({
+    name: 'sidebar.nav',
+    id: 'rheplicant-workbench-trigger',
     order: 10,
     label: () => 'Workbench',
   }, HomeTrigger))

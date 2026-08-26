@@ -40,11 +40,31 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      */
     'sidebar.settings': { kind: 'single'; scope: 'root'; owner: SidebarSettingsOwnerProps }
     /**
+     * Primary navigation entries between New Session and the browsing region:
+     * one row per top-level surface a deployment adds. Declared by this
+     * package's 'sidebar' entry; each entry receives only the column state and
+     * owns its own row, exactly as a footer action does.
+     *
+     * WHY THIS EXISTS BESIDE `sidebar.footer.action`. The foot was the only
+     * additive seat in this column, so anything a deployment added — including
+     * a switch to a whole peer surface — had to sit under Settings, below the
+     * session list, reading as a utility rather than as a place. The two seats
+     * differ in what they mean, not in what they can hold: the foot is for
+     * utilities beside Settings, this is for destinations beside New Session.
+     */
+    'sidebar.nav': { kind: 'list'; scope: 'root'; owner: SidebarNavOwnerProps }
+    /**
      * Optional actions beside Settings at the sidebar foot. Declared by this
      * package's 'sidebar' entry; each action receives only the column state.
      */
     'sidebar.footer.action': { kind: 'list'; scope: 'root'; owner: SidebarFooterActionOwnerProps }
   }
+}
+
+/** Column state supplied to each primary-navigation occupant. */
+export interface SidebarNavOwnerProps {
+  /** False on the compact rail, where a row has no room for its label. */
+  wide: boolean
 }
 
 /** Geometry supplied to the sidebar brand-mark occupant. */
@@ -113,6 +133,7 @@ export type SidebarRootComponentProps =
     | 'sidebar.brand.name'
     | 'sidebar.workspaces'
     | 'sidebar.settings'
+    | 'sidebar.nav'
     | 'sidebar.footer.action'
   >
   & SidebarRootInjected & PropsLocale<'sidebar'>
