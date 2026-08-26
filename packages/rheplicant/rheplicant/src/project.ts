@@ -133,6 +133,22 @@ export interface SidecarFacts {
   readonly startedAt: string
   readonly finishedAt: string
   readonly sessionId?: string | undefined
+  /**
+   * The exit kinds this execution ran, VERBATIM from `runs[].kind` — in
+   * declaration order, with repeats kept.
+   *
+   * Recorded rather than derived, because the alternative is reading every
+   * execution's document back to answer "what analysis was this", which is one
+   * fetch per row on a listing. It is a projection of the document, never a
+   * mapping onto anything: §18.2 forbids this repo keeping a kind-to-category
+   * table for a grammar it does not own, and a verbatim copy of the list the
+   * document declared is not one.
+   *
+   * Not deduped. An execution that ran `forward` twice and `nuts` once did
+   * that, and a summary that says `[forward, nuts]` has quietly answered a
+   * different question. Consumers that want the distinct set can take it.
+   */
+  readonly kinds?: readonly string[] | undefined
 }
 
 /** The name of the sidecar, beside upstream's own `.rheplicant-results.json`. */

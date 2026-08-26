@@ -715,6 +715,16 @@ export interface ProjectExecutionRow {
    * same word.
    */
   readonly taskDigest?: string
+  /**
+   * The exit kinds this execution ran, verbatim and in declaration order, when
+   * our sidecar recorded them.
+   *
+   * On the wire so a listing can be grouped or filtered by analysis without a
+   * fetch per row. ABSENT IS NOT EMPTY: every execution published before the
+   * sidecar carried this has none, and rendering that as "ran no analyses"
+   * states something false about an execution that ran several.
+   */
+  readonly kinds?: readonly string[]
 }
 
 /** The listing response body. */

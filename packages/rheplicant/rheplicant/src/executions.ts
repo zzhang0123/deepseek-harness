@@ -75,6 +75,16 @@ export interface ExecutionSummary {
   readonly sessionId?: string
   readonly taskDigest?: string
   readonly transport?: string
+  /**
+   * The exit kinds this execution ran, when our sidecar recorded them.
+   *
+   * ABSENT IS NOT EMPTY. Every execution published before the sidecar carried
+   * this field has no kinds at all, and a surface that renders `[]` as "this
+   * execution ran no analyses" states something false about an execution that
+   * ran several. Undefined means unknown; the same three-state discipline the
+   * gates apply to `unknown` versus `unmet`.
+   */
+  readonly kinds?: readonly string[]
 }
 
 /** A refusal this module raises; carries a stable code for the caller. */
@@ -130,6 +140,22 @@ function readSidecar(directory: string): Record<string, unknown> {
 function text(row: Record<string, unknown>, key: string): string | undefined {
   const value = row[key]
   return typeof value === 'string' && value !== '' ? value : undefined
+}
+
+/**
+ * One sidecar field, only when it is an array of non-empty strings.
+ *
+ * An empty array is rejected along with a malformed one, so the field is either
+ * a real list of kinds or absent. That keeps "unknown" a single state: a
+ * writer that recorded `[]` and a writer that recorded nothing say the same
+ * thing here, which is the only honest reading of either.
+ */
+function strings(row: Record<string, unknown>, key: string): readonly string[] | undefined {
+  const value = row[key]
+  if (!Array.isArray(value) || value.length === 0) return undefined
+  return value.every(item => typeof item === 'string' && item !== '')
+    ? value as readonly string[]
+    : undefined
 }
 
 /**
@@ -191,6 +217,7 @@ function summarize(root: string, directory: string, name: string): ExecutionSumm
   }
   const { id, status } = splitFailureSuffix(name)
   const sidecar = readSidecar(directory)
+  const kinds = strings(sidecar, 'kinds')
   const task = relative(root, directory).split(sep).slice(0, -1).join('/')
   return {
     executionId: id,
@@ -201,6 +228,10 @@ function summarize(root: string, directory: string, name: string): ExecutionSumm
     device: identity.dev,
     inode: identity.ino,
     ...pick(sidecar, 'startedAt', 'finishedAt', 'sessionId', 'taskDigest', 'transport'),
+    // Separate from `pick`, which is a string-field helper: this one is a list,
+    // and folding it in would mean loosening `pick`'s return type for every
+    // caller to admit one field.
+    ...(kinds === undefined ? {} : { kinds }),
   }
 }
 

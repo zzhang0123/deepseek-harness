@@ -136,6 +136,39 @@ describe('listExecutions', () => {
   })
 })
 
+describe('the kinds an execution ran', () => {
+  it('reads the list verbatim, order and repeats intact', () => {
+    execution('tasks/demo', 'EXEC-1', {
+      sidecar: { kinds: ['forward', 'forward', 'nuts'] },
+    })
+    // Not a set. An execution that ran `forward` twice did that, and a summary
+    // that says `[forward, nuts]` has answered a different question.
+    expect(listExecutions(workspace)[0]?.kinds).toEqual(['forward', 'forward', 'nuts'])
+  })
+
+  it('leaves the field ABSENT when the sidecar predates it', () => {
+    execution('tasks/demo', 'EXEC-1', { sidecar: { taskDigest: 'abc' } })
+    const [found] = listExecutions(workspace)
+    // Undefined, never []. Every execution published before the sidecar
+    // carried this has no kinds, and `[]` would let a surface render "ran no
+    // analyses" about an execution that ran several.
+    expect(found?.kinds).toBeUndefined()
+    expect(found?.taskDigest).toBe('abc')
+  })
+
+  it.each([
+    ['an empty list', []],
+    ['a non-array', 'forward'],
+    ['a list with a non-string', ['forward', 7]],
+    ['a list with an empty string', ['forward', '']],
+  ])('reads %s as absent rather than as data', (_label, kinds) => {
+    execution('tasks/demo', 'EXEC-1', { sidecar: { kinds } })
+    // One unknown state, not two: a writer that recorded `[]` and a writer
+    // that recorded nothing are saying the same thing.
+    expect(listExecutions(workspace)[0]?.kinds).toBeUndefined()
+  })
+})
+
 describe('readArtifact', () => {
   it('serves an allowed artifact with its media type', () => {
     const directory = execution('t', 'EXEC-1', { files: { 'provenance.json': '{"ok":true}' } })

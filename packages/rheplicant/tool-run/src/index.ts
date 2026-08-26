@@ -148,6 +148,12 @@ export function apply(ctx: Context, config: Config): void {
           startedAt,
           finishedAt: new Date().toISOString(),
           ...(exec.agent === undefined ? {} : { sessionId: exec.agent.session.header.id }),
+          // What this execution actually ran, taken off the outcome rather
+          // than off the document: a run that refused partway published fewer
+          // entries than the document declared, and the sidecar describes what
+          // HAPPENED. Verbatim and in order — see `SidecarFacts.kinds` for why
+          // it is neither deduped nor mapped onto anything.
+          ...(outcome.runs.length === 0 ? {} : { kinds: outcome.runs.map(entry => entry.kind) }),
         })
       }
       if (args.run_in_background === true) {
