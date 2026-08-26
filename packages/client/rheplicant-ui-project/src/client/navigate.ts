@@ -17,7 +17,6 @@
  */
 
 import { closeHome } from './home-store.ts'
-import { selectInProject } from './selection.ts'
 
 /** What opening a project needs from the host page. */
 export interface Navigator {
@@ -45,14 +44,6 @@ export function canNavigate(): boolean {
   return navigator !== undefined
 }
 
-/** What to have in view once a conversation opens. */
-export interface OpenTarget {
-  /** The task to select, so the workbench and console agree on arrival. */
-  readonly taskPath?: string | undefined
-  /** The execution to select alongside it, when the task has one. */
-  readonly executionId?: string | undefined
-}
-
 /**
  * Open a conversation in one project, and close the home.
  *
@@ -64,24 +55,24 @@ export interface OpenTarget {
  *
  * The workbench renders all of those surfaces with no session at all (§11.5),
  * so that whole search is gone. What is left is the only thing this action
- * ever meant: go and WORK on this project. A blank conversation is the right
- * place to land for that, and the selection travels because it belongs to the
- * project rather than to wherever you happen to be standing.
+ * ever meant: go and WORK on this project.
+ *
+ * **It no longer takes a target, 2026-08-26.** It used to accept a task and an
+ * execution to arrive selected, and `ProjectHome` passed them from a button on
+ * every task row. That affordance is gone for the reason §11.11 removed its
+ * per-execution twin: the destination did not differ. A blank conversation
+ * renders nothing about the selection, and the selection is browser-half only
+ * — `ctx.rheplicantSelection` never crosses to the host, so the agent you
+ * landed in front of could not read it either. Carrying a task to a place that
+ * cannot use it is not navigation, and the parameter that carried it is gone
+ * rather than left for a caller who might believe it does something.
  *
  * @param workspaceId - the project to open.
- * @param target - what to have selected on arrival.
  * @returns resolution after the session is open; rejects if connecting fails.
  */
-export async function openProject(workspaceId: string, target: OpenTarget = {}): Promise<void> {
+export async function openProject(workspaceId: string): Promise<void> {
   const via = navigator
   if (via === undefined) return
-  // Selected BEFORE the jump, so whatever renders next already agrees.
-  if (target.taskPath !== undefined || target.executionId !== undefined) {
-    selectInProject(workspaceId, {
-      ...(target.taskPath === undefined ? {} : { taskPath: target.taskPath }),
-      ...(target.executionId === undefined ? {} : { executionId: target.executionId }),
-    })
-  }
   via.open(await via.connect(workspaceId))
   // Closed only after the jump succeeded. A home that closed first and then
   // failed to connect would leave someone looking at the session they were

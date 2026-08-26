@@ -491,28 +491,45 @@ describe('opening a conversation to work in', () => {
     return calls
   }
 
-  it('offers one control per task, and none per execution', async () => {
-    // Clicking an execution row already shows it here. A second "open a
-    // session" on every row would be the same action repeated down the page.
+  it('offers ONE control for the project, and none per task or execution', async () => {
+    // 2026-08-26: there used to be one per task. Removed for the reason §11.11
+    // removed the per-execution twin — the destination did not differ. A blank
+    // conversation renders nothing about the task, and the selection it
+    // carried is browser-half only, so the agent could not read it either.
     navigator()
     serve({ 'ws-1': overview('rhino') }, {})
     openHome('ws-1')
     const { container } = mount()
-    await waitFor(() => { expect(container.querySelector('[data-project-open-task]')).toBeTruthy() })
+    await waitFor(() => { expect(container.querySelector('[data-project-open-empty]')).toBeTruthy() })
+    expect(container.querySelector('[data-project-open-task]')).toBeNull()
     expect(container.querySelector('[data-project-open-execution]')).toBeNull()
-    expect(screen.getByText('Open in session')).toBeTruthy()
+    expect(screen.queryByText('Open in session')).toBeNull()
+    expect(screen.getByText('Open a session in this project')).toBeTruthy()
   })
 
-  it('connects and opens, selecting the task on the way', async () => {
+  it('offers it on a project WITH tasks, not only an empty one', async () => {
+    // The control used to live in the empty-project arm alone, which made it
+    // an onboarding step. A project with tasks then had only the per-task
+    // buttons — so removing those without moving this one would have left a
+    // populated project with no way to open a session at all.
+    navigator()
+    serve({ 'ws-1': overview('rhino') }, {})
+    openHome('ws-1')
+    const { container } = mount()
+    await waitFor(() => { expect(container.querySelector('[data-project-tasks]')).toBeTruthy() })
+    expect(container.querySelector('[data-project-open-empty]')).toBeTruthy()
+  })
+
+  it('connects and opens, selecting nothing on the way', async () => {
     const calls = navigator()
     serve({ 'ws-1': overview('rhino') }, {})
     openHome('ws-1')
     const { container } = mount()
-    await waitFor(() => { expect(container.querySelector('[data-project-open-task]')).toBeTruthy() })
-    fireEvent.click(container.querySelector('[data-project-open-task]')!)
+    await waitFor(() => { expect(container.querySelector('[data-project-open-empty]')).toBeTruthy() })
+    fireEvent.click(container.querySelector('[data-project-open-empty]')!)
     await waitFor(() => { expect(calls).toContain('open:S-ws-1') })
     expect(calls).toEqual(['connect:ws-1', 'open:S-ws-1'])
-    expect(readSelection('ws-1').taskPath).toBe('rhino-fit.yaml')
+    expect(readSelection('ws-1').taskPath).toBeUndefined()
   })
 
   it('offers nothing to open when no navigator was installed', async () => {
@@ -521,7 +538,7 @@ describe('opening a conversation to work in', () => {
     openHome('ws-1')
     const { container } = mount()
     await waitFor(() => { expect(container.querySelector('[data-project-tasks]')).toBeTruthy() })
-    expect(container.querySelector('[data-project-open-task]')).toBeNull()
+    expect(container.querySelector('[data-project-open-empty]')).toBeNull()
   })
 
   it('says so and stays open when connecting fails', async () => {
@@ -532,8 +549,8 @@ describe('opening a conversation to work in', () => {
     serve({ 'ws-1': overview('rhino') }, {})
     openHome('ws-1')
     const { container } = mount()
-    await waitFor(() => { expect(container.querySelector('[data-project-open-task]')).toBeTruthy() })
-    fireEvent.click(container.querySelector('[data-project-open-task]')!)
+    await waitFor(() => { expect(container.querySelector('[data-project-open-empty]')).toBeTruthy() })
+    fireEvent.click(container.querySelector('[data-project-open-empty]')!)
     await waitFor(() => { expect(container.querySelector('[data-project-open-failed]')).toBeTruthy() })
     expect(container.querySelector('[data-project-home]')).toBeTruthy()
   })

@@ -181,19 +181,18 @@ export const ProjectHome = memo(function ProjectHome(
   // A failed connect leaves the home open and unchanged, which is the only
   // honest thing it can do: there is nowhere to have gone.
   const [failure, setFailure] = useState<string | undefined>(undefined)
-  // "Go and work on this" — the only thing opening a session still means.
-  // No producing-session hunt: the workbench shows results without one, so a
-  // blank conversation is exactly the right place to land (§11.5).
-  const workOnTask = useCallback((taskPath: string, executionId?: string) => {
-    if (chosen === undefined) return
-    setFailure(undefined)
-    void openProject(chosen, { taskPath, ...(executionId === undefined ? {} : { executionId }) })
-      .catch((error: unknown) => {
-        setFailure(error instanceof Error ? error.message : String(error))
-      })
-  }, [chosen])
-  // The same action with no target: an empty project has no task to arrive
-  // selected, and landing in a conversation is the whole point.
+  // "Go and work on this project" — the only thing opening a session still
+  // means, and now the only shape it comes in. No producing-session hunt: the
+  // workbench shows results without one, so a blank conversation is exactly
+  // the right place to land (§11.5).
+  //
+  // THERE USED TO BE A PER-TASK FORM of this, one button per row, and the
+  // reason it is gone is the reason §11.11 removed the per-EXECUTION form: the
+  // destination did not differ. The task travelled as a client-side selection
+  // that the blank conversation never renders and the agent never receives —
+  // measured 2026-08-26, `ctx.rheplicantSelection` is browser-half only — so
+  // four buttons landed you in the same place with nothing to show which one
+  // you pressed. One project-level button says what all four actually did.
   const workOnProject = useCallback(() => {
     if (chosen === undefined) return
     setFailure(undefined)
@@ -377,18 +376,6 @@ export const ProjectHome = memo(function ProjectHome(
                         it never writes one, so authoring is a conversation — open a session and ask
                         the agent for a document, and it appears here.
                       </p>
-                      {openable && (
-                        <div className={styles.onboardingActions}>
-                          <button
-                            type="button"
-                            className={styles.open}
-                            data-project-open-empty=""
-                            onClick={() => { workOnProject() }}
-                          >
-                            Open a session in this project
-                          </button>
-                        </div>
-                      )}
                     </>
                   )
                   : (
@@ -413,16 +400,6 @@ export const ProjectHome = memo(function ProjectHome(
                             <span className={styles.mono}>{task.path}</span>
                           </button>
                           <span className={styles.meta}>{formatBytes(task.bytes)}</span>
-                          {openable && (
-                            <button
-                              type="button"
-                              className={styles.open}
-                              data-project-open-task={task.path}
-                              onClick={() => { workOnTask(task.path, task.newestExecutionId) }}
-                            >
-                              Open in session
-                            </button>
-                          )}
                           {ranSegments.has(taskSegmentOf(task.path))
                             ? (
                               <Badge state="ok">
@@ -434,6 +411,23 @@ export const ProjectHome = memo(function ProjectHome(
                       ))}
                     </ul>
                   )}
+                {/* One seat, both branches. It used to live only in the
+                    empty-project arm, which made "open a session here" an
+                    onboarding step rather than an action — and left a project
+                    WITH tasks offering only the per-task buttons that have
+                    since gone. */}
+                {openable && (
+                  <div className={styles.onboardingActions}>
+                    <button
+                      type="button"
+                      className={styles.openProject}
+                      data-project-open-empty=""
+                      onClick={() => { workOnProject() }}
+                    >
+                      Open a session in this project
+                    </button>
+                  </div>
+                )}
               </Panel>
 
               {/* A selection can outlive the file it names — deleted, renamed,

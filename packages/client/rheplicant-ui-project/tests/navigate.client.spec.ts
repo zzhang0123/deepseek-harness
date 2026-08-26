@@ -1,3 +1,19 @@
+/**
+ * Opening a project.
+ *
+ * **This file shrank on 2026-08-26 and the deletions are the point.** It used
+ * to assert, at length, that `openProject` carried a task and an execution
+ * into the conversation it opened — that the selection was set, pinned, kept
+ * per project, and not invented when absent. Every one of those specs passed,
+ * and every one of them guarded a journey that ended nowhere: a blank
+ * conversation renders nothing about the selection, and the selection is
+ * browser-half only, so the agent could not read it either. `openProject` no
+ * longer takes a target, so those specs are gone rather than left standing as
+ * coverage of a parameter no caller passes.
+ *
+ * What survives is what the action still promises: connect, open, and close
+ * the section — in that order, and only when connecting worked.
+ */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { canNavigate, openProject, setNavigator, type Navigator } from '../src/client/navigate.ts'
 import { openHome, readHome, resetHome } from '../src/client/home-store.ts'
@@ -25,15 +41,10 @@ describe('without a navigator', () => {
     expect(canNavigate()).toBe(false)
   })
 
-  it('does nothing rather than throwing, so the home stays a usable chooser', async () => {
+  it('does nothing rather than throwing, so the workbench stays usable', async () => {
     openHome('ws-1')
-    await expect(openProject('ws-1', { executionId: 'EXEC-1' })).resolves.toBeUndefined()
+    await expect(openProject('ws-1')).resolves.toBeUndefined()
     expect(readHome().section).toBe('workbench')
-  })
-
-  it('sets no selection either — nothing happened, so nothing is claimed', async () => {
-    await openProject('ws-1', { executionId: 'EXEC-1' })
-    expect(readSelection('ws-1').executionId).toBeUndefined()
   })
 })
 
@@ -43,60 +54,40 @@ describe('opening a project', () => {
     expect(canNavigate()).toBe(true)
   })
 
-  it('sets the PROJECT selection, addressed to no session at all', async () => {
-    // The heart of §11.2. P6 had to ask a particular session's console to show
-    // an execution; a project-owned selection is simply already correct for
-    // whichever surface renders next.
-    recording()
-    await openProject('ws-1', { executionId: 'EXEC-1' })
-    expect(readSelection('ws-1')).toMatchObject({
-      executionId: 'EXEC-1',
-      pinned: { execution: true },
-    })
-  })
-
-  it('pins it, because clicking a row is an explicit human choice', async () => {
-    // So a run finishing in the background cannot pull the view off it.
-    recording()
-    await openProject('ws-1', { executionId: 'EXEC-1' })
-    expect(readSelection('ws-1').pinned.execution).toBe(true)
-  })
-
   it('connects, then opens', async () => {
     const order = recording()
-    await openProject('ws-1', { executionId: 'EXEC-1' })
+    await openProject('ws-1')
     expect(order).toEqual(['connect:ws-1', 'open:S-for-ws-1'])
   })
 
-  it('sets no selection when no execution was named', async () => {
-    recording()
-    await openProject('ws-1')
-    expect(readSelection('ws-1').executionId).toBeUndefined()
-  })
-
-  it('closes the home once the jump succeeded', async () => {
+  it('leaves the section once the jump succeeded', async () => {
     recording()
     openHome('ws-1')
-    await openProject('ws-1', { executionId: 'EXEC-1' })
+    await openProject('ws-1')
     expect(readHome().section).toBe('conversation')
   })
 
-  it('keeps each project\'s selection to itself', async () => {
+  it('touches no selection at all, in this project or any other', async () => {
+    // It used to set one. Nothing downstream could read it, so now it does
+    // not — and a caller who still believes it does would be wrong in a way
+    // only this spec can say out loud.
     recording()
     selectInProject('ws-2', { executionId: 'OTHER' })
-    await openProject('ws-1', { executionId: 'EXEC-1' })
+    await openProject('ws-1')
+    expect(readSelection('ws-1').executionId).toBeUndefined()
+    expect(readSelection('ws-1').taskPath).toBeUndefined()
     expect(readSelection('ws-2').executionId).toBe('OTHER')
   })
 })
 
 describe('when connecting fails', () => {
-  it('leaves the home OPEN, because there is nowhere to have gone', async () => {
+  it('leaves the section OPEN, because there is nowhere to have gone', async () => {
     setNavigator({
       connect: () => Promise.reject(new Error('offline')),
       open: vi.fn(),
     })
     openHome('ws-1')
-    await expect(openProject('ws-1', { executionId: 'EXEC-1' })).rejects.toThrow('offline')
+    await expect(openProject('ws-1')).rejects.toThrow('offline')
     expect(readHome().section).toBe('workbench')
   })
 
@@ -105,32 +96,5 @@ describe('when connecting fails', () => {
     setNavigator({ connect: () => Promise.reject(new Error('offline')), open })
     await expect(openProject('ws-1')).rejects.toThrow('offline')
     expect(open).not.toHaveBeenCalled()
-  })
-})
-
-describe('it always connects — there is no session to hunt for any more', () => {
-  it('connects the workspace every time, whatever produced the execution', async () => {
-    // P6 had to find the session that produced an execution, because that was
-    // the only place a console existed to show it in. The workbench renders
-    // without a session now, so this action means only "go work here".
-    const order = recording()
-    await openProject('ws-1', { taskPath: 'tasks/fit.yaml', executionId: 'EXEC-1' })
-    expect(order).toEqual(['connect:ws-1', 'open:S-for-ws-1'])
-  })
-
-  it('selects the task as well as the execution, so arrival is not ambiguous', async () => {
-    recording()
-    await openProject('ws-1', { taskPath: 'tasks/fit.yaml', executionId: 'EXEC-1' })
-    expect(readSelection('ws-1')).toMatchObject({
-      taskPath: 'tasks/fit.yaml',
-      executionId: 'EXEC-1',
-    })
-  })
-
-  it('selects a task with no execution without inventing one', async () => {
-    recording()
-    await openProject('ws-1', { taskPath: 'lonely.yaml' })
-    expect(readSelection('ws-1').taskPath).toBe('lonely.yaml')
-    expect(readSelection('ws-1').executionId).toBeUndefined()
   })
 })
