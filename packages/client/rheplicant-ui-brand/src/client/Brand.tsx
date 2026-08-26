@@ -11,12 +11,29 @@ type RheplicantBrandMarkProps = HeroBrandMarkOwnerProps & SidebarBrandMarkOwnerP
 /**
  * The mark's geometry, in one place.
  *
- * A square on its point, inscribed in a 50-unit box — the same path the
- * favicon draws, so the tab and the sidebar are the same shape rather than two
- * drawings that resemble each other. `2.5` of padding on each side keeps the
- * points off the edge at 16px, where a favicon spends most of its life.
+ * A rhinoceros head whose trailing edge breaks into a mosaic and scatters —
+ * the logo's own motif, the animal digitizing into data. Inscribed in a
+ * 50-unit box, and the same path the favicon draws, so the tab and the sidebar
+ * are the same shape rather than two drawings that resemble each other.
+ *
+ * **It is TRACED, not drawn** — `scripts/brand/derive-mark.py` reads
+ * e-RHINO's `docs/_static/rheplicant-logo.png` and emits exactly this string
+ * (variant `b`). The mark has to be the same animal as the logo, because the
+ * two sit side by side on the Sphinx docs and this app; a hand-drawn rhino is
+ * a different rhino. That script is the provenance and carries the tuning
+ * facts; it is not a gate, and it says why not.
+ *
+ * **Two scattered cells, not five, and the reason is arithmetic rather than
+ * taste.** Both seats pass one `size`, so the mark is fitted into a SQUARE
+ * box — every unit of width the scatter adds shrinks the head. Measured
+ * 2026-08-26: five cells put the mark at aspect 1.68 and the head at 8.5px
+ * inside a 16px favicon; two put it at 1.25 and 10.5px. Below about 24px a
+ * one-pixel cell stops reading as data and starts reading as dirt.
+ *
+ * **The diamond this replaced was a placeholder**, put in when the mark first
+ * became an SVG and the real logo had not been vectorised yet.
  */
-const MARK_PATH = 'M25 2.5 L47.5 25 L25 47.5 L2.5 25 Z'
+const MARK_PATH = 'M 20.16 12.23 C 19.42 12.62 19.06 13.08 18.75 14.13 C 18.27 15.69 17.5 15.86 15.98 14.73 C 13.91 13.19 13.26 13.63 13.92 16.09 C 14.28 17.4 14.62 17.91 15.69 18.65 C 16.78 19.4 16.9 20.03 16.42 22.47 C 15.91 25.07 15.58 25.91 14.68 26.88 C 13.56 28.07 12.77 28.05 10.85 26.77 C 9.47 25.84 9.25 25.98 9.25 27.78 C 9.25 28.38 9.28 29.15 9.33 29.48 C 9.42 30.25 9.36 30.5 9.04 30.66 C 7.38 31.52 3.95 28.17 2.34 24.13 C 1.96 23.16 1.77 22.88 1.54 22.91 C 1.2 22.96 1.11 23.32 1.08 25.02 C 1 28.94 2.81 33.51 5.71 36.71 C 6.69 37.78 6.75 37.89 6.83 39.06 C 6.91 40.07 6.91 40.08 7.69 41.85 C 8.44 43.56 9.48 44.18 11.19 43.95 C 11.9 43.85 12.09 43.86 12.82 43.99 C 14.26 44.25 14.89 44.09 16.16 43.15 C 16.56 42.85 17.29 42.35 17.78 42.03 C 18.54 41.53 21.34 39.4 23.12 37.97 C 24.21 37.1 24.1 38.28 24.13 26.16 C 24.15 20.32 24.13 15.38 24.1 15.18 C 24.01 14.54 23.76 14.37 22.99 14.44 C 21.94 14.53 21.6 14.26 21.43 13.18 C 21.27 12.17 20.85 11.86 20.16 12.23 Z M 24.15 10.84 L 28.36 10.84 L 28.36 15.05 L 24.15 15.05 Z M 24.15 15.93 L 28.36 15.93 L 28.36 20.14 L 24.15 20.14 Z M 24.15 21.03 L 28.36 21.03 L 28.36 25.24 L 24.15 25.24 Z M 24.15 26.12 L 28.36 26.12 L 28.36 30.33 L 24.15 30.33 Z M 24.15 31.21 L 28.36 31.21 L 28.36 35.42 L 24.15 35.42 Z M 29.24 10.84 L 33.45 10.84 L 33.45 15.05 L 29.24 15.05 Z M 29.24 15.93 L 33.45 15.93 L 33.45 20.14 L 29.24 20.14 Z M 29.24 21.03 L 33.45 21.03 L 33.45 25.24 L 29.24 25.24 Z M 29.24 26.12 L 33.45 26.12 L 33.45 30.33 L 29.24 30.33 Z M 34.33 10.84 L 38.54 10.84 L 38.54 15.05 L 34.33 15.05 Z M 41.46 5.75 L 44.86 5.75 L 44.86 9.14 L 41.46 9.14 Z M 46.56 8.8 L 49 8.8 L 49 11.25 L 46.56 11.25 Z'
 
 /**
  * Render the rheplicant mark.
