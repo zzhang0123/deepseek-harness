@@ -11,7 +11,7 @@
     "@deepseek-ai/dsh-client-rheplicant-ui-analysis": "workspace:^",
     "@deepseek-ai/dsh-client-rheplicant-ui-brand": "workspace:^",
     "@deepseek-ai/dsh-client-rheplicant-ui-compute": "workspace:^",
-    "@deepseek-ai/dsh-client-rheplicant-ui-console": "workspace:^",
+    "@deepseek-ai/dsh-client-rheplicant-ui-loop": "workspace:^",
     "@deepseek-ai/dsh-client-rheplicant-ui-document": "workspace:^",
     "@deepseek-ai/dsh-client-rheplicant-ui-identifiability": "workspace:^",
     "@deepseek-ai/dsh-client-rheplicant-ui-posterior": "workspace:^",

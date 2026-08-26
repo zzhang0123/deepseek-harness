@@ -10,7 +10,7 @@
  */
 
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
-import type {} from '@deepseek-ai/dsh-client-rheplicant-ui-console/client'
+import type {} from '@deepseek-ai/dsh-client-rheplicant-ui-loop/client'
 import { ChainsPanel } from './ChainsPanel.tsx'
 import { PosteriorPanel } from './PosteriorPanel.tsx'
 // Type-only: loads the SlotMap entry for `task.panel`, the workbench's grid.
@@ -20,7 +20,7 @@ export const inject = ['slots']
 
 export function apply(ctx: ClientContext): void {
   // The workbench's grid is the ONLY seat now (`docs/project-model.md` §20.4).
-  // There used to be a second registration into ui-console's `console.panel`,
+  // There used to be a second registration into ui-loop's `console.panel`,
   // and the pair was the duplication §20 set out to end: two seats meant every
   // future panel needed two registrations, and Model, Exits and the document
   // diff already existed on one side only.

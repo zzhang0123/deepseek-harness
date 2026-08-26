@@ -16,7 +16,7 @@
  * @module @rheplicant/dsh-rheplicant-ui-project/client/task-maturity
  */
 
-import type { ConsoleExecutionView } from '@rheplicant/dsh-rheplicant-ui-kit/client'
+import type { LoopExecutionView } from '@rheplicant/dsh-rheplicant-ui-kit/client'
 import type { ProjectExecutionRow, ProjectTaskRow } from '@rheplicant/dsh-rheplicant'
 
 /** How a stage reads. Shared vocabulary with the console's own rail. */
@@ -45,7 +45,7 @@ export interface MaturityInput {
   /** The task's newest execution, absent when it has never run. */
   readonly newest: ProjectExecutionRow | undefined
   /** That execution projected, absent when there is none to project. */
-  readonly view: ConsoleExecutionView | undefined
+  readonly view: LoopExecutionView | undefined
   /** sha256 of the authored document, absent when it could not be computed. */
   readonly documentDigest: string | undefined
 }

@@ -25,8 +25,8 @@ import type { AnalysisRun } from './run-selectors.ts'
 /** Why an execution's data is not in hand. */
 export type ExecutionViewProblem = 'unavailable' | 'unreadable' | 'loading'
 
-/** One execution's projection, as every console panel receives it. */
-export interface ConsoleExecutionView {
+/** One execution's projection, as every panel receives it in either seat. */
+export interface LoopExecutionView {
   /** The execution being shown, when one is selected at all. */
   readonly executionId?: string
   /** The projected runs, absent while loading or when the read failed. */
@@ -76,7 +76,7 @@ export interface ConsoleExecutionView {
  * @returns the runs to render.
  */
 export function runsToRender(
-  view: ConsoleExecutionView | undefined,
+  view: LoopExecutionView | undefined,
   fromLog: readonly AnalysisRun[],
 ): readonly AnalysisRun[] {
   if (view?.runs !== undefined) return view.runs
@@ -97,7 +97,7 @@ export function runsToRender(
  * @param view - the owner-props execution view.
  * @returns a sentence, or undefined to use the panel's ordinary empty state.
  */
-export function executionEmptyReason(view: ConsoleExecutionView | undefined): string | undefined {
+export function executionEmptyReason(view: LoopExecutionView | undefined): string | undefined {
   if (view?.problem === 'unreadable') {
     return 'This execution\'s results are no longer readable — they may have been pruned.'
   }
@@ -135,7 +135,7 @@ export function executionEmptyReason(view: ConsoleExecutionView | undefined): st
  * @returns the graph to render, or undefined to render none.
  */
 export function graphToRender(
-  view: ConsoleExecutionView | undefined,
+  view: LoopExecutionView | undefined,
   fromLog: unknown,
 ): unknown {
   if (view?.graph !== undefined) return view.graph
@@ -163,7 +163,7 @@ export function graphToRender(
  * @returns the findings to render, or undefined to render none.
  */
 export function gatesToRender(
-  view: ConsoleExecutionView | undefined,
+  view: LoopExecutionView | undefined,
   fromLog: readonly unknown[] | undefined,
 ): readonly unknown[] | undefined {
   if (view?.gates !== undefined) return view.gates

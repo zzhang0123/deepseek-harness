@@ -8,7 +8,7 @@
 // the console's panel grid (§20.4): the panels have exactly one seat now, the
 // project surface's, and that surface reads the published TREE — so a seeded
 // never-published gates report has no browser surface. They moved verbatim to
-// `packages/rheplicant/ui-console/tests/GatesPanel.client.spec.tsx`, and the
+// `packages/rheplicant/ui-loop/tests/GatesPanel.client.spec.tsx`, and the
 // signal-path legend to `.../ui-analysis/tests/SignalPathPanel.client.spec.tsx`.
 import type { Browser, Page } from 'playwright'
 import { chromium } from 'playwright'

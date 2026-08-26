@@ -1,7 +1,7 @@
 /**
  * Business Definitions folding the three durable rheplicant events into the
  * `rheplicant-document` conversation-view target. One Definition per event
- * type, each a one-shot fact (matches ui-console's own
+ * type, each a one-shot fact (matches ui-loop's own
  * `loop-definitions.ts` shape for the identical three events: `id =
  * String(event.seq)`, always `role: 'start'`, `update` a no-op) — every
  * occurrence is its own Context, never merged with an earlier one. Reusing

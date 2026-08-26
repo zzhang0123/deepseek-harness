@@ -7,7 +7,7 @@
  * occurrence is its own Context, never merged with an earlier one. The
  * builder (`loop-snapshot-builder.ts`) is what folds many one-shot facts down
  * to "the latest of each kind".
- * @module @rheplicant/dsh-rheplicant-ui-console/client/loop-definitions
+ * @module @rheplicant/dsh-rheplicant-ui-loop/client/loop-definitions
  */
 
 import type { Context } from '@deepseek-ai/cordis'

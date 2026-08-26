@@ -41,17 +41,19 @@
     # trigger. Both seats are additive root-scoped list slots, so this row
     # shadows no shipped UI.
     #
-    # BEFORE the console on purpose: this row publishes `ctx.rheplicantSelection`
-    # (docs/project-model.md §11.2), which the console looks up. The console
-    # resolves it lazily so the order is not load-bearing, but a provider ahead of
-    # its consumer is the arrangement that needs no explaining.
+    # BEFORE ui-loop on purpose: this row publishes `ctx.rheplicantSelection`
+    # (docs/project-model.md §11.2), which ui-loop looks up. ui-loop resolves it
+    # lazily so the order is not load-bearing, but a provider ahead of its
+    # consumer is the arrangement that needs no explaining.
     - id: client-rheplicant-ui-project
       name: '@deepseek-ai/dsh-client-rheplicant-ui-project'
 
-    # Rheplicant console (conversation.view tab declaring the console.panel
-    # grid slot) and the posterior panel (injected into that slot).
-    - id: client-rheplicant-ui-console
-      name: '@deepseek-ai/dsh-client-rheplicant-ui-console'
+    # Rheplicant loop: a session-header control and the workbench's `gates`
+    # panel. It declared a `console.panel` grid until §20.4 and a "Console"
+    # conversation.view tab until §23; the posterior panel below no longer
+    # injects into anything of ui-loop's.
+    - id: client-rheplicant-ui-loop
+      name: '@deepseek-ai/dsh-client-rheplicant-ui-loop'
     - id: client-rheplicant-ui-posterior
       name: '@deepseek-ai/dsh-client-rheplicant-ui-posterior'
     - id: client-rheplicant-ui-spectrum

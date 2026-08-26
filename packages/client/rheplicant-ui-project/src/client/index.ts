@@ -27,7 +27,7 @@
 import type {
   ClientContext, ConversationSnapshot,
 } from '@deepseek-ai/dsh-client-runtime/client'
-import type { ConsoleExecutionView, PanelLayoutView } from '@rheplicant/dsh-rheplicant-ui-kit/client'
+import type { LoopExecutionView, PanelLayoutView } from '@rheplicant/dsh-rheplicant-ui-kit/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
 
 // Type-only: these load the SlotMap augmentations that DECLARE the two seats
@@ -58,7 +58,7 @@ export interface TaskPanelOwnerProps {
   /** An empty conversation: the workbench contributes no session log. */
   readonly useSession: <T>(selector: (snapshot: ConversationSnapshot) => T) => T
   /** The selected execution, in the same shape the console builds. */
-  readonly execution: ConsoleExecutionView
+  readonly execution: LoopExecutionView
   /**
    * Which panels are collapsed or hidden (§20.4).
    *

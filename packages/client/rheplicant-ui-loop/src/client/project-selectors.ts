@@ -7,7 +7,7 @@
  * needed a round trip would go blank exactly when results were unreachable,
  * which is the state it most needs to be able to describe.
  *
- * @module @rheplicant/dsh-rheplicant-ui-console/client/project-selectors
+ * @module @rheplicant/dsh-rheplicant-ui-loop/client/project-selectors
  */
 
 import type { ProjectExecutionRow } from '@rheplicant/dsh-rheplicant'

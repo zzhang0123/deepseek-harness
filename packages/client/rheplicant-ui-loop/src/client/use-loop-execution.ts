@@ -11,7 +11,7 @@
  * here would be a second host round-trip per selection, in every open console
  * tab, for a body nothing renders.
  *
- * @module @rheplicant/dsh-rheplicant-ui-console/client/use-console-execution
+ * @module @rheplicant/dsh-rheplicant-ui-loop/client/use-loop-execution
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -25,7 +25,7 @@ import {
 import { mergeExecutions, projectName, type HeaderExecution } from './project-selectors.ts'
 
 /** Everything the console shell needs to render a selection. */
-export interface ConsoleExecutionState {
+export interface LoopExecutionState {
   /** Every offerable execution, newest first. */
   readonly ordered: readonly HeaderExecution[]
   /** The one being shown, or undefined when there is none. */
@@ -67,10 +67,10 @@ type WorkspaceReader = <T>(selector: (state: WorkspaceListLike) => T) => T
  *   resolve this session's project.
  * @returns the selection and the list.
  */
-export function useConsoleExecution(
+export function useLoopExecution(
   useSession: SessionReader,
   useWorkspaces?: WorkspaceReader,
-): ConsoleExecutionState {
+): LoopExecutionState {
   const sessionId = String(useSession(session => session.sessionId))
   // Which project this conversation belongs to. A session belongs to at most
   // one workspace, so this is a lookup, not a choice.

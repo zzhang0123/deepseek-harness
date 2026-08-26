@@ -12,7 +12,7 @@
  * different fact from "this project has no executions" and is rendered
  * differently.
  *
- * @module @rheplicant/dsh-rheplicant-ui-console/client/project-api-client
+ * @module @rheplicant/dsh-rheplicant-ui-loop/client/project-api-client
  */
 
 import type { ProjectExecutionRow, ProjectExecutionsBody } from '@rheplicant/dsh-rheplicant'

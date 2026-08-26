@@ -31,19 +31,19 @@
  * * the activity rail — one labelled row per task this conversation touched
  *   (§19), label included, because without it the rail reads as a statement
  *   about the TASK (§11.4).
- * * `useConsoleExecution` — which is not presentation at all: it is what
+ * * `useLoopExecution` — which is not presentation at all: it is what
  *   PROPOSES this conversation's newest execution to the project's selection
  *   (§11.2). Left behind, a conversation's own run could no longer move the
  *   workbench that shows it. It runs whether or not the disclosure is open,
  *   for the same reason.
  *
- * @module @rheplicant/dsh-rheplicant-ui-console/client/SessionActivity
+ * @module @rheplicant/dsh-rheplicant-ui-loop/client/SessionActivity
  */
 import { memo } from 'react'
 import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
 import { LoopRail } from './LoopRail.tsx'
 import { ProjectHeader } from './ProjectHeader.tsx'
-import { useConsoleExecution } from './use-console-execution.ts'
+import { useLoopExecution } from './use-loop-execution.ts'
 import styles from './session-activity.module.css'
 
 interface SessionActivityProps {
@@ -61,7 +61,7 @@ export const SessionActivity = memo(function SessionActivity(
   // the selection PROPOSAL (§11.2), not a rendering concern. Gating it on the
   // disclosure would mean a run only reached the workbench if someone happened
   // to have this open.
-  const execution = useConsoleExecution(useSession, useWorkspaces)
+  const execution = useLoopExecution(useSession, useWorkspaces)
 
   // The project name is the button's whole legend when there is one. Falling
   // back to the fixed word keeps ONE accessible name across both states rather

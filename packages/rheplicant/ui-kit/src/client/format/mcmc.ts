@@ -6,7 +6,7 @@
  * TypeScript cannot statically pin down each entry's `{r_hat, n_eff}`
  * shape), so this is the ONE place that narrows it at runtime — every
  * consumer (`PosteriorPanel`, `ChainsPanel`, `AnalysisRunPanel`, and
- * `ui-console`'s `loop-selectors.ts`) reads through here rather than
+ * `ui-loop`'s `loop-selectors.ts`) reads through here rather than
  * re-deriving its own parse of the same untyped bag.
  *
  * `RHAT_WARN_ABOVE` is the ONE r_hat warn threshold rheplicant's UI uses,

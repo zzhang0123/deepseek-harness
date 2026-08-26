@@ -7,7 +7,7 @@
  * slot's owner to its own occupants, so neither reaches across.
  *
  * **This replaces P6's `ctx.rheplicantConsole`, and the direction is the
- * point.** That service lived in ui-console and let the home ask a SESSION's
+ * point.** That service lived in ui-loop and let the home ask a SESSION's
  * console to show an execution — which encoded the session-as-address model
  * this phase removes. The selection is a property of the PROJECT, so the
  * project surface owns it and the console reads it. The degradation that

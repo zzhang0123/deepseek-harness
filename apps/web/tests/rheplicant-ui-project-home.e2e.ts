@@ -161,7 +161,7 @@ describe('web e2e: rheplicant project home', () => {
   })
 
   it('carries the Panels menu, and hiding a panel persists across a reload', async () => {
-    // §20.4: the layout store moved here from ui-console's `conversation.view`
+    // §20.4: the layout store moved here from ui-loop's `conversation.view`
     // registration, and the SCOPE moved with it. It sat on a session-scoped
     // slot, so its persist key ended `.<sessionId>`; `shell.overlay` is
     // root-scoped, so this is one layout for the app — which is what hiding a

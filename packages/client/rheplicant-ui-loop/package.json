@@ -1,6 +1,6 @@
 {
-  "name": "@deepseek-ai/dsh-client-rheplicant-ui-console",
-  "description": "The rheplicant console: a conversation.view declaring a console.panel grid slot",
+  "name": "@deepseek-ai/dsh-client-rheplicant-ui-loop",
+  "description": "The rheplicant loop: a task's validate/gates/run cycle, in the session header and the workbench grid",
   "version": "0.1.0-rc.8",
   "type": "module",
   "main": "lib/index.js",

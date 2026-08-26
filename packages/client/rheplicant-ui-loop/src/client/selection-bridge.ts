@@ -12,7 +12,7 @@
  * Reimplementing the pin semantics here would be duplicating a rule that
  * cannot fire.
  *
- * @module @rheplicant/dsh-rheplicant-ui-console/client/selection-bridge
+ * @module @rheplicant/dsh-rheplicant-ui-loop/client/selection-bridge
  */
 
 import { useSyncExternalStore } from 'react'

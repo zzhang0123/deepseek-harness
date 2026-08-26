@@ -7,7 +7,7 @@
  * a `LoopContribution` per matched event, wrapped in the Engine-owned
  * `LoopConversationViewNode` envelope, folded by the builder into the final
  * `LoopSnapshot` the LoopRail and GatesPanel read.
- * @module @rheplicant/dsh-rheplicant-ui-console/client/loop-contract
+ * @module @rheplicant/dsh-rheplicant-ui-loop/client/loop-contract
  */
 
 import type { ConversationLocation, ConversationViewNode } from '@deepseek-ai/dsh-client-runtime/client'

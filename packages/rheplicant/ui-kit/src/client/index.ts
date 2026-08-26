@@ -35,7 +35,7 @@ export { runsToRender, executionEmptyReason, gatesToRender, graphToRender } from
 // valid only when the log is unambiguous (§19.1). Here because two plugins need
 // it and ui-kit is the layer that may be inlined into both.
 export { soleTask } from './run/sole-task.ts'
-export type { ConsoleExecutionView, ExecutionViewProblem } from './run/execution-view.ts'
+export type { LoopExecutionView, ExecutionViewProblem } from './run/execution-view.ts'
 export type { AnalysisRun, AnalysisRunDiagnostics, AnalysisRunProduct } from './run/run-selectors.ts'
 
 export {

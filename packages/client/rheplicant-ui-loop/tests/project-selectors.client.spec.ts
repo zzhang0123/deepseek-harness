@@ -7,8 +7,8 @@ import {
   projectName,
   projectRelativePath,
   taskOf,
-} from '@deepseek-ai/dsh-client-rheplicant-ui-console/src/client/project-selectors.ts'
-import type { LoopExecutionRef } from '@deepseek-ai/dsh-client-rheplicant-ui-console/src/client/loop-contract.ts'
+} from '@deepseek-ai/dsh-client-rheplicant-ui-loop/src/client/project-selectors.ts'
+import type { LoopExecutionRef } from '@deepseek-ai/dsh-client-rheplicant-ui-loop/src/client/loop-contract.ts'
 import type { ProjectExecutionRow } from '@rheplicant/dsh-rheplicant'
 
 const PUBLISHED = '/home/z/rhino-2026/results/tasks/global-signal-fit/20260822T134501Z-3f9ac2b1-k7m2xq'

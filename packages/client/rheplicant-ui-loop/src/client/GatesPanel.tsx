@@ -10,13 +10,13 @@
  * e-RHINO source docstrings for `config/postflight/digitising.py` (C16) and
  * `config/postflight/noise.py` / `config/gating.py` (C18)). Reads only the
  * `rheplicant-loop` conversation-view projection — never re-runs compute.
- * @module @rheplicant/dsh-rheplicant-ui-console/client/GatesPanel
+ * @module @rheplicant/dsh-rheplicant-ui-loop/client/GatesPanel
  */
 import { memo } from 'react'
 import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
 import type { CheckCost, GateFinding } from '@rheplicant/dsh-rheplicant'
 import {
-  Badge, type ConsoleExecutionView, type PanelLayoutView, EmptyState, Panel,
+  Badge, type LoopExecutionView, type PanelLayoutView, EmptyState, Panel,
   type PanelStatus, StatRow, executionEmptyReason, formatDiagnostic, gatesToRender,
 } from '@rheplicant/dsh-rheplicant-ui-kit/client'
 import { soleTask } from './loop-tasks.ts'
@@ -40,7 +40,7 @@ interface GatesPanelProps {
    * are a `rheplicant/gates` fact and no execution's tree carries them; the
    * panel says so rather than leaving the absence unexplained.
    */
-  execution?: ConsoleExecutionView
+  execution?: LoopExecutionView
   /** Panel layout state (owner prop — see ProjectHome's doc comment). Absent when not rendered through a panel grid (e.g. a unit test): renders un-collapsed, always visible. */
   layout?: PanelLayoutView
 }

@@ -39,7 +39,7 @@
  *   to `error` (only `divergences > 0` or `converged === false` do) — mixing
  *   the two paths does not invent a new severity, it only widens which
  *   fields participate in the existing one.
- * @module @rheplicant/dsh-rheplicant-ui-console/client/loop-selectors
+ * @module @rheplicant/dsh-rheplicant-ui-loop/client/loop-selectors
  */
 
 import type { CheckCost, RunEntry } from '@rheplicant/dsh-rheplicant'

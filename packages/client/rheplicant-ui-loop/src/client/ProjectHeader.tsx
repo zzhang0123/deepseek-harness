@@ -8,7 +8,7 @@
  * have since been pruned.
  *
  * Presentational: the selection, the list and the fetches live in
- * `useConsoleExecution`, because the panels below need the same selection and a
+ * `useLoopExecution`, because the panels below need the same selection and a
  * header naming one execution above panels drawing another is the exact
  * confusion this console exists to remove.
  *
@@ -16,17 +16,17 @@
  * PROJECT's executions when the host route can be reached, and falls back to
  * this session's own when it cannot. The two are different lists and the header
  * says which one it is showing.
- * @module @rheplicant/dsh-rheplicant-ui-console/client/ProjectHeader
+ * @module @rheplicant/dsh-rheplicant-ui-loop/client/ProjectHeader
  */
 import { memo, useCallback } from 'react'
 import { Badge } from '@rheplicant/dsh-rheplicant-ui-kit/client'
 import { executionTime, type HeaderExecution } from './project-selectors.ts'
-import type { ConsoleExecutionState } from './use-console-execution.ts'
+import type { LoopExecutionState } from './use-loop-execution.ts'
 import styles from './project-header.module.css'
 
 interface ProjectHeaderProps {
-  /** The console's selection state — see `useConsoleExecution`. */
-  execution: ConsoleExecutionState
+  /** The console's selection state — see `useLoopExecution`. */
+  execution: LoopExecutionState
 }
 
 /** One `label: value` pair. */

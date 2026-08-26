@@ -4,14 +4,14 @@
  * execution the panels below are showing.
  *
  * Presentational only — the selection and its fetches live in
- * `useConsoleExecution`, and are tested there.
+ * `useLoopExecution`, and are tested there.
  */
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ProjectHeader } from '../src/client/ProjectHeader.tsx'
 import type { HeaderExecution } from '../src/client/project-selectors.ts'
-import type { ConsoleExecutionState } from '../src/client/use-console-execution.ts'
+import type { LoopExecutionState } from '../src/client/use-loop-execution.ts'
 
 afterEach(cleanup)
 
@@ -57,9 +57,9 @@ function row(id: string, over: Loose<HeaderExecution> = {}): HeaderExecution {
 }
 
 /** Render the header over a fixed selection state. */
-function mount(ordered: HeaderExecution[], over: Partial<ConsoleExecutionState> = {}) {
+function mount(ordered: HeaderExecution[], over: Partial<LoopExecutionState> = {}) {
   const select = vi.fn()
-  const state: ConsoleExecutionState = {
+  const state: LoopExecutionState = {
     ordered,
     selected: ordered[0],
     newest: ordered[0]?.executionId,

@@ -16,7 +16,7 @@
  *
  * All verdict logic lives in `loop-selectors.ts`; this file is presentation
  * only.
- * @module @rheplicant/dsh-rheplicant-ui-console/client/LoopRail
+ * @module @rheplicant/dsh-rheplicant-ui-loop/client/LoopRail
  */
 import { memo } from 'react'
 import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'

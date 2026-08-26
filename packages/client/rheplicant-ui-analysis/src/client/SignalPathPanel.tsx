@@ -5,7 +5,7 @@
  * compute — and renders the SAME `SignalPath` component the
  * `rheplicant-analysis` Chat node uses, plus a legend row naming the four
  * graph node kinds by their token colors. Self-applies the grid layout
- * (owner prop — see ui-console's ConsoleView doc comment), the same way
+ * (owner prop — see ui-loop's ConsoleView doc comment), the same way
  * `PosteriorPanel`/`ChainsPanel`/`GatesPanel` do.
  * @module @rheplicant/dsh-rheplicant-ui-analysis/client/SignalPathPanel
  */
@@ -15,9 +15,9 @@ import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/clien
 // `views.get('rheplicant-loop')` narrows. Erased at build, so it never reaches
 // the bundle purity gate — unlike the VALUE import of `soleTask` that used to
 // sit beside it, which made this package's client bundle refuse to build.
-import type {} from '@deepseek-ai/dsh-client-rheplicant-ui-console/client'
+import type {} from '@deepseek-ai/dsh-client-rheplicant-ui-loop/client'
 import {
-  type ConsoleExecutionView, type PanelLayoutView, EmptyState, Panel,
+  type LoopExecutionView, type PanelLayoutView, EmptyState, Panel,
   type PanelStatus, TOKEN, graphToRender, soleTask,
 } from '@rheplicant/dsh-rheplicant-ui-kit/client'
 import { SignalPath } from './SignalPath.tsx'
@@ -33,7 +33,7 @@ interface SignalPathPanelProps {
    * execution's model rather than the open conversation's. Absent outside the
    * console shell, where the session log is the only source there is.
    */
-  execution?: ConsoleExecutionView
+  execution?: LoopExecutionView
   /** Panel layout state (owner prop — see ui-project's ProjectHome doc comment). Absent when not rendered through a panel grid (e.g. a unit test): renders un-collapsed, always visible. */
   layout?: PanelLayoutView
 }

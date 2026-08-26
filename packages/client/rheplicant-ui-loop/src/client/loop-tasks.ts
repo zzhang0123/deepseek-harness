@@ -13,7 +13,7 @@
  * three kinds — so nothing downstream COULD group correctly. A loop belongs
  * to a task; this makes that structural.
  *
- * @module @rheplicant/dsh-rheplicant-ui-console/client/loop-tasks
+ * @module @rheplicant/dsh-rheplicant-ui-loop/client/loop-tasks
  */
 
 import type {

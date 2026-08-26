@@ -14,11 +14,11 @@
  * value import is refused outright by the client bundle's purity gate
  * (`packages/client/tsdown.client.ts`), and a cordis service for a function
  * with no state would be ceremony around a conditional. Its first home was
- * ui-console, imported from ui-analysis — which made the analysis bundle
+ * ui-loop, imported from ui-analysis — which made the analysis bundle
  * unbuildable, invisibly, because `test:web:built` serves whatever each
  * package last emitted.
  *
- * Generic over the task shape rather than typed against ui-console's
+ * Generic over the task shape rather than typed against ui-loop's
  * `LoopTask`: the rule is about the COUNT, and typing it against the loop
  * contract would put a type edge from ui-kit back to one of its own consumers.
  *

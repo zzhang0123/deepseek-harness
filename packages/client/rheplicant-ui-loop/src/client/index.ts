@@ -4,9 +4,10 @@
  * plus the `rheplicant-loop` conversation-view target both read, plus the
  * `gates` occupant of the workbench's grid.
  *
- * **This package has now lost both of the seats it was named for.** It used to
- * DECLARE `console.panel`, a child grid every viz plugin injected into, and
- * §20.4 removed it: the same occupants were registered twice — here and in
+ * **This package lost both of the seats it was named for, and has now lost the
+ * name too** (`ui-console` → `ui-loop`, 2026-08-26). It used to DECLARE
+ * `console.panel`, a child grid every viz plugin injected into, and §20.4
+ * removed it: the same occupants were registered twice — here and in
  * ui-project's `task.panel` — and the panels belong to the project, not to
  * whichever conversation happens to be open. Then §23 removed the "Console"
  * `conversation.view` tab itself, because what §20.4 left behind was a whole
@@ -15,11 +16,22 @@
  * left in place and unrendered, so a new panel has one seat to choose and no
  * way to end up in the wrong one.
  *
- * The package NAME still says console, and the word is retiring
- * (`docs/surface-model.md` §9.5). Renaming it moves a bundle id, a module-table
- * row and every mirror — the same trade the Workbench rename declined for
- * identifiers — so it waits for a commit that is about that and nothing else.
- * @module @rheplicant/dsh-rheplicant-ui-console/client
+ * **Why `loop` and not `session-activity`**, the other candidate
+ * (`docs/surface-model.md` §9.5 lists "session activity" first): the activity
+ * rail is only one of the three things registered below, and `GatesPanel`
+ * renders in the WORKBENCH, where no session is involved at all. What all
+ * three have in common is §19's loop — *a loop belongs to a task*, the
+ * validate → gates → run cycle — which is the sense `surface-model.md` §1.1
+ * explicitly preserves while exiling the other two ("periodic repetition" is a
+ * Trigger; "the agentic loop" is runtime behaviour). The package's own
+ * vocabulary had already gone there: `loop-contract`, `loop-definitions`,
+ * `loop-rail`, `loop-selectors`, `loop-snapshot-builder`, `loop-tasks`,
+ * `LoopRail`, and the `rheplicant-loop` conversation-view target itself.
+ *
+ * The word "console" survives in PROSE here and in other packages, describing
+ * a surface that no longer exists. Retiring it there is `surface-model.md`
+ * §9.5's own programme and a different commit; this one moved identifiers.
+ * @module @rheplicant/dsh-rheplicant-ui-loop/client
  */
 
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'

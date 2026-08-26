@@ -30,7 +30,7 @@
       "path": "../../rheplicant/ui-kit"
     },
     {
-      "path": "../rheplicant-ui-console"
+      "path": "../rheplicant-ui-loop"
     },
     {
       "path": "../../runtime-diagnostics/invariants"

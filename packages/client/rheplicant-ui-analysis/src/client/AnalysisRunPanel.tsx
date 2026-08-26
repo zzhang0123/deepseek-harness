@@ -161,7 +161,7 @@ const Diagnostics = memo(function Diagnostics({ diagnostics }: { diagnostics: Ru
  * pair per latent — kept separate from the `<dl data-run-diagnostics>` above
  * (which owns the scalar fields) rather than interleaved into it, since a
  * multi-latent NUTS run can report several of these. A bad r_hat (over the
- * same threshold `ui-console`'s loop rail uses) carries a `warn` Badge next
+ * same threshold `ui-loop`'s loop rail uses) carries a `warn` Badge next
  * to its value — the dl/dt/dd idiom here has no StatRow-style verdict dot,
  * so Badge is this panel's own equivalent of that same convention.
  */
@@ -221,7 +221,7 @@ const RunProvenanceCaption = memo(function RunProvenanceCaption(
 
 /**
  * Just enough of the workspace list to say which project a session is in. The
- * same lookup `useConsoleExecution` does, and for the same reason: a session
+ * same lookup `useLoopExecution` does, and for the same reason: a session
  * belongs to at most one workspace, so this is a lookup, not a choice.
  */
 interface WorkspaceListLike {

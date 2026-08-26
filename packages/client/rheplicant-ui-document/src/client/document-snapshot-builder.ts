@@ -1,6 +1,6 @@
 /**
  * Per-session incremental builder for the `rheplicant-document`
- * conversation-view target. Simpler than ui-console's own
+ * conversation-view target. Simpler than ui-loop's own
  * `loop-snapshot-builder.ts` (the reference for this pattern): that builder
  * keeps the latest fact of each of three kinds side by side (the loop rail
  * needs all three at once); this one only ever needs the single most recent

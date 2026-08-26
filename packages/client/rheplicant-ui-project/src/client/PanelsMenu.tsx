@@ -12,7 +12,7 @@
  * `<details data-corner-details>` already establishes plain `<details>` as this
  * codebase's idiom for exactly this shape of disclosure.
  *
- * Lived in ui-console until §20.4 moved the grid it governs.
+ * Lived in ui-loop until §20.4 moved the grid it governs.
  *
  * @module @rheplicant/dsh-rheplicant-ui-project/client/PanelsMenu
  */

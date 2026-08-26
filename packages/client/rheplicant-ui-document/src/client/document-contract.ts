@@ -8,7 +8,7 @@
  * package's own projection of the same events (§5 of docs/architecture.md:
  * a panel reads the durable session log and renders, it never calls
  * compute) — this package owns its read path end to end so it stays
- * decoupled from ui-console's own `rheplicant-loop` projection, which folds
+ * decoupled from ui-loop's own `rheplicant-loop` projection, which folds
  * the identical three events for a different purpose (the LoopRail/Gates
  * five-stage read) and is owned by a package under separate, concurrent
  * revision.

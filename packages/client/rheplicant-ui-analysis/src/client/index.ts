@@ -11,7 +11,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-slots'
 // Type-only: loads the SlotMap entry for `task.panel`, the workbench's grid.
 import type {} from '@deepseek-ai/dsh-client-rheplicant-ui-project/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
-import type {} from '@deepseek-ai/dsh-client-rheplicant-ui-console/client'
+import type {} from '@deepseek-ai/dsh-client-rheplicant-ui-loop/client'
 import { AnalysisRunPanel } from './AnalysisRunPanel.tsx'
 import { analysisRunDefinition } from './analysis-definition.ts'
 import { setProjectSurface } from './project-bridge.ts'

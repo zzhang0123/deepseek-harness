@@ -1,7 +1,7 @@
 /**
  * The execution view the workbench hands its panels.
  *
- * The same `ConsoleExecutionView` shape the console builds, so a panel cannot
+ * The same `LoopExecutionView` shape ui-loop builds, so a panel cannot
  * tell which surface it is rendering in — which is what makes "both seats, one
  * selection" (`docs/project-model.md` §11.3) true rather than approximately
  * true.
@@ -10,11 +10,11 @@
  */
 
 import { useEffect, useState } from 'react'
-import type { AnalysisRun, ConsoleExecutionView } from '@rheplicant/dsh-rheplicant-ui-kit/client'
+import type { AnalysisRun, LoopExecutionView } from '@rheplicant/dsh-rheplicant-ui-kit/client'
 import { fetchExecutionProjection } from './project-overview-client.ts'
 
 /** Nothing selected: the panels render their own empty states. */
-const NONE: ConsoleExecutionView = {}
+const NONE: LoopExecutionView = {}
 
 /**
  * Project the selected execution for the workbench's panels.
@@ -28,8 +28,8 @@ export function useWorkbenchExecution(
   workspaceId: string | undefined,
   executionId: string | undefined,
   nonce = 0,
-): ConsoleExecutionView {
-  const [view, setView] = useState<ConsoleExecutionView>(NONE)
+): LoopExecutionView {
+  const [view, setView] = useState<LoopExecutionView>(NONE)
 
   useEffect(() => {
     if (workspaceId === undefined || executionId === undefined) {

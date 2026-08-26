@@ -1,10 +1,10 @@
-/** Package-owned invariant companion for `@deepseek-ai/dsh-client-rheplicant-ui-console`. */
+/** Package-owned invariant companion for `@deepseek-ai/dsh-client-rheplicant-ui-loop`. */
 /* jscpd:ignore-start */
 import type { Context } from '@deepseek-ai/cordis'
 import type { InvariantInstaller } from '@deepseek-ai/dsh-invariants'
 
-const PACKAGE_NAME = '@deepseek-ai/dsh-client-rheplicant-ui-console'
-export const name = 'rheplicant-ui-console-invariant'
+const PACKAGE_NAME = '@deepseek-ai/dsh-client-rheplicant-ui-loop'
+export const name = 'rheplicant-ui-loop-invariant'
 export const inject = ['invariants']
 /**
  * No runtime invariant: the `rheplicant-loop` conversation-view projection is

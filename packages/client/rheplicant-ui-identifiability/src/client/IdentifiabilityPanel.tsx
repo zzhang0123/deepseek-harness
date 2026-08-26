@@ -1,7 +1,7 @@
 /**
  * Identifiability panel: rank/nullity and the singular-value spectrum as a
  * log-height bar chart. Self-applies the grid layout (owner prop — see
- * ui-console's ConsoleView doc comment), the same way
+ * ui-loop's ConsoleView doc comment), the same way
  * `PosteriorPanel`/`ChainsPanel`/`GatesPanel`/`SignalPathPanel` do.
  */
 import { memo } from 'react'
@@ -18,7 +18,7 @@ import {
   selectAnalysisRuns,
   runsToRender,
   executionEmptyReason,
-  type ConsoleExecutionView,
+  type LoopExecutionView,
 } from '@rheplicant/dsh-rheplicant-ui-kit/client'
 
 /** This panel's own `console.panel` id — the key it reads/writes in `layout`. */
@@ -29,7 +29,7 @@ interface IdentifiabilityPanelProps {
   /** Panel layout state (owner prop — see ui-project's ProjectHome doc comment). Absent when not rendered through a panel grid (e.g. a unit test): renders un-collapsed, always visible. */
   layout?: PanelLayoutView
   /** The execution the console is showing (owner prop). Absent outside the console shell. */
-  execution?: ConsoleExecutionView
+  execution?: LoopExecutionView
 }
 
 /**

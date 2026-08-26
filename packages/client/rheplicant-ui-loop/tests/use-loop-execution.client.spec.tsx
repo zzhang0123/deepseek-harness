@@ -11,7 +11,7 @@
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
-import { useConsoleExecution } from '../src/client/use-console-execution.ts'
+import { useLoopExecution } from '../src/client/use-loop-execution.ts'
 import {
   chooseExecution, resetLocalSelection, setSelectionSource,
   type ProjectSelection,
@@ -93,7 +93,7 @@ function mount(executions: readonly LoopExecutionRef[]) {
   const snapshot: LoopSnapshot = { tasks: [], executions, latestSeq: executions.length }
   const views = new Map<string, unknown>([['rheplicant-loop', snapshot]])
   const session = { views, sessionId: 'S-1', chat: { nodes: new Map() }, nodes: [] } as unknown as ConversationSnapshot
-  return renderHook(() => useConsoleExecution(
+  return renderHook(() => useLoopExecution(
     <T,>(s: (x: ConversationSnapshot) => T) => s(session),
     <T,>(s: (x: typeof WORKSPACES) => T) => s(WORKSPACES),
   ))

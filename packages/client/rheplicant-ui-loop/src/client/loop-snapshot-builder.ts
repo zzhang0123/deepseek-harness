@@ -8,7 +8,7 @@
  * contribution as a list entry), the loop fold keeps only the LATEST fact of
  * each kind — later events of a type replace earlier ones, because the loop
  * iterates on one document rather than accumulating a transcript.
- * @module @rheplicant/dsh-rheplicant-ui-console/client/loop-snapshot-builder
+ * @module @rheplicant/dsh-rheplicant-ui-loop/client/loop-snapshot-builder
  */
 
 import type { Context } from '@deepseek-ai/cordis'

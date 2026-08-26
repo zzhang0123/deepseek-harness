@@ -2,7 +2,7 @@
  * Per-project panel layout: which `task.panel` occupants are collapsed (header
  * only) or hidden (removed from the grid, restorable), keyed by panel id.
  *
- * `docs/project-model.md` §20.4. This lived on ui-console's `conversation.view`
+ * `docs/project-model.md` §20.4. This lived on ui-loop's `conversation.view`
  * registration until that tab lost its grid; it is attached to the WORKBENCH's
  * own registration now — the `shell.overlay` entry, which is the one entry that
  * indisputably owns the grid (`task.panel` is a list slot occupied by every viz
