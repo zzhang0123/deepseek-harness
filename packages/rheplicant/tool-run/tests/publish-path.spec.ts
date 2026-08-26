@@ -30,6 +30,12 @@ import { SIDECAR_NAME } from '@rheplicant/dsh-rheplicant/project'
 const TASK_TEXT = 'schema_version: 1\nruns:\n  - name: sim\n    kind: forward\n'
 
 let workspace: string
+/**
+ * The SAME directory as {@link workspace}, spelled the way `mkdtemp` returned
+ * it — `/var/folders/…` on macOS, where the file really lives at
+ * `/private/var/folders/…`. One test hands this to the session on purpose.
+ */
+let uncanonical: string
 /** Every `rheplicant.run` call the tool made, in order. */
 let runs: { input: Record<string, unknown>; opts: Record<string, unknown> }[]
 /** What the fake seam answers. */
@@ -47,7 +53,8 @@ let appended: [string, Record<string, unknown>, unknown][]
  * non-canonical case below, which pins what happens when the two spellings meet.
  */
 function project(): void {
-  workspace = realpathSync(mkdtempSync(join(tmpdir(), 'rheplicant-publish-')))
+  uncanonical = mkdtempSync(join(tmpdir(), 'rheplicant-publish-'))
+  workspace = realpathSync(uncanonical)
   mkdirSync(join(workspace, '.git'), { recursive: true })
   mkdirSync(join(workspace, 'tasks'), { recursive: true })
   writeFileSync(join(workspace, 'tasks', 'fit.yaml'), TASK_TEXT, 'utf8')
@@ -152,6 +159,27 @@ describe('where a task run publishes', () => {
 
     expect(runs[0]?.input.documentText).toBe(TASK_TEXT)
     expect(runs[0]?.input.document).toBeUndefined()
+  })
+
+  it('stays inside the project when the session spells its directory differently', async () => {
+    // The defect this suite found on its first run, and the convergence onto
+    // `publishTaskRun` is the fix. `mkdtemp` answers `/var/folders/…` for a
+    // directory that really lives at `/private/var/folders/…`; deriving the
+    // publication path from the session's own spelling put both into one
+    // `relative()` call, and the answer was a `../` chain that resolved to
+    // `/var/private/var/folders/…` — outside the project entirely, and on many
+    // machines not writable at all.
+    //
+    // The publisher uses `TaskFile.root` — the canonical form the confinement
+    // check already computed — so there is one spelling and one directory.
+    const canonical = workspace
+    workspace = uncanonical
+    const { call } = tool()
+    await call({ task: 'tasks/fit.yaml' })
+
+    const at = publishedAt() as string
+    expect(at.startsWith(join(canonical, 'results'))).toBe(true)
+    expect(at).not.toContain(join('var', 'private'))
   })
 
   it('publishes NOTHING for an inline document, which has no task file', async () => {

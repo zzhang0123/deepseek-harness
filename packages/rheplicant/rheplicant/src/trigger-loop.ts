@@ -218,11 +218,6 @@ export class TriggerFiring {
     this.inFlight.set(key, controller)
     void this.deps.run(workspace, trigger.task, controller.signal)
       .then((fired) => {
-        // A REFUSED or errored run reaches here too, having published its own
-        // tree: `publishTaskRun` resolves for every outcome rheplicant reports.
-        // That is the point of §6.1's third rule — a refusal is rheplicant
-        // declining an unsound document, which is worth recording repeatedly
-        // while the document is unchanged.
         this.deps.report('info',
           `trigger ${trigger.name}: ran ${trigger.task} as execution ${fired.executionId}`)
       })
@@ -230,6 +225,18 @@ export class TriggerFiring {
         // **Failure does not disable.** Auto-disabling would silently stop a
         // schedule the person is still expecting, which is the failure this
         // whole design leads with wearing a helpful face.
+        //
+        // A DOCUMENT REFUSAL LANDS HERE, not above — measured 2026-08-26
+        // against a live compute service. rheplicant declining an unsound
+        // document comes back as an error over the transport, so
+        // `publishTaskRun` rejects. The tree is still published (upstream
+        // renames it with a `.refused-<hash>` suffix, which is where
+        // `listExecutions` reads the status from), and it still appears on
+        // every reading surface — it simply has no sidecar of ours, because
+        // the throw happened before there was an outcome to write one from.
+        // The schedule continues either way, which is the rule that matters:
+        // a refusal is worth recording repeatedly while the document is
+        // unchanged.
         this.deps.report('warn',
           `trigger ${trigger.name}: ${trigger.task} did not run — ${reason(error)}. The schedule continues.`)
       })

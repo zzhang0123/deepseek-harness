@@ -79,6 +79,21 @@ export interface ResolvedTaskInput {
   readonly taskPath?: string
   /** The canonical path the bytes came from; present only for a `task:` call. */
   readonly resolvedTaskPath?: string
+  /**
+   * The file this resolved to, whole; present only for a `task:` call.
+   *
+   * Handed back rather than discarded so a caller that PUBLISHES does not read
+   * the document a second time. Two reads is not merely wasteful: the file can
+   * change in between, and the digest recorded on the execution would then
+   * describe bytes that did not run — which is the one thing `taskDigest` exists
+   * to make impossible (§4.2).
+   *
+   * It also carries `root`, the canonicalised project directory. A publication
+   * path recomputed from an un-canonicalised `cwd` puts two spellings of one
+   * directory into a single `relative()` call and lands outside the project
+   * entirely; see design §9.1.
+   */
+  readonly file?: TaskFile
 }
 
 /**
@@ -247,6 +262,7 @@ export function resolveTaskInput(
     taskDigest: file.digest,
     taskPath: file.path,
     resolvedTaskPath: file.resolvedPath,
+    file,
   }
 }
 

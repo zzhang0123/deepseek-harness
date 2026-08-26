@@ -15,7 +15,7 @@ import type {} from '@rheplicant/dsh-rheplicant'
 import { asTransport } from '@rheplicant/dsh-rheplicant'
 import type { ComputeDocument, RunOutcome, Transport } from '@rheplicant/dsh-rheplicant'
 import { mintExecutionId, resolveTaskInput } from '@rheplicant/dsh-rheplicant/task'
-import { ensureResultsIgnored, executionDirectory, taskSegment, writeSidecar } from '@rheplicant/dsh-rheplicant/project'
+import { publishTaskRun, type PublishedRun } from '@rheplicant/dsh-rheplicant/publish'
 
 declare module '@deepseek-ai/dsh-jobs' {
   interface JobKindMap {
@@ -125,37 +125,57 @@ export function apply(ctx: Context, config: Config): void {
         ...(resolved.taskPath === undefined ? {} : { taskPath: resolved.taskPath }),
       }
       // P2 (`docs/project-model.md` §4.4, §5): a task run publishes into its
-      // own directory under the project. An inline document has no task file
-      // and so no place in `results/`; it stays in memory, as scratch work.
+      // own directory under the project, through the ONE publisher that knows
+      // what an execution is (`@rheplicant/dsh-rheplicant/publish`). An inline
+      // document has no task file and so no place in `results/`; it stays in
+      // memory, as scratch work, and takes the second branch below.
+      //
+      // The file is handed on rather than re-read. `resolveTaskInput` has
+      // already read it to compute the digest this id was minted from, and a
+      // second read would leave a window in which the bytes change — after
+      // which `taskDigest` would describe a document that did not run.
       const workspace = exec.agent?.session.header.cwd
-      const publishTo = workspace !== undefined && resolved.resolvedTaskPath !== undefined
-        ? executionDirectory(workspace, resolved.resolvedTaskPath, executionId)
-        : undefined
-      // Before the first tree of this session lands, not after it (§9.1). It
-      // returns a path only the first time, so the notice is announced once.
-      const ignoreWritten = publishTo !== undefined && workspace !== undefined
-        ? ensureResultsIgnored(workspace)
-        : undefined
-      const startedAt = new Date().toISOString()
-      const record = (outcome: RunOutcome): void => {
-        if (publishTo === undefined || resolved.resolvedTaskPath === undefined) return
-        writeSidecar(outcome.resultsPath ?? publishTo, {
-          executionId,
-          task: taskSegment(workspace as string, resolved.resolvedTaskPath),
-          taskPath: resolved.resolvedTaskPath,
-          taskDigest: resolved.taskDigest,
+      const publishes = resolved.file !== undefined && workspace !== undefined
+
+      /** Run through the publisher, with everything this call already knows. */
+      const publish = (signal: AbortSignal | undefined): Promise<PublishedRun> =>
+        publishTaskRun(ctx.rheplicant, {
+          workspace: workspace as string,
+          task: args.task as string,
+          file: resolved.file,
+          // Its own name, not the publisher's: a refusal that named a function
+          // the model never called would be a §16 lie about who refused.
+          label: 'rheplicant_run',
           transport,
-          startedAt,
-          finishedAt: new Date().toISOString(),
+          executionId,
+          ...(args.runs === undefined ? {} : { runs: args.runs }),
           ...(exec.agent === undefined ? {} : { sessionId: exec.agent.session.header.id }),
-          // What this execution actually ran, taken off the outcome rather
-          // than off the document: a run that refused partway published fewer
-          // entries than the document declared, and the sidecar describes what
-          // HAPPENED. Verbatim and in order — see `SidecarFacts.kinds` for why
-          // it is neither deduped nor mapped onto anything.
-          ...(outcome.runs.length === 0 ? {} : { kinds: outcome.runs.map(entry => entry.kind) }),
+          ...(signal === undefined ? {} : { signal }),
         })
+
+      /** The scratch path: run it, publish nothing, keep it all on the event. */
+      const scratch = (signal: AbortSignal | undefined): Promise<RunOutcome> =>
+        ctx.rheplicant.run(resolved.input, {
+          transport,
+          runs: args.runs,
+          ...(signal === undefined ? {} : { signal }),
+        })
+
+      /** Log the durable event this run earned, when a conversation owns it. */
+      const announce = (outcome: RunOutcome): void => {
+        // Model-visible means logged: record the durable event the ui-analysis
+        // node matches, so the transcript reconstructs the run from the log. A
+        // call without an owning agent (e.g. Code Mode) has no transcript to
+        // anchor. Marked ignorable: a purely-informational downstream event
+        // type that a reader may skip without corrupting the conversation.
+        exec.agent?.session.append('rheplicant/run', {
+          document: eventDocument(resolved.input.document, outcome),
+          outcome: receipt(outcome),
+          transport,
+          ...identity,
+        }, { ignorable: true })
       }
+
       if (args.run_in_background === true) {
         const jobs = ctx.get('jobs')
         if (jobs === undefined) {
@@ -167,22 +187,15 @@ export function apply(ctx: Context, config: Config): void {
           ...(exec.agent === undefined ? {} : { owner: exec.agent }),
           run: () => {
             const controller = new AbortController()
-            const run = ctx.rheplicant.run(resolved.input, {
-              transport,
-              runs: args.runs,
-              signal: controller.signal,
-              ...(publishTo === undefined ? {} : { outputsDir: publishTo }),
-            })
+            // The id was promised to the model before this ran, which is why
+            // the publisher accepts one rather than minting its own.
+            const run = publishes
+              ? publish(controller.signal).then(published => published.outcome)
+              : scratch(controller.signal)
             return {
               cancel: (reason) => { controller.abort(reason ?? 'killed') },
               done: run.then((outcome) => {
-                record(outcome)
-                exec.agent?.session.append('rheplicant/run', {
-                  document: eventDocument(resolved.input.document, outcome),
-                  outcome: receipt(outcome),
-                  transport,
-                  ...identity,
-                }, { ignorable: true })
+                announce(outcome)
                 return { status: 'completed' as const, output: formatRunOutcome(outcome, executionId) }
               }),
             }
@@ -190,31 +203,19 @@ export function apply(ctx: Context, config: Config): void {
         })
         return { jobId: id, executionId } as unknown as Record<string, JsonValue>
       }
-      const outcome = await ctx.rheplicant.run(resolved.input, {
-        transport,
-        runs: args.runs,
-        signal: exec.signal,
-        ...(publishTo === undefined ? {} : { outputsDir: publishTo }),
-      })
-      record(outcome)
-      // Model-visible means logged: record the durable event the ui-analysis node
-      // matches, so the transcript reconstructs the run from the log. A call
-      // without an owning agent (e.g. Code Mode) has no transcript to anchor.
-      // Marked ignorable: a purely-informational downstream event type that a
-      // reader may skip without corrupting the model conversation.
-      exec.agent?.session.append('rheplicant/run', {
-        document: eventDocument(resolved.input.document, outcome),
-        outcome: receipt(outcome),
-        transport,
-        ...identity,
-      }, { ignorable: true })
+
+      const published = publishes ? await publish(exec.signal) : undefined
+      const outcome = published?.outcome ?? await scratch(exec.signal)
+      announce(outcome)
       // The seam returns the rich RunOutcome; the tool's canonical JSON value is
       // its projection. Describe the output schema precisely (and drop this cast)
       // once the RunOutcome field set is final.
       return {
         ...outcome,
         ...identity,
-        ...(ignoreWritten === undefined ? {} : { gitignoreWritten: ignoreWritten }),
+        // Announced once, by the publisher: it returns a path only the first
+        // time it writes the block (§9.1).
+        ...(published?.ignoreWritten === undefined ? {} : { gitignoreWritten: published.ignoreWritten }),
       } as unknown as Record<string, JsonValue>
     },
   }))
