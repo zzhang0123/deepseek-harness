@@ -14,6 +14,7 @@
 
 import { memo } from 'react'
 import { toggleSection, useHome } from './home-store.ts'
+import { IconDashboard } from './NavIcons.tsx'
 import styles from './project-home.module.css'
 
 /** What the sidebar hands every nav row: whether the column is wide. */
@@ -38,7 +39,10 @@ export const DashboardTrigger = memo(function DashboardTrigger({ wide }: Dashboa
       title="Dashboard"
       onClick={() => { toggleSection('dashboard') }}
     >
-      <span aria-hidden="true" className={styles.triggerMark}>◇</span>
+      {/* The size the sidebar gives its OWN icon in each state, so the
+          three controls in this stack are one drawing convention rather
+          than one icon and two text glyphs (§28.8). */}
+      <IconDashboard size={wide ? 14 : 18} />
       {wide && <span className={styles.triggerLabel}>Dashboard</span>}
     </button>
   )

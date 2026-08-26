@@ -52,6 +52,22 @@ export interface SessionListSnapshot {
   /** Background jobs per session; an absent key is an empty set. */
   jobsBySession: Readonly<Record<SessionId, readonly JobView[]>>
   currentAddress: SubagentAddress | undefined
+  /**
+   * How many times a selection has been REQUESTED, current or not.
+   *
+   * `current` alone cannot answer "did the person just navigate", because
+   * `select()` is idempotent in its RESULT and not in its INTENT:
+   * `workspaces.startSession()` reuses a Workspace's existing blank session,
+   * so pressing New Session while that session is already open publishes a
+   * snapshot in which nothing changed. A consumer that reveals the transcript
+   * on navigation — dsh's own `AppFrame` closes its details overlay, and the
+   * rheplicant workbench yields its section — then does nothing, and the app
+   * looks like it ignored the press. Reported from use, 2026-08-26.
+   *
+   * Monotonic, never reset, and bumped by every selection mutator including a
+   * clear. COMPARE it, never read it: the value itself means nothing.
+   */
+  selectedSeq: number
 }
 
 /** One parent-addressed durable catalog projected through the sessions snapshot. */
@@ -149,6 +165,8 @@ export class SessionManager {
   private readonly jobsBySession = new Map<SessionId, readonly JobView[]>()
 
   private selected: SessionId | undefined
+  /** Bumped by every selection mutator — see `SessionListSnapshot`. */
+  private selectedSeq = 0
 
   private listSnapshotCache: SessionListSnapshot
   /** Entry-identity cache (reference stability): list rebuilds reuse the previous entry
@@ -195,6 +213,7 @@ export class SessionManager {
         : this.catalogs.get(address.parentSessionId)?.parentAvailable ?? false,
     )
     this.selected = sessionId
+    this.selectedSeq += 1
     // Looking at the session consumes its completion reminder (dot clears).
     this.completedNotifications.delete(sessionId)
     void this.refreshSubagents(sessionId)
@@ -214,6 +233,7 @@ export class SessionManager {
     this.addresses.set(address.childSessionId, address)
     this.sessions.get(address.childSessionId)?.configureSubagent(address, catalog?.parentAvailable ?? false)
     this.selected = address.childSessionId
+    this.selectedSeq += 1
     this.completedNotifications.delete(address.childSessionId)
     void this.refreshSubagents(address.childSessionId)
     this.notifier.notifyNow()
@@ -222,6 +242,7 @@ export class SessionManager {
   /** Clear the selection (the layout falls to the no-session view state). */
   clearSelection(): void {
     this.selected = undefined
+    this.selectedSeq += 1
     this.notifier.notifyNow()
   }
 
@@ -1072,6 +1093,7 @@ export class SessionManager {
       subagentsByParent: Object.fromEntries(this.catalogs),
       jobsBySession: Object.fromEntries(this.jobsBySession),
       currentAddress: current === undefined ? undefined : this.addresses.get(current),
+      selectedSeq: this.selectedSeq,
     }
   }
 }

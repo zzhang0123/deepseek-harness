@@ -95,6 +95,18 @@ export interface SessionListState {
   jobsBySession: Readonly<Record<SessionId, readonly JobView[]>>
   /** Current session's catalog-derived address, absent on ordinary navigation. */
   currentAddress: SubagentAddress | undefined
+  /**
+   * How many times a selection has been requested, current or not — the
+   * NAVIGATION signal `current` cannot give, because `select()` is idempotent
+   * in its result and not in its intent. See `SessionListSnapshot`.
+   *
+   * OPTIONAL, and that is the whole point of it being safe to add: this shape
+   * is hand-constructed by dozens of test fixtures across the workspace, so a
+   * required field would have been a sixty-file edit for a one-field signal.
+   * Absent means "this runtime does not report it"; a consumer falls back to
+   * comparing `current`, which is what it did before.
+   */
+  selectedSeq?: number | undefined
 }
 
 /** Persisted navigation cell: address survives refresh for correct history routing. */
@@ -659,7 +671,7 @@ export class SessionRuntime implements ISessions {
   /** Project the manager's list snapshot into the store (title derivation is display-only). */
   private projectList(): void {
     const {
-      items, current, phase, subagentsByParent, jobsBySession, currentAddress,
+      items, current, phase, subagentsByParent, jobsBySession, currentAddress, selectedSeq,
     } = this.manager.getListSnapshot()
     const ids: SessionId[] = []
     const byId: Record<SessionId, SessionSummary> = {}
@@ -729,7 +741,9 @@ export class SessionRuntime implements ISessions {
         ...(currentAddress === undefined ? {} : { subagentAddress: currentAddress }),
       })
     }
-    this.list.set({ ids, byId, current, phase, subagentsByParent, jobsBySession, currentAddress })
+    this.list.set({
+      ids, byId, current, phase, subagentsByParent, jobsBySession, currentAddress, selectedSeq,
+    })
     this.pruneScopes()
   }
 

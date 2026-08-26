@@ -104,7 +104,61 @@ describe('the rule itself', () => {
     { previous: 'a', current: undefined, expected: false, why: 'cleared' },
     { previous: undefined, current: undefined, expected: false, why: 'still nothing' },
   ])('$previous -> $current is $expected ($why)', ({ previous, current, expected }) => {
-    expect(leavesSection(previous, current)).toBe(expected)
+    // The FALLBACK rule: no runtime sequence reported.
+    expect(leavesSection({ current: previous }, { current })).toBe(expected)
+  })
+})
+
+describe('the sequence rule, for the gesture an id cannot see', () => {
+  // Pressing New Session while that Workspace's blank session is ALREADY open
+  // reuses it, so `current` does not move. Reported from the running app.
+  it('leaves when a selection was REQUESTED, even though the id is the same', () => {
+    expect(leavesSection(
+      { current: 'a', selectedSeq: 4 },
+      { current: 'a', selectedSeq: 5 },
+    )).toBe(true)
+  })
+
+  it('stays when the list published without a selection — a title or a job', () => {
+    expect(leavesSection(
+      { current: 'a', selectedSeq: 4 },
+      { current: 'a', selectedSeq: 4 },
+    )).toBe(false)
+  })
+
+  it('leaves on an ordinary switch too, so one rule covers both gestures', () => {
+    expect(leavesSection(
+      { current: 'a', selectedSeq: 4 },
+      { current: 'b', selectedSeq: 5 },
+    )).toBe(true)
+  })
+
+  it('leaves when a gesture CLEARED the selection', () => {
+    // `sessions.clear()` is the New-Session path with no Workspace at all.
+    // That gesture means "show me the blank view", which is not this section —
+    // the opposite answer from the fallback rule's, and deliberately so.
+    expect(leavesSection(
+      { current: 'a', selectedSeq: 4 },
+      { current: undefined, selectedSeq: 5 },
+    )).toBe(true)
+  })
+
+  it('does NOT leave on the restore after a reload, which also bumps it', () => {
+    // §25.1's sticky section would otherwise close on every page load: a
+    // restore goes through `select()` like anything else. `previous.current
+    // === undefined` is the only thing that tells a restore from a gesture,
+    // and it sits above BOTH rules for exactly this reason.
+    expect(leavesSection(
+      { current: undefined, selectedSeq: 0 },
+      { current: 'a', selectedSeq: 1 },
+    )).toBe(false)
+  })
+
+  it('accepts a runtime that reports no sequence at all, mid-stream', () => {
+    // An older harness, or a fixture: falls back to the id comparison rather
+    // than treating `undefined !== 5` as a gesture.
+    expect(leavesSection({ current: 'a' }, { current: 'a', selectedSeq: 5 })).toBe(true)
+    expect(leavesSection({ current: 'a', selectedSeq: 5 }, { current: 'a' })).toBe(true)
   })
 })
 

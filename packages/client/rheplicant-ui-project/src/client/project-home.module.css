@@ -205,12 +205,17 @@
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  /* 6px and 16px, not 8px and 12px: the New Session control above uses both,
+     so the icon column and the label's optical start agree down the stack
+     rather than nearly agreeing. A user report named this "not one style",
+     and the fix is to take the numbers from the control rather than to pick
+     numbers that look similar. */
+  gap: 6px;
   width: calc(100% - 4px);
   height: 38px;
   margin: 0 2px 8px;
-  padding: 8px 12px;
-  border: none;
+  padding: 8px 16px;
+  border: 1px solid transparent;
   border-radius: 12px;
   background: transparent;
   color: var(--dsw-alias-label-secondary);
@@ -246,10 +251,8 @@
   background: color-mix(in srgb, var(--dsw-alias-border-l1) 40%, transparent);
 }
 
-.triggerMark {
-  font-size: 0.875rem;
-  line-height: 1;
-}
+/* `.triggerMark` is gone with the text glyphs it sized — the rows carry
+   `NavIcons`' real SVGs now, at the size the sidebar gives its own. */
 
 .triggerLabel {
   white-space: nowrap;

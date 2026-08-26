@@ -27,6 +27,7 @@
 
 import { memo } from 'react'
 import { toggleHome, useHome } from './home-store.ts'
+import { IconWorkbench } from './NavIcons.tsx'
 import styles from './project-home.module.css'
 
 /** What the sidebar hands every footer action: whether the column is wide. */
@@ -52,7 +53,9 @@ export const HomeTrigger = memo(function HomeTrigger({ wide }: HomeTriggerProps)
       title="Workbench"
       onClick={toggleHome}
     >
-      <span aria-hidden="true" className={styles.triggerMark}>◈</span>
+      {/* See `DashboardTrigger` — the sidebar's own icon size, in both
+          column states. */}
+      <IconWorkbench size={wide ? 14 : 18} />
       {wide && <span className={styles.triggerLabel}>Workbench</span>}
     </button>
   )
