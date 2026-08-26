@@ -125,8 +125,18 @@ export function HeroShell({ t, renderSlot, children }: HeroShellProps) {
               fallback: <FishLogo size={34} className={css.fish} />,
             })}
           </span>
-          <span className={css.headlineText}>{t('hero.headline')}</span>
-          <span className={css.previewBadge}>{t('hero.preview')}</span>
+          {/* A distribution that is not this one may need its own headline —
+              and may not be a preview. The fallback is the shipped pair
+              verbatim, so a composition with no occupant renders byte for byte
+              what it rendered before this slot existed. */}
+          {renderSlot('conversation.hero.headline', { className: css.headlineText }, {
+            fallback: (
+              <>
+                <span className={css.headlineText}>{t('hero.headline')}</span>
+                <span className={css.previewBadge}>{t('hero.preview')}</span>
+              </>
+            ),
+          })}
         </div>
         <div className={css.body}>
           {/* The resident composer (ConversationRoot's root-owned scrollport;

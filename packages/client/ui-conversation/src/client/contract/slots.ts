@@ -172,6 +172,18 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      */
     'conversation.hero.brand.mark': { kind: 'single'; scope: 'root'; owner: HeroBrandMarkOwnerProps }
     /**
+     * The blank-session headline and any adornment beside it. Declared by this
+     * package's `conversation` entry; the shell supplies its own headline plus
+     * the preview badge as the fallback, so a composition with no occupant
+     * renders exactly what it always did.
+     *
+     * ONE slot for both spans rather than one each, because an occupant that
+     * wants a different headline usually wants a different set of adornments
+     * too — a distribution that is no longer a preview has nothing to opt out
+     * of if the badge is a seat it must fill with something.
+     */
+    'conversation.hero.headline': { kind: 'single'; scope: 'root'; owner: HeroHeadlineOwnerProps }
+    /**
      * The agent-preset chip beside the workspace picker on the new-session
      * screen. Root scope: no session exists yet, so the choice is staged for
      * the next one rather than applied to a current one.
@@ -603,6 +615,12 @@ export interface ComposerChainProps {
   session: ConversationSnapshot | undefined
 }
 
+/** Presentation props supplied to the blank-session headline occupant. */
+export interface HeroHeadlineOwnerProps {
+  /** Host CSS class carrying the headline's type scale and grid column. */
+  className?: string | undefined
+}
+
 /** Presentation props supplied to the blank-session brand-mark occupant. */
 export interface HeroBrandMarkOwnerProps {
   /** Requested square edge in pixels. */
@@ -624,6 +642,7 @@ export type ConversationSlotProps =
     | 'conversation.input.dock' | 'conversation.composer.dock'
     | 'conversation.input.left' | 'conversation.input.right'
     | 'conversation.hero.brand.mark'
+    | 'conversation.hero.headline'
     | 'conversation.hero.workspace'
     | 'conversation.hero.agentPreset'
   >

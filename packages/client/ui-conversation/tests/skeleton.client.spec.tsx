@@ -2,6 +2,7 @@
 // ConversationRoot skeleton behavior: the ONE resident composer across the
 // hero (blank session) and active phases — same textarea DOM node, machine-
 // owned draft, and the hero workspace picker (switching = retargetWorkspace).
+import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
@@ -139,7 +140,7 @@ function mount(
   /** Owner share handed to the two composer tool-row seats, per render. */
   const seatOwners: { key: string; owner: unknown }[] = []
   let pickerOwner: unknown
-  const renderSlot = ((key: string, owner: object, opts?: { only?: string }) => {
+  const renderSlot = ((key: string, owner: object, opts?: { only?: string; fallback?: ReactNode }) => {
     slotCalls.push(key)
     if (key === 'conversation.input.model' || key === 'conversation.input.plan') {
       seatOwners.push({ key, owner })
@@ -221,6 +222,11 @@ function mount(
         />
       )
     }
+    // A seat with a shipped fallback renders it when nothing occupies the
+    // slot — the renderer's own behaviour, and the reason `HeroShell` can put
+    // its headline behind a slot without changing what an unoccupied
+    // composition shows.
+    if (opts?.fallback !== undefined) return opts.fallback
     return <div data-testid={`view-${opts?.only ?? key}`} />
   }) as ConversationRootProps['renderSlot']
   const renderSlotChain = ((_key, _owner, opts) => (
@@ -260,12 +266,15 @@ function mount(
 
 describe('Hero chrome', () => {
   it('renders the English preview badge through the hero locale seat', () => {
-    const renderSlot = vi.fn<HeroShellProps['renderSlot']>(() => null)
+    const renderSlot = vi.fn<HeroShellProps['renderSlot']>((_key, _owner, opts) => opts?.fallback ?? null)
     const view = render(<HeroShell t={makeTranslate(en, commonEn)} renderSlot={renderSlot} />)
     expect(view.getByText('Into the Unknown')).toBeTruthy()
     expect(view.getByText('Preview')).toBeTruthy()
-    expect(renderSlot).toHaveBeenCalledOnce()
+    // Two hero seats now: the brand mark, and the headline whose fallback is
+    // the shipped headline plus the preview badge asserted above.
+    expect(renderSlot).toHaveBeenCalledTimes(2)
     expect(renderSlot.mock.calls[0]?.[0]).toBe('conversation.hero.brand.mark')
+    expect(renderSlot.mock.calls[1]?.[0]).toBe('conversation.hero.headline')
     const brandMarkOwner = renderSlot.mock.calls[0]?.[1]
     if (brandMarkOwner === undefined || !('size' in brandMarkOwner) || !('className' in brandMarkOwner)) {
       throw new Error('hero brand-mark owner must provide size and className')
