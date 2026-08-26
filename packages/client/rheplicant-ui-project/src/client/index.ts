@@ -42,6 +42,8 @@ import { DashboardTrigger } from './DashboardTrigger.tsx'
 import { HomeTrigger } from './HomeTrigger.tsx'
 import { ProjectHome } from './ProjectHome.tsx'
 import { setNavigator } from './navigate.ts'
+import { closeHome } from './home-store.ts'
+import { followSession } from './session-follow.ts'
 import { SelectionRuntime } from './selection-service.ts'
 import { WorkbenchRuntime } from './workbench-service.ts'
 
@@ -97,6 +99,8 @@ export { KNOWN_PANELS } from './known-panels.ts'
 export type { KnownPanel } from './known-panels.ts'
 export { panelsWithNoExit } from './panel-relevance.ts'
 export { createWorkbenchLayoutStore } from './layout-store.ts'
+export { followSession, leavesSection } from './session-follow.ts'
+export type { CurrentSession, CurrentSessionSource } from './session-follow.ts'
 export {
   clearSelection, proposeSelection, readSelection, resetSelections, selectInProject,
   subscribeSelection, useSelection,
@@ -120,6 +124,11 @@ export function apply(ctx: ClientContext): void {
   // why "what the project is showing" and "what the frame is showing" must not
   // be the same switch.
   ctx.plugin(WorkbenchRuntime)
+  // A session click has to move the section, because nothing else does
+  // (`session-follow.ts` has the four-transition table). `closeHome` rather
+  // than a new verb: returning to the transcript is exactly what the
+  // project-switch button and `openProject` already mean by it.
+  ctx.effect(() => followSession(ctx.sessions.list, closeHome))
   ctx.effect(() => {
     setNavigator({
       connect: workspaceId => ctx.workspaces.connectWorkspace(workspaceId as never)
