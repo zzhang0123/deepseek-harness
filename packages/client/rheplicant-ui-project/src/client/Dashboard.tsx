@@ -23,6 +23,18 @@
  *   would assert a hazard the lock says does not exist.
  * * **No archived-session filter.** §9.3: this surface does not address by
  *   session, so there is nothing to filter by.
+ * * **No trigger badge or next-fire column.** `surface-model.md` §9.2 drafts a
+ *   trigger registry and the Setups tab is where it would render, but no such
+ *   entity exists — nothing persists "run X every 10 minutes". A column showing
+ *   "manual" for every row would be an invented uniformity, not a reading.
+ *
+ * TWO TABS OVER ONE SCOPE, which is a decision against this document's own
+ * earlier sketch. `surface-model.md` §2 drew Tasks as a separate sidebar entry;
+ * §3 drew it as the SETUPS half of a setups/runs split, on the desired-state
+ * versus observed-state model. §3 wins: it is the same scope and the same fetch
+ * read two ways, so a second nav row would say it is a different PLACE. It also
+ * keeps the nav short, which is the thing every surveyed platform got wrong by
+ * degrees.
  *
  * @module @rheplicant/dsh-rheplicant-ui-project/client/Dashboard
  */
@@ -33,8 +45,8 @@ import { showSection, useHome } from './home-store.ts'
 import { selectInProject } from './selection.ts'
 import { useAllProjects } from './use-all-projects.ts'
 import {
-  allExecutions, kindsPresent, matchesKind, projectTotals,
-  type DashboardExecution,
+  allExecutions, allTasks, kindsPresent, matchesKind, neverRun, projectTotals,
+  type DashboardExecution, type DashboardTask,
 } from './dashboard-selectors.ts'
 import styles from './dashboard.module.css'
 
@@ -74,6 +86,7 @@ const STATUS_STATE = {
 export const Dashboard = memo(function Dashboard({ useWorkspaces }: DashboardProps) {
   const { section } = useHome()
   const [nonce, setNonce] = useState(0)
+  const [tab, setTab] = useState<'setups' | 'runs'>('runs')
   const [kind, setKind] = useState<string | undefined>(undefined)
   const workspaces = useWorkspaces(state => state.items)
   const { loading, cards } = useAllProjects(workspaces, nonce)
@@ -81,8 +94,18 @@ export const Dashboard = memo(function Dashboard({ useWorkspaces }: DashboardPro
   const rows = useMemo(() => allExecutions(cards), [cards])
   const kinds = useMemo(() => kindsPresent(rows), [rows])
   const shown = useMemo(() => rows.filter(row => matchesKind(row, kind)), [rows, kind])
+  const tasks = useMemo(() => allTasks(cards), [cards])
 
   if (section !== 'dashboard') return null
+
+  /** Open one task in the workbench, on its own project. */
+  const openTask = (task: DashboardTask): void => {
+    // The task without an execution: a setups row is about the DEFINITION, so
+    // it selects the document and leaves whatever execution the workbench had
+    // for that project alone rather than clearing it to nothing.
+    selectInProject(task.workspaceId, { taskPath: task.path })
+    showSection('workbench', task.workspaceId)
+  }
 
   /** Open one execution in the workbench, on its own project. */
   const open = (row: DashboardExecution): void => {
@@ -157,8 +180,31 @@ export const Dashboard = memo(function Dashboard({ useWorkspaces }: DashboardPro
                 </ul>
 
                 <div className={styles.tableHead}>
-                  <h3 className={styles.sectionTitle}>Executions</h3>
-                  {kinds.length > 0 && (
+                  {/* Desired state beside observed state: the same scope read
+                      two ways (`surface-model.md` §3), not two places. */}
+                  <div className={styles.tabs} role="tablist" aria-label="Dashboard view">
+                    <button
+                      type="button"
+                      role="tab"
+                      className={styles.tab}
+                      data-dashboard-tab="setups"
+                      aria-selected={tab === 'setups'}
+                      onClick={() => { setTab('setups') }}
+                    >
+                      Setups
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      className={styles.tab}
+                      data-dashboard-tab="runs"
+                      aria-selected={tab === 'runs'}
+                      onClick={() => { setTab('runs') }}
+                    >
+                      Runs
+                    </button>
+                  </div>
+                  {tab === 'runs' && kinds.length > 0 && (
                     <label className={styles.filter}>
                       {/* "Analysis", never "exit": that word is the grammar's
                           own and reads as an exit code on a run table. The
@@ -179,7 +225,43 @@ export const Dashboard = memo(function Dashboard({ useWorkspaces }: DashboardPro
                   )}
                 </div>
 
-                {shown.length === 0
+                {tab === 'setups' && (tasks.length === 0
+                  ? (
+                    <p className={styles.empty} data-tasks-empty>
+                      {loading ? 'Reading projects…' : 'No task documents yet in any project.'}
+                    </p>
+                    )
+                  : (
+                    <ul className={styles.rows} data-dashboard-tasks>
+                      {tasks.map(task => (
+                        <li key={`${task.workspaceId} ${task.path}`} className={styles.row}>
+                          <button
+                            type="button"
+                            className={styles.taskOpen}
+                            data-task-open={task.path}
+                            onClick={() => { openTask(task) }}
+                          >
+                            <span className={styles.rowProject}>{task.project}</span>
+                            <span className={styles.rowTask}>{task.path}</span>
+                            <span className={styles.rowId}>{task.bytes} B</span>
+                            {/* A count the tree answered, so zero really is
+                                zero — an unreadable project contributes no
+                                tasks at all, so there is no unknown here to
+                                confuse with none. */}
+                            {neverRun(task)
+                              ? <Badge state="off">never run</Badge>
+                              : (
+                                <Badge state="ok">
+                                  {task.executionCount === 1 ? '1 execution' : `${task.executionCount} executions`}
+                                </Badge>
+                                )}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                    ))}
+
+                {tab === 'runs' && (shown.length === 0
                   ? (
                     <p className={styles.empty} data-executions-empty>
                       {loading
@@ -214,7 +296,7 @@ export const Dashboard = memo(function Dashboard({ useWorkspaces }: DashboardPro
                         </li>
                       ))}
                     </ul>
-                    )}
+                    ))}
               </>
               )}
         </div>

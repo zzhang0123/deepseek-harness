@@ -15,7 +15,7 @@
  * @module @rheplicant/dsh-rheplicant-ui-project/client/dashboard-selectors
  */
 
-import type { ProjectExecutionRow } from '@rheplicant/dsh-rheplicant/types'
+import type { ProjectExecutionRow, ProjectTaskRow } from '@rheplicant/dsh-rheplicant/types'
 import type { ProjectCard } from './use-all-projects.ts'
 
 /** One project's counts, or undefined throughout when it could not be read. */
@@ -121,4 +121,46 @@ export function kindsPresent(rows: readonly DashboardExecution[]): string[] {
 export function matchesKind(row: DashboardExecution, kind: string | undefined): boolean {
   if (kind === undefined) return true
   return (row.kinds ?? []).includes(kind)
+}
+
+/** One task, carrying the project it belongs to. */
+export interface DashboardTask extends ProjectTaskRow {
+  readonly workspaceId: string
+  readonly project: string
+}
+
+/**
+ * Every readable project's tasks as one list.
+ *
+ * Ordered by MODIFICATION, newest first — the question a setups listing
+ * answers is "what am I working on", and that is the recency of the document,
+ * not of any run. A task edited today with no execution belongs above one that
+ * ran last week and has not been touched since; sorting by run recency would
+ * bury exactly the task somebody is in the middle of defining.
+ *
+ * Ties keep project order, so the sort is stable across a refresh.
+ */
+export function allTasks(cards: readonly ProjectCard[]): DashboardTask[] {
+  const rows: DashboardTask[] = []
+  for (const card of cards) {
+    if (card.overview === undefined) continue
+    for (const task of card.overview.tasks) {
+      rows.push({ ...task, workspaceId: card.workspaceId, project: card.overview.project })
+    }
+  }
+  return rows.sort((left, right) => {
+    if (left.modifiedAt === right.modifiedAt) return 0
+    return left.modifiedAt < right.modifiedAt ? 1 : -1
+  })
+}
+
+/**
+ * Whether a task has never been run.
+ *
+ * `executionCount` is a count the project tree answered, so zero here really is
+ * zero rather than unknown — an unreadable project contributes no tasks at all
+ * (see {@link allTasks}), so there is no third state to confuse this with.
+ */
+export function neverRun(task: DashboardTask): boolean {
+  return task.executionCount === 0
 }

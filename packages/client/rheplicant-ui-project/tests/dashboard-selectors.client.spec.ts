@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  allExecutions, kindsPresent, matchesKind, projectTotals,
-  type DashboardExecution,
+  allExecutions, allTasks, kindsPresent, matchesKind, neverRun, projectTotals,
+  type DashboardExecution, type DashboardTask,
 } from '../src/client/dashboard-selectors.ts'
 import type { ProjectCard } from '../src/client/use-all-projects.ts'
 
@@ -13,14 +13,24 @@ function execution(over: Partial<DashboardExecution> = {}): DashboardExecution {
   }
 }
 
+/** One task row, with only what a given assertion needs stated. */
+function task(over: Partial<DashboardTask> = {}): DashboardTask {
+  return {
+    path: 'tasks/demo.yaml', bytes: 100, modifiedAt: '2026-01-01T00:00:00Z',
+    executionCount: 0, workspaceId: 'ws-1', project: 'alpha', ...over,
+  }
+}
+
 /** One project card, readable unless `overview` is explicitly undefined. */
-function card(over: Partial<ProjectCard> & { executions?: DashboardExecution[] } = {}): ProjectCard {
-  const { executions, ...rest } = over
+function card(
+  over: Partial<ProjectCard> & { executions?: DashboardExecution[]; tasks?: DashboardTask[] } = {},
+): ProjectCard {
+  const { executions, tasks, ...rest } = over
   return {
     workspaceId: 'ws-1',
     title: 'alpha',
     overview: {
-      project: 'alpha', tasks: [], inputs: [], truncated: false,
+      project: 'alpha', tasks: tasks ?? [], inputs: [], truncated: false,
       executions: executions ?? [],
     },
     ...rest,
@@ -134,5 +144,44 @@ describe('the analysis facet', () => {
   it('matches on membership, not on the first kind', () => {
     expect(matchesKind(execution({ kinds: ['forward', 'nuts'] }), 'nuts')).toBe(true)
     expect(matchesKind(execution({ kinds: ['forward', 'nuts'] }), 'fisher')).toBe(false)
+  })
+})
+
+describe('the cross-project task list (the Setups tab)', () => {
+  it('sorts by MODIFICATION, newest first — not by when anything ran', () => {
+    // A setups listing answers "what am I working on". Sorting by run recency
+    // would bury the task somebody is in the middle of defining, which is
+    // exactly the one that has no runs yet.
+    const rows = allTasks([card({
+      tasks: [
+        task({ path: 'old.yaml', modifiedAt: '2026-01-01T00:00:00Z', executionCount: 9 }),
+        task({ path: 'new.yaml', modifiedAt: '2026-08-01T00:00:00Z', executionCount: 0 }),
+      ],
+    })])
+    expect(rows.map(row => row.path)).toEqual(['new.yaml', 'old.yaml'])
+  })
+
+  it('tags each task with the project it belongs to', () => {
+    const rows = allTasks([
+      card({ workspaceId: 'ws-1', tasks: [task({ path: 'a.yaml' })] }),
+      { ...card({ workspaceId: 'ws-2' }), overview: {
+        project: 'beta', tasks: [task({ path: 'b.yaml', project: 'beta' })],
+        inputs: [], truncated: false, executions: [],
+      } },
+    ])
+    expect(rows.find(row => row.path === 'b.yaml')?.workspaceId).toBe('ws-2')
+    expect(rows.find(row => row.path === 'b.yaml')?.project).toBe('beta')
+  })
+
+  it('skips an unreadable project rather than inventing empty tasks for it', () => {
+    const rows = allTasks([card({ overview: undefined }), card({ tasks: [task()] })])
+    expect(rows).toHaveLength(1)
+  })
+
+  it('reads a zero execution count as genuinely never run', () => {
+    // No third state to confuse this with: an unreadable project contributes
+    // no tasks at all, so a task that IS here came with a real count.
+    expect(neverRun(task({ executionCount: 0 }))).toBe(true)
+    expect(neverRun(task({ executionCount: 1 }))).toBe(false)
   })
 })
