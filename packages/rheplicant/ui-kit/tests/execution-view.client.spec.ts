@@ -52,11 +52,12 @@ describe('executionEmptyReason', () => {
 describe('the reason an empty panel is empty', () => {
   it('explains that a published run keeps its arrays on disk', () => {
     // After the event became a receipt (§5), an empty viz panel is no longer
-    // "nothing ran" — it is "the results are in the folder and this console
+    // "nothing ran" — it is "the results are in the folder and the browser
     // could not read it". Saying the former sends someone hunting a bug in
-    // their document.
+    // their document. The string names no surface: it renders in the
+    // workbench's panels and in the chat result node alike.
     expect(executionEmptyReason({ problem: 'unavailable' }))
-      .toMatch(/folder, which this console could not read/)
+      .toMatch(/folder, which could not be read from here/)
   })
 })
 

@@ -166,7 +166,7 @@ describe('web e2e: rheplicant analysis node renders from the log', () => {
   it('offers no way into the project view, which has no folder to open', async () => {
     // The other half of the same fact. Sending someone to the project surface
     // for an unpublished execution would land them on "the results are in this
-    // execution's folder, which this console could not read" — of a run that
+    // execution's folder, which could not be read from here" — of a run that
     // has no folder at all.
     expect(await page.locator('[data-open-in-project]').count()).toBe(0)
   })

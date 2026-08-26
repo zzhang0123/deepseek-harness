@@ -104,10 +104,14 @@ export function executionEmptyReason(view: ConsoleExecutionView | undefined): st
   if (view?.problem === 'loading') return 'Reading this execution…'
   // A published run keeps its arrays in its results folder, not on the event
   // (`docs/project-model.md` §5). So an empty panel here is not "nothing ran" —
-  // it is "the results are on disk and this console cannot reach them", and
+  // it is "the results are on disk and the browser cannot reach them", and
   // saying the former would send someone looking for a bug in their document.
+  //
+  // It names no surface, deliberately: this one string renders in the
+  // workbench's panels AND in the chat result node, so "this console" was
+  // wrong in both places even before §9.5 retired the word.
   if (view?.problem === 'unavailable') {
-    return 'The results are in this execution\'s folder, which this console could not read.'
+    return 'The results are in this execution\'s folder, which could not be read from here.'
   }
   return undefined
 }

@@ -310,7 +310,7 @@ const ScratchDraws = memo(function ScratchDraws(
  * than no button, because it looks like it worked; and an unpublished
  * execution is exactly that case — the project surface would select an id its
  * tree does not hold and report "the results are in this execution's folder,
- * which this console could not read", of a run that has no folder at all.
+ * which could not be read from here", of a run that has no folder at all.
  */
 const OpenInProject = memo(function OpenInProject(
   { workspaceId, taskPath, executionId }: {
