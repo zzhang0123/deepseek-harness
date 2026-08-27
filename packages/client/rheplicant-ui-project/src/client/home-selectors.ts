@@ -55,6 +55,47 @@ export function taskSegmentOf(path: string): string {
   return cut > path.lastIndexOf('/') && cut > 0 ? path.slice(0, cut) : path
 }
 
+/**
+ * Which task in a listing an execution belongs to.
+ *
+ * `ProjectExecutionRow.task` is the sidecar's task SEGMENT (`demo_small`); the
+ * selection's task axis holds a task PATH (`demo_small.yaml`). Turning one into
+ * the other needs the project's LISTING, which is why this is a function of
+ * both and why `selection-bridge.ts` cannot do it — §28.7 recorded that as a
+ * known limitation, and it is this.
+ *
+ * The row's string is matched AS IT STANDS against each task's segment —
+ * exactly the host's own join (`project-api.ts`) — and only if nothing matches
+ * is the row itself run through {@link taskSegmentOf}, for a sidecar that ever
+ * recorded a full path instead of a segment.
+ *
+ * That order matters because `taskSegmentOf` is not idempotent: a task file
+ * may carry dots (`contents.ts` accepts any `.yaml`, and §2 says scan, do not
+ * enforce a convention), so `demo.v2.yaml` → `demo.v2` → `demo`. Normalising
+ * BOTH sides first, as this did for one build, made `demo.v2`'s executions
+ * resolve to `demo.yaml` — silently, and with a sibling `demo.yaml` present it
+ * overwrote a correct choice with the wrong file.
+ *
+ * §28.7's other note — that a task whose sidecar string does not equal
+ * `taskSegmentOf(path)` used to make two derivations disagree — is why there is
+ * exactly one of these.
+ *
+ * @param tasks - the project's task listing, possibly truncated.
+ * @param taskSegment - the execution's own `task` string.
+ * @returns the owning task's path, or `undefined` when the listing does not
+ *   hold it. Undefined is a real answer: a truncated walk genuinely cannot
+ *   say, and inventing a path would be worse than leaving the axis alone.
+ */
+export function taskPathForSegment(
+  tasks: readonly { readonly path: string }[],
+  taskSegment: string,
+): string | undefined {
+  const exact = tasks.find(task => taskSegmentOf(task.path) === taskSegment)
+  if (exact !== undefined) return exact.path
+  const wanted = taskSegmentOf(taskSegment)
+  return tasks.find(task => taskSegmentOf(task.path) === wanted)?.path
+}
+
 /** One task's executions, in the order the project reported them. */
 export interface TaskExecutionGroup {
   readonly task: string

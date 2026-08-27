@@ -27,6 +27,7 @@ export const DocumentView = memo(function DocumentView({ useSession }: DocumentV
       <h2 className={styles.heading}>Document</h2>
       {fact === undefined ? (
         <EmptyState
+          kind="waiting"
           message="No document in this session yet"
           hint="Ask the agent to author one via rheplicant_run or rheplicant_validate"
         />

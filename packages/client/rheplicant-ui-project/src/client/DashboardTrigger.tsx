@@ -42,7 +42,7 @@ export const DashboardTrigger = memo(function DashboardTrigger({ wide }: Dashboa
       {/* The size the sidebar gives its OWN icon in each state, so the
           three controls in this stack are one drawing convention rather
           than one icon and two text glyphs (§28.8). */}
-      <IconDashboard size={wide ? 14 : 18} />
+      <IconDashboard size={wide ? 16 : 18} />
       {wide && <span className={styles.triggerLabel}>Dashboard</span>}
     </button>
   )

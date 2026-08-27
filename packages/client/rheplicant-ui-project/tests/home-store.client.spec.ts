@@ -18,7 +18,13 @@ describe('the shared section state', () => {
     expect(readHome().section).toBe('conversation')
     toggleHome()
     expect(readHome().section).toBe('workbench')
+    // AND PRESSING IT AGAIN STAYS. A nav row is a destination, and no other
+    // row in that column closes what it opened — a user reported the asymmetry
+    // and it is the whole reason this assertion inverted. Leaving is what the
+    // header's "Conversation" button and the session list are for.
     toggleHome()
+    expect(readHome().section).toBe('workbench')
+    closeHome()
     expect(readHome().section).toBe('conversation')
   })
 
@@ -56,17 +62,26 @@ describe('more than one section (§25)', () => {
     expect(readHome().section).toBe('dashboard')
   })
 
-  it('toggles a row against the CONVERSATION, not against "some section"', () => {
-    // Pressing the row you are on returns you to the transcript...
+  it('is a DESTINATION: pressing the row you are on changes nothing', () => {
+    // This assertion used to say the opposite — pressing the row you were on
+    // returned you to the transcript. No other row in that sidebar closes what
+    // it opened, and a user reported the asymmetry. The old argument ("the row
+    // is a toggle for ITS section") was true and beside the point: a reader
+    // meets one navigation column, not two toggle semantics.
     toggleSection('dashboard')
     expect(readHome().section).toBe('dashboard')
     toggleSection('dashboard')
-    expect(readHome().section).toBe('conversation')
-    // ...and pressing a different row switches straight to it, rather than
+    expect(readHome().section).toBe('dashboard')
+    // Pressing a DIFFERENT row still switches straight to it, rather than
     // going back to the conversation first.
     toggleSection('workbench')
+    expect(readHome().section).toBe('workbench')
     toggleSection('dashboard')
     expect(readHome().section).toBe('dashboard')
+    // And leaving is a separate act, which is what §20.2's "a switch, not a
+    // close" always meant.
+    closeHome()
+    expect(readHome().section).toBe('conversation')
   })
 
   it('remembers a section that is not the workbench', async () => {

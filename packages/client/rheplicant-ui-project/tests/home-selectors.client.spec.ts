@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   formatBytes,
   groupExecutionsByTask,
+  taskPathForSegment,
   taskSegmentOf,
   countByStatus,
 } from '@deepseek-ai/dsh-client-rheplicant-ui-project/src/client/home-selectors.ts'
@@ -78,5 +79,60 @@ describe('countByStatus', () => {
 
   it('reports zeros rather than absent keys, so a caller never checks for one', () => {
     expect(countByStatus([])).toEqual({ ok: 0, refused: 0, error: 0 })
+  })
+})
+
+describe('which task an execution belongs to', () => {
+  /**
+   * The bug a user hit: arriving in the workbench from the dashboard with an
+   * execution chosen, and still being asked which task it was.
+   *
+   * `ProjectExecutionRow.task` is the sidecar's SEGMENT (`demo_small`) and the
+   * selection's task axis holds a PATH (`demo_small.yaml`). The dashboard was
+   * passing the first as the second, so the workbench looked a segment up in a
+   * listing of paths and found nothing — and §28.7 had already recorded the
+   * other half of the same shape, `chooseExecution` setting the execution
+   * alone because it does not hold the listing.
+   */
+  const listing = [{ path: 'demo_small.yaml' }, { path: 'nested/forward_sim.yaml' }]
+
+  it('turns a sidecar segment into the task path the selection holds', () => {
+    expect(taskPathForSegment(listing, 'demo_small')).toBe('demo_small.yaml')
+    // A segment keeps its WHOLE relative path — two `demo.yaml` in different
+    // directories are two tasks whose executions must not be filed together,
+    // which `taskSegmentOf`'s own comment is about. So the segment for a
+    // nested task is `nested/forward_sim`, and a bare basename resolves to
+    // nothing rather than to whichever one happened to be listed first.
+    expect(taskPathForSegment(listing, 'nested/forward_sim')).toBe('nested/forward_sim.yaml')
+    expect(taskPathForSegment(listing, 'forward_sim')).toBeUndefined()
+  })
+
+  it('accepts a full path too, so one derivation covers both spellings', () => {
+    // §28.7: a task whose sidecar string does not equal `taskSegmentOf(path)`
+    // is what made two derivations disagree. There is one of these.
+    expect(taskPathForSegment(listing, 'demo_small.yaml')).toBe('demo_small.yaml')
+    expect(taskPathForSegment(listing, 'nested/forward_sim.yaml')).toBe('nested/forward_sim.yaml')
+  })
+
+  it('does not fold a DOTTED basename into its neighbour', () => {
+    // `taskSegmentOf` is not idempotent — `demo.v2.yaml` -> `demo.v2` -> `demo`
+    // — and `contents.ts` accepts any `.yaml`, so a dotted basename is a real
+    // task name (§2: scan, do not enforce a convention). Normalising BOTH
+    // sides before comparing, which this did for one build, filed `demo.v2`'s
+    // executions under `demo.yaml`: silently, and with a sibling present it
+    // overwrote a correct choice with the wrong file.
+    const dotted = [{ path: 'demo.yaml' }, { path: 'demo.v2.yaml' }]
+    expect(taskPathForSegment(dotted, 'demo.v2')).toBe('demo.v2.yaml')
+    expect(taskPathForSegment(dotted, 'demo')).toBe('demo.yaml')
+    // The full-path spelling still resolves, because the fallback runs only
+    // when nothing matched the row's string as it stands.
+    expect(taskPathForSegment(dotted, 'demo.v2.yaml')).toBe('demo.v2.yaml')
+  })
+
+  it('answers UNDEFINED rather than guessing when the listing does not hold it', () => {
+    // A truncated walk genuinely cannot say. Inventing a path would put the
+    // task and execution axes in disagreement about a fact neither measured.
+    expect(taskPathForSegment(listing, 'never_walked')).toBeUndefined()
+    expect(taskPathForSegment([], 'demo_small')).toBeUndefined()
   })
 })

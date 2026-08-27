@@ -7,6 +7,7 @@ import {
   type PanelLayoutView,
   EmptyState,
   Panel,
+  RunHeading,
   type PanelStatus,
   StatRow,
   TracePlot,
@@ -17,6 +18,7 @@ import {
   selectAnalysisRuns,
   runsToRender,
   executionEmptyReason,
+  executionEmptyKind,
   type LoopExecutionView,
 } from '@rheplicant/dsh-rheplicant-ui-kit/client'
 import styles from './posterior.module.css'
@@ -152,13 +154,14 @@ export const ChainsPanel = memo(function ChainsPanel({ useSession, layout, execu
     >
       {runs.length === 0 ? (
         <EmptyState
+          kind={executionEmptyKind(execution)}
           message={executionEmptyReason(execution) ?? 'No chain draws yet'}
           hint={executionEmptyReason(execution) === undefined ? 'Ask the agent for a nuts or plan.sample run' : undefined}
         />
       ) : (
         runs.map(run => (
           <div key={runCardKey(run)} data-chains-run data-run-name={run.name}>
-            <div><strong>{run.name}</strong> <span>({run.kind})</span></div>
+            <RunHeading name={run.name} kind={run.kind} />
             <RunProvenanceCaption run={run} />
             <RunDiagnosticStats run={run} />
             <RunChainGroups chains={run.chains} />

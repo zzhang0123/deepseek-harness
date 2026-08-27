@@ -17,7 +17,7 @@ import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/clien
 import type { CheckCost, GateFinding } from '@rheplicant/dsh-rheplicant'
 import {
   Badge, type LoopExecutionView, type PanelLayoutView, EmptyState, Panel,
-  type PanelStatus, StatRow, executionEmptyReason, formatDiagnostic, gatesToRender,
+  type PanelStatus, StatRow, executionEmptyKind, executionEmptyReason, formatDiagnostic, gatesToRender,
 } from '@rheplicant/dsh-rheplicant-ui-kit/client'
 import { soleTask } from './loop-tasks.ts'
 import styles from './gates-panel.module.css'
@@ -214,6 +214,7 @@ export const GatesPanel = memo(function GatesPanel({ useSession, layout, executi
     >
       {!hasEvidence ? (
         <EmptyState
+          kind={executionEmptyKind(execution)}
           message={problem ?? 'No gates evidence yet'}
           hint={problem ?? 'Ask the agent for a rheplicant_gates or rheplicant_run call'}
         />

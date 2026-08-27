@@ -21,7 +21,7 @@ import styles from './project-home.module.css'
 const Exit = memo(function Exit({ entry }: { entry: ExitInPlay }) {
   return (
     <li
-      className={`${styles.exitRow} ${entry.used ? styles.exitUsed : ''}`}
+      className={`${styles.exitCard} ${entry.used ? styles.exitUsed : ''}`}
       data-exit={entry.kind}
       data-exit-used={entry.used ? '' : undefined}
     >
@@ -59,8 +59,15 @@ export const TaskRuns = memo(function TaskRuns({ runs }: { runs: DocumentRuns })
           runs. It is not counted above, and validation reports it.
         </p>
       )}
-      <ul className={styles.rows} data-exit-list="">
-        {view.entries.map(entry => <Exit key={entry.kind} entry={entry} />)}
+      {/* DECLARED FIRST, then the catalogue. Four of the eighteen are this
+          document's and the other fourteen are what makes "4 of 18" mean
+          something — but a reader looking for what this task computes should
+          not have to find them among the rest. The order is the only thing
+          that changes; nothing is hidden, because the count above would then
+          be a claim about a list nobody can see. */}
+      <ul className={styles.exitGrid} data-exit-list="">
+        {[...view.entries].sort((a, b) => Number(b.used) - Number(a.used))
+          .map(entry => <Exit key={entry.kind} entry={entry} />)}
       </ul>
       {runs.reserved.length > 0 && (
         <>
@@ -70,12 +77,14 @@ export const TaskRuns = memo(function TaskRuns({ runs }: { runs: DocumentRuns })
             capability in its own source — everywhere else the four capabilities are prose,
             which is why nothing above claims one.
           </p>
-          <ul className={styles.rows}>
+          <ul className={styles.reservedGrid}>
             {runs.reserved.map(entry => (
-              <li key={entry.key} className={styles.row} data-reserved-key={entry.key}>
+              <li key={entry.key} className={styles.reservedCard} data-reserved-key={entry.key}>
                 <span className={styles.mono}>{entry.key}</span>
-                <span className={styles.meta}>{entry.capability}</span>
-                <span className={styles.chip}>{entry.section}</span>
+                <span className={styles.reservedMeta}>
+                  <span className={styles.meta}>{entry.capability}</span>
+                  <span className={styles.chip}>{entry.section}</span>
+                </span>
               </li>
             ))}
           </ul>

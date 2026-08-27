@@ -70,8 +70,13 @@ describe('the default-collapse rule', () => {
   })
 
   it('collapses every product-bearing panel for a document that declares no runs', () => {
-    expect([...panelsWithNoExit(KNOWN_PANELS, { declared: [] })].sort())
-      .toEqual(['chains', 'identifiability', 'posterior'])
+    // Derived from the ROSTER rather than spelled out, so a new panel that
+    // names a product joins this set by construction instead of reddening a
+    // list somebody then edits to match. `reconstruction` was that new panel;
+    // the literal here said three names and the answer was four.
+    const productBearing = KNOWN_PANELS.filter(panel => panel.product !== undefined).map(panel => panel.id).sort()
+    expect(productBearing.length).toBeGreaterThan(0)
+    expect([...panelsWithNoExit(KNOWN_PANELS, { declared: [] })].sort()).toEqual(productBearing)
   })
 })
 

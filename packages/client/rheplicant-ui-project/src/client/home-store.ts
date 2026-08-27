@@ -146,17 +146,31 @@ export function closeHome(): void {
 }
 
 /**
- * Toggle one section against the conversation — what a nav row does.
+ * Go to one section — what a nav row does.
  *
- * Pressing the row you are already on returns you to the transcript, and
- * pressing a different row switches directly to it: the row is a toggle for
- * ITS section, never a toggle of "some section is showing".
+ * **IDEMPOTENT, and it used to toggle.** Pressing the row you were already on
+ * returned you to the transcript, which no other row in that column does:
+ * every shipped sidebar control is a destination, and pressing a destination
+ * you have arrived at does nothing. Reported by the user — *"他们多点一下就把
+ * 页面收起来，但其他的不会"* — and the argument for the old behaviour does not
+ * survive it. That argument was that the row is "a toggle for ITS section";
+ * true, and beside the point, because a reader does not experience two
+ * different toggles, they experience one navigation column with one row in it
+ * that closes things.
+ *
+ * `aria-pressed` stays, and stays honest: it says which section is on screen,
+ * which is what a screen reader needs, and it is now simply never turned off
+ * by pressing it again.
+ *
+ * Leaving a section is what the workbench header's "Conversation" button and
+ * the session list are for — §20.2's "a switch, not a close", which this makes
+ * true in both directions rather than only one.
  */
 export function toggleSection(section: Section): void {
-  commit({ ...state, section: state.section === section ? 'conversation' : section })
+  commit({ ...state, section })
 }
 
-/** Switch the workbench against the conversation. */
+/** Go to the workbench. */
 export function toggleHome(): void {
   toggleSection('workbench')
 }

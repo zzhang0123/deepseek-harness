@@ -12,10 +12,12 @@ import {
   EmptyState,
   HeatMap,
   Panel,
+  RunHeading,
   type PanelStatus,
   selectAnalysisRuns,
   runsToRender,
   executionEmptyReason,
+  executionEmptyKind,
   type LoopExecutionView,
 } from '@rheplicant/dsh-rheplicant-ui-kit/client'
 
@@ -65,13 +67,14 @@ export const SpectrumPanel = memo(function SpectrumPanel({ useSession, layout, e
     >
       {runs.length === 0 ? (
         <EmptyState
+          kind={executionEmptyKind(execution)}
           message={executionEmptyReason(execution) ?? 'No spectrum runs yet'}
           hint={executionEmptyReason(execution) === undefined ? 'Ask the agent for an mmodes run' : undefined}
         />
       ) : (
         runs.map(run => (
           <div key={run.name} data-spectrum-run data-run-name={run.name}>
-            <div><strong>{run.name}</strong> <span>({run.kind})</span></div>
+            <RunHeading name={run.name} kind={run.kind} />
             <HeatMap grid={run.spectrum} />
           </div>
         ))

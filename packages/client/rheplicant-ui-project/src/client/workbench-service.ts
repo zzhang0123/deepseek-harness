@@ -51,7 +51,14 @@ export class WorkbenchRuntime extends Service {
     openHome(workspaceId)
   }
 
-  /** Switch between the project surface and the conversation. */
+  /**
+   * Go to the project surface.
+   *
+   * Named `toggle` for the cross-bundle shape it already publishes; it stopped
+   * toggling when the nav rows did (`home-store`'s `toggleSection`), because a
+   * destination pressed twice is a destination. `close()` is how a caller
+   * leaves.
+   */
   toggle(): void {
     toggleHome()
   }

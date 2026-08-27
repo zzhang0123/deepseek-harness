@@ -69,6 +69,7 @@ export const DocumentDiff = memo(function DocumentDiff(
   if (diff === 'too-large') {
     return (
       <EmptyState
+        kind="unavailable"
         message="This document is too large to compare here"
         hint="The comparison is line-by-line against the executed copy, and it is bounded so one very large document cannot freeze this page. The two files are both on disk."
       />

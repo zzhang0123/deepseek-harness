@@ -63,6 +63,7 @@ import { Badge } from '@rheplicant/dsh-rheplicant-ui-kit/client'
 import { shortExecutionId } from '@rheplicant/dsh-rheplicant-ui-kit/client'
 import { showSection, useHome } from './home-store.ts'
 import { selectInProject } from './selection.ts'
+import { taskPathForSegment } from './home-selectors.ts'
 import { useAllProjects } from './use-all-projects.ts'
 import {
   allExecutions, allTasks, allTriggers, kindsPresent, matchesKind, neverRun,
@@ -157,10 +158,25 @@ export const Dashboard = memo(function Dashboard({ useWorkspaces }: DashboardPro
 
   /** Open one execution in the workbench, on its own project. */
   const open = (row: DashboardExecution): void => {
+    // `row.task` is the sidecar's task SEGMENT (`demo_small`), and the task
+    // axis holds a PATH (`demo_small.yaml`). Passing the first as the second
+    // is what made a reader arriving here with an execution chosen still be
+    // asked which task it was: the workbench looked the segment up in a
+    // listing of paths and found nothing.
+    //
+    // This card carries that project's own listing, so the join is available
+    // right here. When the walk was truncated and the owner is not in it, the
+    // execution travels ALONE — the workbench resolves what it can from its
+    // own listing, and a path this surface cannot verify is not one to invent.
+    const listing = cards.find(card => card.workspaceId === row.workspaceId)?.overview?.tasks ?? []
+    const owner = taskPathForSegment(listing, row.task)
     // Both, and in this order: selecting without showing moves a view nobody
     // can see, showing without selecting lands somebody on whatever was
     // already chosen (§20.6).
-    selectInProject(row.workspaceId, { taskPath: row.task, executionId: row.executionId })
+    selectInProject(row.workspaceId, {
+      ...(owner === undefined ? {} : { taskPath: owner }),
+      executionId: row.executionId,
+    })
     showSection('workbench', row.workspaceId)
   }
 

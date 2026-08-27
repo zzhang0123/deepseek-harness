@@ -75,7 +75,12 @@
   gap: 1rem;
 }
 
-/* --- project cards ---------------------------------------------------- */
+/* Elevation follows `ui-kit`'s `panel.module.css` rule — ground / panel /
+   inset — so a card here and a panel on the workbench sit at the same step off
+   the same ground. The tables below were the exception: the listing box drew a
+   border on the GROUND while the cards beside it drew one on layer-1, and a
+   hovered row then rose to the layer the container should already have been at.
+   --- project cards ---------------------------------------------------- */
 .cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
@@ -199,7 +204,7 @@
 }
 
 .taskOpen:hover {
-  background: var(--dsw-alias-bg-layer-1);
+  background: var(--dsw-alias-bg-layer-2);
 }
 
 .filter {
@@ -227,6 +232,7 @@
   margin: 0;
   padding: 0;
   list-style: none;
+  background: var(--dsw-alias-bg-layer-1);
   border: 1px solid var(--dsw-alias-border-l1);
   border-radius: 0.5rem;
   overflow: hidden;
@@ -253,7 +259,7 @@
 }
 
 .rowOpen:hover {
-  background: var(--dsw-alias-bg-layer-1);
+  background: var(--dsw-alias-bg-layer-2);
 }
 
 .rowProject {

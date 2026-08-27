@@ -12,12 +12,14 @@ import {
   type PanelLayoutView,
   EmptyState,
   Panel,
+  RunHeading,
   type PanelStatus,
   StatRow,
   formatDiagnostic,
   selectAnalysisRuns,
   runsToRender,
   executionEmptyReason,
+  executionEmptyKind,
   type LoopExecutionView,
 } from '@rheplicant/dsh-rheplicant-ui-kit/client'
 
@@ -93,6 +95,7 @@ export const IdentifiabilityPanel = memo(function IdentifiabilityPanel({ useSess
     >
       {runs.length === 0 ? (
         <EmptyState
+          kind={executionEmptyKind(execution)}
           message={executionEmptyReason(execution) ?? 'No identifiability runs yet'}
           hint={executionEmptyReason(execution) === undefined ? 'Ask the agent for a condition run' : undefined}
         />
@@ -105,7 +108,7 @@ export const IdentifiabilityPanel = memo(function IdentifiabilityPanel({ useSess
           const weakestIdentified = asWeakestIdentified(diagnostics?.weakest_identified)
           return (
             <div key={run.name} data-identifiability-run data-run-name={run.name}>
-              <div><strong>{run.name}</strong> <span>({run.kind})</span></div>
+              <RunHeading name={run.name} kind={run.kind} />
               {rank !== undefined ? (
                 <StatRow statKey="rank" label="rank" value={formatDiagnostic('rank', rank)} />
               ) : null}

@@ -21,3 +21,133 @@
 /* An r_hat past the threshold is the one case this line must not stay quiet
    about — it is the whole reason a summary is allowed to replace a table. */
 .mcmcSummary[data-mcmc-warn='true'] { color: var(--dsw-alias-state-warn-primary); }
+
+/* -- ReconstructionPanel -------------------------------------------------- */
+
+/* The mean/median control, and the sentence saying which one is drawn. */
+.statisticRow {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin: 0.35rem 0 0.5rem;
+}
+
+/* Same shape as the Model section's as-authored/as-it-ran switch, because it
+   is the same kind of thing: a choice of which of two views of one run is on
+   screen.
+
+   `box-sizing` is DECLARED rather than relied on. This shell has no global
+   `*` reset — measured 2026-08-26, when `.orphanRow`, a `<div>`, was clipped
+   for want of it (`dashboard.module.css`) — so every box states its own. A
+   `<button>` gets border-box from the UA sheet already, which makes this line
+   belt-and-braces today and the rule that survives the element changing. */
+.statisticButton {
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+.statisticButton[aria-pressed='true'] {
+  border-color: var(--dsw-alias-brand-primary);
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+/* A statistic this payload does not carry. Disabled rather than hidden: a
+   missing control is indistinguishable from one nobody drew, and the fact
+   that only one reduction shipped is a fact about this run worth seeing. */
+.statisticButton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* What is ACTUALLY on screen, in words, beside the control — so a screenshot
+   of this panel still says which reduction it is. */
+.statisticLabel {
+  font-size: 0.75rem;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.reconstructionNote {
+  margin: 0.35rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* The data beside the fit (spec D4). Two columns while there is room, stacked
+   below it: stacked-and-comparable beats side-by-side-and-cramped, and the two
+   share a colour scale either way, which is what makes them comparable at all. */
+.gridPair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.gridFigure {
+  margin: 0;
+  min-width: 0;
+}
+
+.gridCaption {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.15rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+}
+
+.gridCaptionNote {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* The pair's single scale bar. Same shape as `ui-kit`'s own `.ramp` — one
+   control, one look — with the reason it is shared said beside it. */
+.sharedRamp {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.25rem;
+  font-size: 0.6875rem;
+  color: var(--dsw-alias-label-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.sharedRampBar {
+  flex: 1 1 auto;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--dsw-alias-bg-layer-2), var(--dsw-rh-lit));
+}
+
+.sharedRampNote {
+  flex: 0 0 auto;
+}
+
+/* The run's name inside a panel that is already titled. A CAPTION, not a
+   heading: it exists to tell two runs apart, and when there is one run it
+   should not read as a second title of the panel. */
+.runName {
+  margin-bottom: 0.35rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.runName span {
+  font-weight: 400;
+  color: var(--dsw-alias-label-tertiary);
+}

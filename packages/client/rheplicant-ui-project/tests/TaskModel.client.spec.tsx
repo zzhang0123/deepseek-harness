@@ -9,7 +9,7 @@
  * was safe "because the switch says which is on screen, in both directions,
  * including while the fetch is in flight". It did not.
  */
-import { cleanup, render } from '@testing-library/react'
+import { cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { TaskModel, type ModelSourceView } from '../src/client/TaskModel.tsx'
 import type { DocumentModel } from '@rheplicant/dsh-rheplicant'
@@ -58,7 +58,7 @@ describe('the switch never mislabels which diagram is on screen', () => {
 
   it('says the task file is still on the other side, rather than only failing', () => {
     draw({ showing: 'as-run', state: 'unavailable', onShow: () => {}, executionId: 'E1' })
-    expect(document.body.textContent).toContain('as authored')
+    expect(document.body.textContent).toContain('the file now')
   })
 
   it('draws the diagram once the as-run projection is ready', () => {
@@ -76,15 +76,15 @@ describe('the switch never mislabels which diagram is on screen', () => {
 })
 
 describe('the words on the switch', () => {
-  it('says "as authored" and "as it ran", matching the document panel beside it', () => {
+  it('says it in plain words, and the same words the document panel uses', () => {
     // Not "as declared / as run": one idea with two names on one page reads as
     // two features, and "declared" already means the lit/dim encoding inside
     // this very panel.
     draw({ onShow: () => {}, executionId: 'E1' })
     expect(document.querySelector('[data-model-source-pick="authored"]')?.textContent)
-      .toBe('as authored')
+      .toBe('the file now')
     expect(document.querySelector('[data-model-source-pick="as-run"]')?.textContent)
-      .toBe('as it ran')
+      .toBe('what this run used')
   })
 
   it('marks the active side with aria-pressed, not aria-expanded', () => {
@@ -121,14 +121,14 @@ describe('whether the two documents differ', () => {
   it('marks them the same when the digests matched', () => {
     draw({ showing: 'authored', onShow: () => {}, executionId: 'E1', identical: true })
     expect(document.querySelector('[data-model-source-same]')?.textContent?.trim())
-      .toBe('same bytes')
+      .toBe('unchanged')
     expect(document.querySelector('[data-model-source-differs]')).toBeNull()
   })
 
   it('marks them different when they did not', () => {
     draw({ showing: 'authored', onShow: () => {}, executionId: 'E1', identical: false })
     expect(document.querySelector('[data-model-source-differs]')?.textContent?.trim())
-      .toBe('different bytes')
+      .toBe('the file has changed')
     expect(document.querySelector('[data-model-source-same]')).toBeNull()
   })
 
@@ -141,10 +141,11 @@ describe('whether the two documents differ', () => {
   })
 
   it('shows the mark BEFORE the switch is pressed, which is the point of it', () => {
-    // The reason to press "as it ran" is that there is something to look at.
+    // The reason to press "what this run used" is that there is something
+    // to look at.
     // Withholding that until after the press made the control a mode toggle
     // you had to be curious about; the sidecar digest costs no fetch, so the
-    // answer is available while "as authored" is still showing.
+    // answer is available while "the file now" is still showing.
     draw({ showing: 'authored', onShow: () => {}, executionId: 'E1', identical: false })
     expect(document.querySelector('[data-model-source]')?.getAttribute('data-model-source'))
       .toBe('authored')
@@ -183,6 +184,45 @@ describe('the prose follows the switch', () => {
     )
     expect(document.body.textContent).toContain('declared no operators')
     expect(document.body.textContent).not.toContain('no operators yet')
+  })
+})
+
+describe('the catalogue and the diagram agree about what a node is called', () => {
+  // `data-node-id` is upstream's own handle (`core/render.py` writes it on
+  // every node group, and upstream's canvas finds a clicked node with
+  // `closest('[data-node-id]')`). This keyed on a REGEX over each group's
+  // `<title>` for one build, which needed a trailing colon that exists only
+  // while every canonical node has a non-empty description — and a miss lights
+  // nothing and says nothing, so there was no way to notice.
+  const NODES_SVG = [
+    '<svg xmlns="http://www.w3.org/2000/svg" data-which="authored">',
+    '<g class="lit" data-node-id="gain"><title>transform node gain</title></g>',
+    '<g class="dim" data-node-id="noise.thermal"><title>sink node noise.thermal</title></g>',
+    '</svg>',
+  ].join('')
+
+  function drawNodes(): void {
+    render(<TaskModel svg={NODES_SVG} model={MODEL} />)
+  }
+
+  it('marks the hovered node through the handle upstream provides', () => {
+    drawNodes()
+    const card = document.querySelector('[data-model-node="gain"]')
+    expect(card).toBeTruthy()
+    fireEvent.mouseEnter(card!)
+    expect(document.querySelector('[data-node-id="gain"]')?.hasAttribute('data-model-node-hover'))
+      .toBe(true)
+    // …and only that one.
+    expect(document.querySelector('[data-node-id="noise.thermal"]')
+      ?.hasAttribute('data-model-node-hover')).toBe(false)
+  })
+
+  it('clears the mark when the pointer leaves, so no node stays lit', () => {
+    drawNodes()
+    const card = document.querySelector('[data-model-node="gain"]')!
+    fireEvent.mouseEnter(card)
+    fireEvent.mouseLeave(card)
+    expect(document.querySelector('[data-model-node-hover]')).toBeNull()
   })
 })
 

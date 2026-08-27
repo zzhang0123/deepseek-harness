@@ -166,3 +166,40 @@ describe('what a selection refuses to be', () => {
     expect(readSelection(A).pinned).toEqual({ task: false, execution: false })
   })
 })
+
+describe('an axis a caller names, and an axis a caller omits', () => {
+  it('clears the run when a task change says to', () => {
+    // What the header's task picker sends. It folded with `??` for one build,
+    // which made an explicit `undefined` indistinguishable from an omitted key
+    // — so the run survived every task change and the workbench's owner-effect
+    // then wrote that run's task back over the one just chosen. The picker
+    // looked inert because it was.
+    selectInProject(A, { taskPath: 'a.yaml', executionId: 'E1' })
+    selectInProject(A, { taskPath: 'b.yaml', executionId: undefined })
+    expect(readSelection(A).taskPath).toBe('b.yaml')
+    expect(readSelection(A).executionId).toBeUndefined()
+  })
+
+  it('unpins the axis it clears, because there is no longer a choice to record', () => {
+    selectInProject(A, { executionId: 'E1' })
+    expect(readSelection(A).pinned.execution).toBe(true)
+    selectInProject(A, { executionId: undefined })
+    expect(readSelection(A).pinned.execution).toBe(false)
+  })
+
+  it('leaves an OMITTED axis exactly as it was, pin included', () => {
+    selectInProject(A, { taskPath: 'a.yaml', executionId: 'E1' })
+    selectInProject(A, { executionId: 'E2' })
+    expect(readSelection(A).taskPath).toBe('a.yaml')
+    expect(readSelection(A).pinned.task).toBe(true)
+  })
+
+  it('lets a cleared axis be proposed again, which a pinned one refuses', () => {
+    selectInProject(A, { executionId: 'E1' })
+    proposeSelection(A, { executionId: 'E9' })
+    expect(readSelection(A).executionId).toBe('E1')
+    selectInProject(A, { executionId: undefined })
+    proposeSelection(A, { executionId: 'E9' })
+    expect(readSelection(A).executionId).toBe('E9')
+  })
+})

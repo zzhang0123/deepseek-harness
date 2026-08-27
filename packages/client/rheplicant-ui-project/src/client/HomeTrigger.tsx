@@ -55,7 +55,7 @@ export const HomeTrigger = memo(function HomeTrigger({ wide }: HomeTriggerProps)
     >
       {/* See `DashboardTrigger` — the sidebar's own icon size, in both
           column states. */}
-      <IconWorkbench size={wide ? 14 : 18} />
+      <IconWorkbench size={wide ? 16 : 18} />
       {wide && <span className={styles.triggerLabel}>Workbench</span>}
     </button>
   )

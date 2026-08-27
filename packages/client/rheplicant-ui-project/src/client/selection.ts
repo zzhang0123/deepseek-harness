@@ -36,7 +36,18 @@ export interface ProjectSelection {
   readonly pinned: SelectionPins
 }
 
-/** The axes a caller may set. Absent means "leave this one alone". */
+/**
+ * The axes a caller may set.
+ *
+ * ABSENT means "leave this one alone". PRESENT-AND-`undefined` means "clear
+ * this one" — two different requests, and `selectInProject` tells them apart
+ * by key presence rather than by value. It used to fold with `??`, which
+ * merged them: the task picker's `{ taskPath: next, executionId: undefined }`
+ * asked to drop the run and was read as asking to keep it, so a selected run
+ * survived every task change and the owner-effect then wrote the old run's
+ * task straight back over the one just chosen. The picker looked inert
+ * because, for as long as any run was selected, it was.
+ */
 export interface SelectionPatch {
   readonly taskPath?: string | undefined
   readonly executionId?: string | undefined
@@ -72,18 +83,26 @@ function commit(workspaceId: string, next: ProjectSelection): void {
 /**
  * Choose explicitly, pinning the axes named.
  *
+ * An axis the patch does not mention keeps its value and its pin. An axis the
+ * patch mentions takes the new value — and clearing one (`undefined`) also
+ * UNPINS it, because a pin records "a human chose this" and there is no longer
+ * a choice to record.
+ *
  * @param workspaceId - the project this choice belongs to.
- * @param patch - the axes to set; an absent axis is left alone and unpinned.
+ * @param patch - the axes to set; see {@link SelectionPatch} for why presence
+ *   and value are read separately.
  */
 export function selectInProject(workspaceId: string, patch: SelectionPatch): void {
   if (workspaceId === '') return
   const current = readSelection(workspaceId)
+  const setsTask = 'taskPath' in patch
+  const setsExecution = 'executionId' in patch
   commit(workspaceId, {
-    taskPath: patch.taskPath ?? current.taskPath,
-    executionId: patch.executionId ?? current.executionId,
+    taskPath: setsTask ? patch.taskPath : current.taskPath,
+    executionId: setsExecution ? patch.executionId : current.executionId,
     pinned: {
-      task: patch.taskPath !== undefined || current.pinned.task,
-      execution: patch.executionId !== undefined || current.pinned.execution,
+      task: setsTask ? patch.taskPath !== undefined : current.pinned.task,
+      execution: setsExecution ? patch.executionId !== undefined : current.pinned.execution,
     },
   })
 }

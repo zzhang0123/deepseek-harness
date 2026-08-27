@@ -224,21 +224,40 @@
   line-height: 16px;
 }
 
-/* New Session: 38px bar, 12px radius (figma 133:7634 geometry, squared-off
-   corners); collapsed it renders as the rail's plain icon control. */
+/* New Session: the sidebar's first ROW, not a bar above it.
+
+   It was a 38px/12px centred, bordered bar (figma 133:7634). That was right
+   for as long as the first list in this column began below it — the bar WAS
+   the top block, so there was nothing for it to be out of step with. It
+   stopped being right when `sidebar.nav` started rendering destinations
+   directly beneath it: a centred, bordered bar sitting on a column of
+   left-aligned transparent rows reads as two sidebars stacked, and the eye
+   crosses a style boundary to get from "New Session" to the first place it can
+   actually go.
+
+   So it takes the row geometry every other line in this column already has —
+   34px tall, 8px radius, 0/8 padding, 6px gap, icon at 16, label on the same
+   left edge — and keeps exactly ONE distinction: weight 500. An action is the
+   emphasised row; a current destination is the filled one. Two devices, two
+   meanings, and no box for either.
+
+   The rail has been saying this all along: collapsed, New Session is already a
+   plain transparent icon control identical to the nav icons under it. This
+   only makes the expanded state agree with the collapsed one. */
 .newSession {
   flex: none;
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: 6px;
-  height: 38px;
-  padding: 8px 16px;
-  margin: 0 2px 8px;
+  height: 34px;
+  padding: 0 8px;
+  margin: 0 0 2px;
   box-sizing: border-box;
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 12px;
-  background: var(--dsw-alias-button-elevated-fill);
+  /* Explicit, not inherited-away: the UA sheet still gives a bare <button> an
+     outset border, and the rule this replaced was carrying that weight. */
+  border: none;
+  border-radius: 8px;
+  background: transparent;
   color: var(--dsw-alias-label-primary);
   font-size: 14px;
   font-weight: 500;
@@ -247,18 +266,27 @@
   overflow: hidden;
 }
 
+/* The alias the tree rows below this one hover with, NOT
+   `--dsw-specific-sidebar-nav-item-hover`. The specific token is an opaque
+   step designed for a sidebar on the base ground; this column is the elevated
+   one, where neutral-bluish-100 lands 3/255 away from its own background and
+   simply does not show. The alias is an alpha wash, so it composes over
+   whatever ground it is given. Sharing it is the point: one row, one hover. */
 .newSession:hover {
-  background: var(--dsw-alias-button-floating-hover);
+  background: var(--dsw-alias-interactive-bg-hover);
 }
 
+/* On the rail the row becomes a square. The trailing gap is the nav rows'
+   own 4px now rather than 12: the icons under it are the same control family,
+   so they belong to the same group rather than being pushed away from it. */
 .collapsed .newSession {
   align-self: flex-start;
   width: 36px;
   height: 36px;
   padding: 0;
-  margin: 0 0 12px;
+  margin: 0 0 4px;
   gap: 0;
-  border-color: transparent;
+  justify-content: center;
   background: transparent;
 }
 

@@ -10,6 +10,7 @@ import {
   EmptyState,
   Histogram,
   Panel,
+  RunHeading,
   type PanelStatus,
   SERIES,
   StatRow,
@@ -21,6 +22,7 @@ import {
   selectAnalysisRuns,
   runsToRender,
   executionEmptyReason,
+  executionEmptyKind,
   type LoopExecutionView,
 } from '@rheplicant/dsh-rheplicant-ui-kit/client'
 import styles from './posterior.module.css'
@@ -245,6 +247,7 @@ export const PosteriorPanel = memo(function PosteriorPanel({ useSession, layout,
     >
       {runs.length === 0 ? (
         <EmptyState
+          kind={executionEmptyKind(execution)}
           message={executionEmptyReason(execution) ?? 'No draws yet'}
           hint={executionEmptyReason(execution) === undefined ? 'Ask the agent for a nuts or plan.sample run' : undefined}
         />
@@ -253,7 +256,7 @@ export const PosteriorPanel = memo(function PosteriorPanel({ useSession, layout,
           const groups = groupChains(run.chains)
           return (
             <div key={runCardKey(run)} data-posterior-run data-run-name={run.name}>
-              <div><strong>{run.name}</strong> <span>({run.kind})</span></div>
+              <RunHeading name={run.name} kind={run.kind} />
               <RunProvenanceCaption run={run} />
               <RunDiagnosticStats run={run} {...(layout === undefined ? {} : { layout })} />
               <RunMarginals groups={groups} />

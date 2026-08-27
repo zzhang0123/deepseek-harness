@@ -12,6 +12,13 @@ import { useSyncExternalStore, type ComponentProps } from 'react'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProjectHome } from '../src/client/ProjectHome.tsx'
+/**
+ * The workbench is FOUR pages since spec D1, so a test says which one it is
+ * looking at. `onOverview()` is the other half: the Tasks and Executions lists
+ * live there, so a test that selects by clicking a row walks the same two
+ * steps a person does — select there, look here.
+ */
+import { resetWorkbenchPage, showWorkbenchPage } from '../src/client/workbench-page.ts'
 import { openHome, resetHome, selectProject } from '../src/client/home-store.ts'
 import { setNavigator } from '../src/client/navigate.ts'
 import { readSelection, resetSelections, selectInProject } from '../src/client/selection.ts'
@@ -20,7 +27,24 @@ afterEach(() => {
   cleanup(); resetHome(); setNavigator(undefined); resetSelections()
   panelOwner = undefined; vi.unstubAllGlobals()
 })
-beforeEach(() => { vi.unstubAllGlobals() })
+beforeEach(() => {
+  vi.unstubAllGlobals()
+  // A module store outlives a render, so a page would leak between describes.
+  resetWorkbenchPage()
+})
+
+/**
+ * Go where the Tasks and Executions lists are.
+ *
+ * `act()`, and it is not decoration. `showWorkbenchPage` is a plain module
+ * store: it notifies synchronously, but the React update it triggers is not
+ * guaranteed to have flushed before the next line of a test runs. Every
+ * assertion here that reads the DOM immediately after a switch would then be
+ * looking at the PREVIOUS tab — where the element it asserts absent is also
+ * absent, for an unrelated reason, and the test passes for the wrong one. This
+ * file already wraps `selectProject` and `selectInProject` for exactly that.
+ */
+function onOverview(): void { act(() => { showWorkbenchPage('overview') }) }
 
 const WORKSPACES = [
   { workspaceId: 'ws-1', title: 'rhino-2026', path: '/host/rhino-2026' },
@@ -197,11 +221,21 @@ describe('when it is open on a readable project', () => {
   it('names the project, its tasks, its inputs and its executions', async () => {
     serve({ 'ws-1': overview('rhino') })
     openHome('ws-1')
-    mount()
-    await waitFor(() => { expect(screen.getByText('rhino')).toBeTruthy() })
-    expect(screen.getByText('rhino-fit.yaml')).toBeTruthy()
-    expect(screen.getByText('rhino-beam.npz')).toBeTruthy()
-    expect(screen.getByText('rhino-E1')).toBeTruthy()
+    const { container } = mount()
+    // The NAME the overview reports, on the control that switches projects —
+    // a workspace's own title is a different fact and this must not show it
+    // in place of the project's.
+    await waitFor(() => {
+      expect(container.querySelector('[data-project-picker]')?.getAttribute('data-project-name'))
+        .toBe('rhino')
+    })
+    // Scoped to the LISTINGS. The header's task and run pickers name the same
+    // strings, which is the point of them — an unscoped `getByText` now finds
+    // two of each and says so.
+    const body = container.querySelector('[data-project-tasks]')?.textContent ?? ''
+    expect(body).toContain('rhino-fit.yaml')
+    expect(container.querySelector('[data-project-inputs]')?.textContent ?? '').toContain('rhino-beam.npz')
+    expect(container.querySelector('[data-project-executions]')?.textContent ?? '').toContain('rhino-E1')
   })
 
   it('says an input is an npz WITHOUT claiming that is its format', async () => {
@@ -270,26 +304,35 @@ describe('switching projects', () => {
     // change would label rhino's tasks as beam's.
     serve({ 'ws-1': overview('rhino'), 'ws-2': overview('beam') })
     openHome('ws-1')
-    mount()
-    await waitFor(() => { expect(screen.getByText('rhino-fit.yaml')).toBeTruthy() })
+    const { container } = mount()
+    const listing = () => container.querySelector('[data-project-tasks]')?.textContent ?? ''
+    await waitFor(() => { expect(listing()).toContain('rhino-fit.yaml') })
 
     // `act` only flushes the re-render this store write causes; it does NOT
     // wait for the next fetch. So the assertion below still lands in the gap
     // between "switched" and "loaded", which is exactly the moment stale
     // contents would be visible if the guard were not there.
     act(() => { selectProject('ws-2') })
-    expect(screen.queryByText('rhino-fit.yaml')).toBeNull()
-    await waitFor(() => { expect(screen.getByText('beam-fit.yaml')).toBeTruthy() })
+    expect(listing()).not.toContain('rhino-fit.yaml')
+    // And the NAME goes with the contents: an empty one while the fetch is in
+    // flight, never the previous project's.
+    expect(container.querySelector('[data-project-picker]')?.getAttribute('data-project-name'))
+      .not.toBe('rhino')
+    await waitFor(() => { expect(listing()).toContain('beam-fit.yaml') })
   })
 
   it('re-reads the project the picker names', async () => {
     serve({ 'ws-1': overview('rhino'), 'ws-2': overview('beam') })
     openHome('ws-1')
     const { container } = mount()
-    await waitFor(() => { expect(screen.getByText('rhino-fit.yaml')).toBeTruthy() })
+    await waitFor(() => {
+      expect(container.querySelector('[data-project-tasks]')?.textContent).toContain('rhino-fit.yaml')
+    })
     const picker = container.querySelector('[data-project-picker]') as HTMLSelectElement
     fireEvent.change(picker, { target: { value: 'ws-2' } })
-    await waitFor(() => { expect(screen.getByText('beam-fit.yaml')).toBeTruthy() })
+    await waitFor(() => {
+      expect(container.querySelector('[data-project-tasks]')?.textContent).toContain('beam-fit.yaml')
+    })
   })
 })
 
@@ -330,6 +373,44 @@ describe('opening and closing', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
+  it('changes the task from the header picker, and drops the run with it', async () => {
+    // The three pickers ARE the answer to "你要选定task和exception才能访问其他三
+    // 个页面", and nothing drove them. They were inert: an explicit
+    // `executionId: undefined` folded away in the store, the run survived, and
+    // the owner-effect wrote its task straight back.
+    serve({ 'ws-1': overview('rhino', {
+      tasks: [
+        { path: 'rhino-fit.yaml', bytes: 1, modifiedAt: 'x', executionCount: 1 },
+        { path: 'other.yaml', bytes: 1, modifiedAt: 'x', executionCount: 0 },
+      ],
+    }) })
+    openHome('ws-1')
+    selectInProject('ws-1', { taskPath: 'rhino-fit.yaml', executionId: 'rhino-E1' })
+    const { container } = mount()
+    await waitFor(() => { expect(container.querySelector('[data-workbench-pick-task]')).toBeTruthy() })
+
+    fireEvent.change(container.querySelector('[data-workbench-pick-task]')!,
+      { target: { value: 'other.yaml' } })
+    expect(readSelection('ws-1').taskPath).toBe('other.yaml')
+    expect(readSelection('ws-1').executionId).toBeUndefined()
+  })
+
+  it('CLEARS the task axis from the placeholder rather than selecting the empty path', async () => {
+    // The placeholder's value is `''`, and every guard on this page tests
+    // `!== undefined` — so left raw it read as a selected task named nothing:
+    // the "No task selected" prompt stayed hidden and the task-gone warning
+    // said `'' is no longer in this project's listing`.
+    serve({ 'ws-1': overview('rhino') })
+    openHome('ws-1')
+    selectInProject('ws-1', { taskPath: 'rhino-fit.yaml' })
+    const { container } = mount()
+    await waitFor(() => { expect(container.querySelector('[data-workbench-pick-task]')).toBeTruthy() })
+
+    fireEvent.change(container.querySelector('[data-workbench-pick-task]')!,
+      { target: { value: '' } })
+    expect(readSelection('ws-1').taskPath).toBeUndefined()
+  })
+
   it('switches back to the conversation from its own header', async () => {
     serve({ 'ws-1': overview('rhino') })
     openHome('ws-1')
@@ -343,11 +424,16 @@ describe('opening and closing', () => {
 
 
 describe('the workbench: a task in view, with no session anywhere', () => {
+  // These assertions are on the Task page (spec D1).
+  const onPage = () => { act(() => { showWorkbenchPage('setup') }) }
+  beforeEach(onPage)
   it('shows no document until a task is selected', async () => {
     serve({ 'ws-1': overview('rhino') }, { 'rhino-fit.yaml': 'schema_version: 1' })
     openHome('ws-1')
     const { container } = mount()
+    onOverview()
     await waitFor(() => { expect(container.querySelector('[data-project-tasks]')).toBeTruthy() })
+    onPage()
     expect(container.querySelector('[data-project-document]')).toBeNull()
   })
 
@@ -355,8 +441,12 @@ describe('the workbench: a task in view, with no session anywhere', () => {
     serve({ 'ws-1': overview('rhino') }, { 'rhino-fit.yaml': 'schema_version: 1\nruns: []\n' })
     openHome('ws-1')
     const { container } = mount()
+    onOverview()
     await waitFor(() => { expect(container.querySelector('[data-project-select-task]')).toBeTruthy() })
+    onPage()
+    onOverview()
     fireEvent.click(container.querySelector('[data-project-select-task]')!)
+    onPage()
     await waitFor(() => { expect(container.querySelector('[data-project-document]')).toBeTruthy() })
     expect(container.querySelector('[data-project-document]')?.textContent)
       .toContain('schema_version: 1')
@@ -371,8 +461,12 @@ describe('the workbench: a task in view, with no session anywhere', () => {
     serve({ 'ws-1': overview('rhino') }, { 'rhino-fit.yaml': 'x' })
     openHome('ws-1')
     const { container } = mount()
+    onOverview()
     await waitFor(() => { expect(container.querySelector('[data-project-select-task]')).toBeTruthy() })
+    onPage()
+    onOverview()
     fireEvent.click(container.querySelector('[data-project-select-task]')!)
+    onPage()
     await waitFor(() => { expect(container.querySelector('[data-project-document]')).toBeTruthy() })
     expect(jumps).toEqual([])
     expect(container.querySelector('[data-project-home]')).toBeTruthy()
@@ -382,6 +476,8 @@ describe('the workbench: a task in view, with no session anywhere', () => {
     serve({ 'ws-1': overview('rhino') }, { 'rhino-fit.yaml': 'x' })
     openHome('ws-1')
     const { container } = mount()
+    // The mark is on the Tasks list, so this test never leaves Overview.
+    onOverview()
     await waitFor(() => { expect(container.querySelector('[data-project-select-task]')).toBeTruthy() })
     fireEvent.click(container.querySelector('[data-project-select-task]')!)
     await waitFor(() => {
@@ -393,8 +489,12 @@ describe('the workbench: a task in view, with no session anywhere', () => {
     serve({ 'ws-1': overview('rhino') }, {})
     openHome('ws-1')
     const { container } = mount()
+    onOverview()
     await waitFor(() => { expect(container.querySelector('[data-project-select-execution]')).toBeTruthy() })
+    onPage()
+    onOverview()
     fireEvent.click(container.querySelector('[data-project-select-execution]')!)
+    onPage()
     await waitFor(() => { expect(readSelection('ws-1').executionId).toBe('rhino-E1') })
   })
 
@@ -404,8 +504,12 @@ describe('the workbench: a task in view, with no session anywhere', () => {
     serve({ 'ws-1': overview('rhino') }, {})
     openHome('ws-1')
     const { container } = mount()
+    onOverview()
     await waitFor(() => { expect(container.querySelector('[data-project-select-task]')).toBeTruthy() })
+    onPage()
+    onOverview()
     fireEvent.click(container.querySelector('[data-project-select-task]')!)
+    onPage()
     await waitFor(() => {
       expect(screen.getByText(/would not serve that document/)).toBeTruthy()
     })
@@ -423,8 +527,12 @@ describe('the workbench: a task in view, with no session anywhere', () => {
     )
     openHome('ws-1')
     const { container } = mount()
+    onOverview()
     await waitFor(() => { expect(container.querySelector('[data-project-select-task="a.yaml"]')).toBeTruthy() })
+    onPage()
+    onOverview()
     fireEvent.click(container.querySelector('[data-project-select-task="a.yaml"]')!)
+    onPage()
     await waitFor(() => { expect(screen.getByText(/I AM A/)).toBeTruthy() })
 
     act(() => { selectInProject('ws-1', { taskPath: 'b.yaml' }) })
@@ -436,11 +544,16 @@ describe('the workbench: a task in view, with no session anywhere', () => {
 })
 
 describe('the panel grid, in the workbench seat', () => {
+  // These assertions are on the Results page (spec D1).
+  const onPage = () => { act(() => { showWorkbenchPage('results') }) }
+  beforeEach(onPage)
   it('renders no grid until an execution is selected', async () => {
     serve({ 'ws-1': overview('rhino') }, {})
     openHome('ws-1')
     const { container } = mount()
+    onOverview()
     await waitFor(() => { expect(container.querySelector('[data-project-tasks]')).toBeTruthy() })
+    onPage()
     expect(container.querySelector('[data-project-panels]')).toBeNull()
   })
 
@@ -448,8 +561,12 @@ describe('the panel grid, in the workbench seat', () => {
     serve({ 'ws-1': overview('rhino') }, {})
     openHome('ws-1')
     const { container } = mount()
+    onOverview()
     await waitFor(() => { expect(container.querySelector('[data-project-select-execution]')).toBeTruthy() })
+    onPage()
+    onOverview()
     fireEvent.click(container.querySelector('[data-project-select-execution]')!)
+    onPage()
     await waitFor(() => { expect(container.querySelector('[data-project-panels]')).toBeTruthy() })
   })
 
@@ -459,8 +576,12 @@ describe('the panel grid, in the workbench seat', () => {
     serve({ 'ws-1': overview('rhino') }, {})
     openHome('ws-1')
     const { container } = mount()
+    onOverview()
     await waitFor(() => { expect(container.querySelector('[data-project-select-execution]')).toBeTruthy() })
+    onPage()
+    onOverview()
     fireEvent.click(container.querySelector('[data-project-select-execution]')!)
+    onPage()
     await waitFor(() => { expect(panelOwner?.execution).toBeTruthy() })
     expect(panelOwner?.execution).toMatchObject({ executionId: 'rhino-E1' })
   })
@@ -472,8 +593,12 @@ describe('the panel grid, in the workbench seat', () => {
     serve({ 'ws-1': overview('rhino') }, {})
     openHome('ws-1')
     const { container } = mount()
+    onOverview()
     await waitFor(() => { expect(container.querySelector('[data-project-select-execution]')).toBeTruthy() })
+    onPage()
+    onOverview()
     fireEvent.click(container.querySelector('[data-project-select-execution]')!)
+    onPage()
     await waitFor(() => { expect(panelOwner).toBeTruthy() })
     const read = panelOwner!.useSession as <T>(s: (x: { chat: { nodes: Map<string, unknown> } }) => T) => T
     expect(read(snapshot => snapshot.chat.nodes.size)).toBe(0)
@@ -557,6 +682,9 @@ describe('opening a conversation to work in', () => {
 })
 
 describe('the definition checklist', () => {
+  // These assertions are on the Task page (spec D1).
+  const onPage = () => { act(() => { showWorkbenchPage('setup') }) }
+  beforeEach(onPage)
   /** A definition body in which every criterion is met. */
   function defined(digest: string, over: Record<string, unknown> = {}): Record<string, unknown> {
     return {
@@ -577,10 +705,18 @@ describe('the definition checklist', () => {
     const { container } = mount()
 
     await waitFor(() => { expect(container.querySelector('[data-task-definition]')).toBeTruthy() })
-    // The label is not decoration. Unlabelled, this rail and the maturity
-    // rail below it read as two statements about the same evidence.
-    expect(screen.getByText('read off the document, as authored')).toBeTruthy()
-    expect(screen.getByText('read off the project, not this conversation')).toBeTruthy()
+    // The label is not decoration, and it matters MORE now that the two rails
+    // are on different tabs: unlabelled, each reads as the whole answer.
+    expect(container.querySelector('[data-panel="project-task-definition"]')?.textContent)
+      .toContain('from the task file')
+    cleanup()
+
+    showWorkbenchPage('results')
+    selectInProject('ws-1', { taskPath: 'rhino-fit.yaml' })
+    const second = mount()
+    await waitFor(() => { expect(second.container.querySelector('[data-task-maturity]')).toBeTruthy() })
+    expect(second.container.querySelector('[data-panel="project-task-maturity"]')?.textContent)
+      .toContain('from what is on disk')
   })
 
   it('reports all four criteria of §7', async () => {
@@ -631,7 +767,9 @@ describe('the definition checklist', () => {
     openHome('ws-1')
     const { container } = mount()
 
+    onOverview()
     await waitFor(() => { expect(container.querySelector('[data-project-tasks]')).toBeTruthy() })
+    onPage()
     expect(container.querySelector('[data-task-definition]')).toBeNull()
   })
 })
@@ -769,6 +907,9 @@ describe('which inputs the selected task reads', () => {
     selectInProject('ws-1', { taskPath: 'rhino-fit.yaml' })
     const { container } = mount()
 
+    // The MARKS are on the definition checklist, which is the Task page — the
+    // one test in this describe whose subject moved (spec D1).
+    showWorkbenchPage('setup')
     await waitFor(() => { expect(container.querySelector('[data-task-definition]')).toBeTruthy() })
     expect(container.querySelector('[data-input-used]')).toBeNull()
     expect(container.querySelector('[data-input-usage-note]')).toBeNull()
@@ -776,6 +917,9 @@ describe('which inputs the selected task reads', () => {
 })
 
 describe('a selected task that is no longer in the listing', () => {
+  // These assertions are on the Task page (spec D1).
+  const onPage = () => { act(() => { showWorkbenchPage('setup') }) }
+  beforeEach(onPage)
   /**
    * Found in a real boot: the document pane STAYED and explained ("this
    * project would not serve that document"), while the definition checklist
@@ -795,7 +939,10 @@ describe('a selected task that is no longer in the listing', () => {
     selectInProject('ws-1', { taskPath: 'deleted.yaml' })
     const { container } = mount()
 
+    onOverview()
     await waitFor(() => { expect(container.querySelector('[data-project-tasks]')).toBeTruthy() })
+    onPage()
+    await waitFor(() => { expect(container.querySelector('[data-project-task-gone]')).toBeTruthy() })
     const gone = container.querySelector('[data-project-task-gone]')
     expect(gone).toBeTruthy()
     expect(gone!.textContent).toContain('deleted.yaml')
@@ -804,17 +951,32 @@ describe('a selected task that is no longer in the listing', () => {
     expect(container.querySelector('[data-task-maturity]')).toBeNull()
   })
 
-  it('stays quiet in an EMPTY project, which already says what to do', async () => {
-    // A project with no tasks shows §7's onboarding checklist. Adding "your
-    // selected task is gone" on top of "no task documents yet" states the
-    // same fact twice and buries the one that tells you what to do next.
+  it('still says the task is gone in an EMPTY project, because the checklist is a tab away', async () => {
+    // This used to assert the opposite, and the reasoning was sound while the
+    // onboarding checklist and the task panels shared one scrolling page:
+    // "your selected task is gone" on top of "no task documents yet" states
+    // the same fact twice.
+    //
+    // The tabs moved the checklist to Overview. On a task-scoped tab there is
+    // now nothing else in this state — the panels are guarded on the task
+    // being listed, the "no task selected" prompt is guarded on the axis being
+    // empty, and it is not — so suppressing the warning left the tab wholly
+    // blank. A blank page is not quieter than a sentence; it is a page that
+    // does not say what happened.
     serve({ 'ws-1': overview('rhino', { tasks: [], executions: [] }) })
     openHome('ws-1')
     selectInProject('ws-1', { taskPath: 'deleted.yaml' })
     const { container } = mount()
 
+    onOverview()
     await waitFor(() => { expect(container.querySelector('[data-project-onboarding]')).toBeTruthy() })
+    // …and the checklist stays where it is: the warning is not duplicated onto
+    // the tab that already carries it.
     expect(container.querySelector('[data-project-task-gone]')).toBeNull()
+
+    onPage()
+    await waitFor(() => { expect(container.querySelector('[data-project-task-gone]')).toBeTruthy() })
+    expect(container.querySelector('[data-project-task-gone]')!.textContent).toContain('deleted.yaml')
   })
 
   it('shows both panels again for a task that IS listed', async () => {
@@ -834,6 +996,9 @@ describe('a selected task that is no longer in the listing', () => {
 })
 
 describe('what the selected execution actually ran', () => {
+  // These assertions are on the Task page (spec D1).
+  const onPage = () => { act(() => { showWorkbenchPage('setup') }) }
+  beforeEach(onPage)
   const AUTHORED = 'schema_version: 1\nseed: 20260823\n'
 
   it('shows the difference, not just that there is one', async () => {
@@ -898,6 +1063,9 @@ describe('what the selected execution actually ran', () => {
 })
 
 describe('the physics a task declares', () => {
+  // These assertions are on the Model page (spec D1).
+  const onPage = () => { act(() => { showWorkbenchPage('model') }) }
+  beforeEach(onPage)
   /** A projection carrying the given lit nodes. */
   function projection(nodes: Record<string, unknown>[], total = 33) {
     return { path: 'rhino-fit.yaml', digest: 'x', svg: '<svg data-diagram=""></svg>',
@@ -983,6 +1151,9 @@ describe('the physics a task declares', () => {
 })
 
 describe('the exits a task reaches for', () => {
+  // These assertions are on the Model page (spec D1).
+  const onPage = () => { act(() => { showWorkbenchPage('model') }) }
+  beforeEach(onPage)
   const CATALOGUE = [
     { kind: 'forward', fitting: false, summary: 'the sweep is the whole grammar.', products: ['arrays'] },
     { kind: 'nuts', fitting: true, summary: 'one kind: nuts run -> a NutsProduct.', products: ['draws', 'chains'] },
@@ -1065,6 +1236,9 @@ describe('the exits a task reaches for', () => {
 
 
 describe('the panel layout the workbench owns (§20.4)', () => {
+  // These assertions are on the Results page (spec D1).
+  const onPage = () => { act(() => { showWorkbenchPage('results') }) }
+  beforeEach(onPage)
   /** A projection whose declared runs write the given product selectors. */
   function withRuns(...products: readonly string[][]) {
     return {

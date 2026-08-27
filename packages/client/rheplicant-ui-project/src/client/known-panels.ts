@@ -69,4 +69,9 @@ export const KNOWN_PANELS: readonly KnownPanel[] = [
   // writes `arrays`, so keying this panel on it would exempt it from the rule
   // and say nothing; leaving the product absent says the same thing honestly.
   { id: 'spectrum', label: 'Spectrum' },
+  // `prediction_bands` is written by exactly one exit, `kind: predict`, and
+  // UNLIKE `spectrum` above this is a real product selector -- so the
+  // default-collapse rule can answer for it honestly: a document with no
+  // `predict` run collapses this panel instead of leaving a sixth empty box.
+  { id: 'reconstruction', label: 'Reconstruction', product: 'prediction_bands' },
 ]

@@ -46,24 +46,50 @@
   border-bottom: 1px solid var(--dsw-alias-border-l1);
 }
 
-.title {
+/* THE SELECTION PATH: project / task / run, on every tab.
+
+   It replaced a project NAME beside a project PICKER — the same fact twice,
+   one of them not a control — and it gives the task and the run the
+   representation they never had, which is what made three tabs secretly
+   subordinate to a fourth while the tab row said they were peers. */
+.path {
   display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
   margin-inline-end: auto;
+  flex-wrap: wrap;
 }
 
-.eyebrow {
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 0.6875rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.name {
+.pathPick {
+  box-sizing: border-box;
+  max-width: 22rem;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid transparent;
+  border-radius: 0.375rem;
+  background: transparent;
   color: var(--dsw-alias-label-primary);
-  font-size: 1.0625rem;
+  font: inherit;
+  font-size: 0.9375rem;
   font-weight: 600;
+  cursor: pointer;
+}
+
+.pathPick:hover:not(:disabled) {
+  border-color: var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+/* A step that cannot be taken yet still SHOWS, so the path is always three
+   steps long and a reader can see what is missing rather than what is absent. */
+.pathPick:disabled {
+  color: var(--dsw-alias-label-tertiary);
+  cursor: default;
+}
+
+.pathSep {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 0.9375rem;
 }
 
 .picker,
@@ -91,6 +117,59 @@
   overflow-y: auto;
 }
 
+/* THE PAGE SWITCH (spec D1).
+
+   The workbench answered four questions in one 6 484 px scroll. A tab row,
+   not a second left rail: the frame's own sidebar is one column away, and two
+   left rails read as two navigations. The dashboard already chooses
+   Setups/Runs this way, so this is an idiom rather than an invention. */
+.pages {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.375rem 1rem;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+}
+
+/* Same shape as the dashboard's `.tab`, deliberately — one control, one look. */
+.pageTab {
+  box-sizing: border-box;
+  padding: 0.25rem 0.6rem;
+  border: none;
+  border-radius: 0.375rem;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pageTab:hover {
+  color: var(--dsw-alias-label-secondary);
+}
+
+/* `aria-selected`, matching the `role="tab"` the markup settled on and the
+   dashboard's own Setups/Runs row (`dashboard.module.css`). This selector said
+   `aria-current="page"` for one build — the attribute an early draft used and
+   the component's own comment records as REJECTED — so it matched nothing and
+   the four tabs rendered identically, which is the one fact a tab row exists
+   to carry. A comment arguing for a choice the code did not make is how it
+   survived review.
+
+   The selected tab takes the PANEL ground, so the page below reads as its
+   continuation. */
+.pageTab[aria-selected='true'] {
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+}
+
+.pagesEnd {
+  margin-inline-start: auto;
+  display: flex;
+  align-items: center;
+}
+
 /* A truncated listing must not read as a complete one. */
 .warning {
   margin: 0;
@@ -101,10 +180,48 @@
   font-size: 0.8125rem;
 }
 
+/* A missing SELECTION, which is not a missing datum — see the comment on the
+   markup for why this is not an `EmptyState`. It borrows the empty state's
+   dashed edge because it IS provisional (§29's dissolution language: dashed
+   means "this changes"), and nothing else: no fill, no icon, no status colour.
+
+   These three had no rule at all for one build. `css-modules.d.ts` types the
+   stylesheet with an index signature, so `styles.promptMessage` typechecks
+   whether or not it exists, and tsc says nothing — the two paragraphs fell
+   back to UA margins in a flex column where every sibling sets its own. */
+.prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 1.5rem 1rem;
+  border: 1px dashed var(--dsw-alias-border-l1);
+  border-radius: 0.5rem;
+  text-align: center;
+}
+
+.promptMessage {
+  margin: 0;
+  color: var(--dsw-alias-label-primary);
+  font-size: 0.875rem;
+}
+
+.promptHint {
+  margin: 0 0 0.25rem;
+  max-width: 44ch;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 0.8125rem;
+}
+
+/* One separator, not two. The list carried a 4px gap AND a hairline under every
+   row, so a 13px line was separated twice. Measured: a task row is 34px before
+   and 30px after, on the same content. The hairline does the work.
+
+   ("more whitespace than information" is the PLAN's phrase and nothing had
+   measured it; this is the measurement, and it covers the gap alone.) */
 .rows {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -114,7 +231,17 @@
   display: flex;
   align-items: baseline;
   gap: 0.625rem;
-  padding: 0.3rem 0;
+  /* The row's inset ground bleeds half a step outside the text column, so a
+     selected row reads as a full-width step rather than as a tint behind the
+     words. (Not "a band": A3.4 spends that word on the muddy olive the amber
+     wash produced, and this is the thing that replaced it.) The 2px gutter
+     is reserved on EVERY row and is transparent until the row is selected, so
+     selecting never shifts the text sideways — which is why the inline-start
+     padding is short by exactly the border's width. */
+  margin-inline: -0.5rem;
+  padding: 0.3rem 0.5rem;
+  padding-inline-start: calc(0.5rem - 2px);
+  border-inline-start: 2px solid transparent;
   border-bottom: 1px solid color-mix(in srgb, var(--dsw-alias-border-l1) 45%, transparent);
   font-size: 0.8125rem;
 }
@@ -194,61 +321,116 @@
   font-weight: 500;
 }
 
-/* The sidebar-foot section switch, sized to sit beside the shipped Settings row
-   in both the wide column and the 56px rail. */
-/* A primary-navigation row, sized against the New Session control it sits
-   under: same 38px height, same 12px radius, same 2px side margin, so the two
-   read as one stack rather than as a control and an afterthought. It was a
-   small chip while it lived at the foot beside Settings (§24). */
+/* THE SIDEBAR HAS ONE ROW, AND THIS IS IT.
+
+   Measured 2026-08-27 in a real boot, after a user said the styles were
+   "迥异", twice — the second time naming what he was looking at: New Session
+   "有个框框且居中", a box, and centred, while nothing else is.
+
+   What the measurement found, first pass:
+
+     New Session   38px, radius 12, CENTRED, filled, 14px/500  — the ACTION
+     session rows  32-34px, radius 8, left, plain, 14px/400    — NAVIGATION
+
+   These rows had the action's metrics and the navigation's behaviour, and
+   then invented an active state neither family used. §28.8 had noticed "three
+   controls, three styles" and fixed it by copying the metrics FROM New
+   Session, which unified the numbers onto the wrong family. First correction:
+   they came here, to the rows they behave like.
+
+   That was still not what he was pointing at. Two families in one column IS
+   the divergence, whichever one these rows join — so the second correction
+   went where the box actually lives, and New Session became a row too
+   (`ui-sidebar/SidebarRoot.module.css`, same geometry, same hover token).
+   The sidebar now has a single row idiom from the brand mark to Settings, and
+   two devices carry the two meanings that used to need three shapes:
+
+     weight 500  — this row DOES something (New Session, and only it)
+     a fill      — this row IS where you are (dsh marks its own selected
+                   session exactly this way, at the same 400 weight)
+
+   Which is why `[aria-pressed='true']` below sets a background and nothing
+   else. No side margin either: at `margin: 0` these sit on the container's own
+   12px padding, the same left edge every project and session row below uses,
+   so one column of icons runs the height of the sidebar. */
 .trigger {
   flex: none;
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  /* 6px and 16px, not 8px and 12px: the New Session control above uses both,
-     so the icon column and the label's optical start agree down the stack
-     rather than nearly agreeing. A user report named this "not one style",
-     and the fix is to take the numbers from the control rather than to pick
-     numbers that look similar. */
   gap: 6px;
-  width: calc(100% - 4px);
-  height: 38px;
-  margin: 0 2px 8px;
-  padding: 8px 16px;
-  border: 1px solid transparent;
-  border-radius: 12px;
+  width: 100%;
+  height: 34px;
+  margin: 0 0 2px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 8px;
   background: transparent;
-  color: var(--dsw-alias-label-secondary);
+  color: var(--dsw-alias-label-primary);
   font: inherit;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 400;
   line-height: 22px;
   text-align: start;
   cursor: pointer;
 }
 
-/* On the rail there is no room for a label, so the row becomes the square the
-   collapsed New Session button is. */
+/* The stack still needs air before the Workspaces heading, and it is put here
+   rather than on every row: the last row owns the gap to what follows it. */
+.trigger:last-of-type {
+  margin-bottom: 8px;
+}
+
+/* On the rail there is no room for a label, so the row becomes a square —
+   sized to the collapsed New Session button, which is the one control that
+   still has a visible box in that state. */
 .triggerRail {
   width: 36px;
   height: 36px;
-  margin: 0 0 8px;
+  margin: 0 0 4px;
   padding: 0;
   gap: 0;
   justify-content: center;
 }
 
+/* dsh's own interactive aliases, not a hand-mixed wash — the same pair the
+   tree rows below use, so these hover identically to them (§29.1's discipline,
+   applied to a second surface).
+
+   NOT the `--dsw-specific-sidebar-nav-item-*` pair, which is what the first
+   attempt reached for on the strength of its name. Measured in a boot: the
+   specific tokens are OPAQUE steps drawn for a sidebar on the base ground,
+   and this column is the elevated one — in the light scheme `nav-item-active`
+   resolved to rgb(235,238,242) against a rgb(238,241,244) sidebar, a
+   three-count difference that marked the current page with nothing at all.
+   The aliases are alpha washes and compose over whatever ground they are
+   given, which is why they survive the swap and the named ones did not. */
 .trigger:hover {
-  color: var(--dsw-alias-label-primary);
-  background: color-mix(in srgb, var(--dsw-alias-border-l1) 40%, transparent);
+  background: var(--dsw-alias-interactive-bg-hover);
 }
 
-/* Pressed = the project section is the one on screen. A toggle button's own
-   state, which is what a section switch is; it was `aria-expanded` while this
-   revealed a modal (§20.2). */
+/* CURRENT, not "pressed-looking". The label stays `label-primary` and the
+   BACKGROUND carries it, which is what dsh's own selected row does — and it
+   takes a fifth meaning off amber, which already means the brand, an operator
+   lit in the signal path, a `required` parameter and (same literal, dark) the
+   warn state. §29.1 took selection out of that colour on the workbench rows
+   for the same reason; this is the last place it was still standing in.
+
+   `aria-pressed` stays as the ARIA, because a section switch is a toggle
+   button and that is what a screen reader needs to hear (§20.2). What changed
+   is only what it looks like. */
 .trigger[aria-pressed='true'] {
-  color: var(--dsw-rh-lit, var(--dsw-alias-label-primary));
-  background: color-mix(in srgb, var(--dsw-alias-border-l1) 40%, transparent);
+  background: var(--dsw-alias-interactive-bg-active);
+}
+
+/* Current beats hover rather than being replaced by it — and it has to be a
+   STRONGER wash than hover (0.10 against 0.06), because dsh's tree rows paint
+   selected and hovered the SAME and can afford to: one session in a list is
+   selected and you are looking for it. A destination is different. If current
+   and hover were one colour, hovering Workbench while Dashboard is the page
+   you are on would show two identical rows and no way to tell which is which. */
+.trigger[aria-pressed='true']:hover {
+  background: var(--dsw-alias-interactive-bg-active);
 }
 
 /* `.triggerMark` is gone with the text glyphs it sized — the rows carry
@@ -276,8 +458,22 @@
   color: var(--dsw-rh-lit, var(--dsw-alias-label-primary));
 }
 
+/* SELECTION IS STRUCTURAL, NOT A STATE COLOUR (spec §A3.4).
+
+   It was a 12% wash of `--dsw-rh-lit` — the brand amber. On this same page
+   amber ALSO means the brand mark, an operator lit in the signal-path diagram,
+   a `required` parameter, and (in the dark scheme, where they are the same
+   literal `#E3B341`) `--dsw-alias-state-warn-primary`. So the newest mark on
+   the surface was painted in the one colour already carrying four meanings,
+   and on the navy ground a 12% amber wash reads as a muddy olive band.
+
+   A rule on the inline edge is a POSITION, not a verdict — it cannot be misread
+   as a state, and unlike a 12% tint it survives a monochrome screen. The mark
+   itself stays: §28.7 established that it has to exist. Only its expression
+   changed. */
 .rowActive {
-  background: color-mix(in srgb, var(--dsw-rh-lit, #888) 12%, transparent);
+  background: var(--dsw-alias-bg-layer-2);
+  border-inline-start-color: var(--dsw-rh-lit, var(--dsw-alias-label-primary));
 }
 
 /* The task document. Pre-wrapped and scroll-bounded: a config document is
@@ -287,6 +483,13 @@
   margin: 0;
   padding: 0.5rem 0.6rem;
   overflow: auto;
+  /* The inset ground, and — because it SCROLLS on an elevated surface — dsh's
+     `scrollbar-styles` invariant applies here exactly as it does to `.diff`
+     below: the thumb is rebound to that elevation. The two sheets are the same
+     kind of thing and now say so. */
+  background: var(--dsw-alias-bg-layer-2);
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
   border: 1px solid var(--dsw-alias-border-l1);
   border-radius: 0.375rem;
   color: var(--dsw-alias-label-primary);
@@ -297,13 +500,62 @@
   tab-size: 2;
 }
 
-/* The workbench panel grid: the same responsive shape the console uses, so a
-   panel looks the same in either seat. */
+/* THE PANEL GRID WAS 42% EMPTY, AND THE CAUSE WAS STRUCTURAL.
+
+   Measured 2026-08-27 at 1440px on the demo task with five panels: the grid box
+   was 1120x851 = 952,683px^2 and the panels painted 554,435 of it. The shape
+   was `repeat(auto-fit, minmax(22rem, 1fr))` with `align-items: start`, and A
+   GRID ROW IS AS TALL AS ITS TALLEST CELL — row one held Spectrum (154px),
+   Posterior (479px) and Chains (526px), so the two short panels each reserved
+   526px and painted what they had. No spacing change reaches that; only a
+   layout mode that does not align rows does.
+
+   Multi-column flow is that mode. Two costs, stated here rather than
+   discovered later (`docs/superpowers/specs/2026-08-27-panel-chrome.md` §A3.5):
+
+   - Reading order becomes column-major, so a left-to-right scan no longer
+     follows `KNOWN_PANELS` order. Acceptable HERE and not everywhere: these are
+     independent instruments rather than a sequence. DOM order is untouched, so
+     tab order and screen-reader order are unchanged.
+   - `Panel`'s `span?: 1 | 2` could not be honoured AS WRITTEN — multicol has
+     no "2 of N" — and it had ZERO call sites (measured across this repo and the
+     dsh mirrors), so it went. What multicol does have is `column-span: all`,
+     and `Panel.wide` is that; see the rule immediately below, which arrived
+     with the Reconstruction panel's side-by-side pair.
+
+   `break-inside: avoid` is what keeps a panel whole; without it a tall panel
+   splits across the column boundary. */
 .panels {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
-  gap: 0.75rem;
-  align-items: start;
+  columns: 22rem;
+  column-gap: 0.75rem;
+}
+
+/* Addressed by the data attribute rather than by `> *`: the slot host renders
+   its occupants under a `display: contents` wrapper
+   (`div[data-slot="task.panel"]`), so the grid's only ELEMENT child is that
+   wrapper and `> *` would put these rules on the wrong box. `contents` removes
+   the wrapper from layout, so the panels themselves are what flows here. */
+/* A panel that asked for the width takes every column. `column-span: all` is
+   multicol's own answer to what `Panel.span` used to ask for, and the flow
+   simply resumes beneath it. */
+.panels [data-panel-wide='true'] {
+  column-span: all;
+}
+
+.panels [data-panel] {
+  break-inside: avoid;
+  /* The legacy WebKit alias beside the standard property, and NOT decoration:
+     the panels reach the multicol fragmentation context THROUGH the slot host's
+     `display: contents` wrapper, and WebKit has a history of not including a
+     `contents` box in that context — which makes `break-inside` a silent no-op
+     and splits a panel's header from its body across the column boundary. The
+     alias is the one line that covers it, and no test in this repo can: jsdom
+     does not lay out multicol at all and the boot is Chromium. Reported by the
+     2026-08-27 code review; recorded rather than claimed as verified. */
+  -webkit-column-break-inside: avoid;
+  /* `columns` has no row-gap: the space between stacked panels in one column is
+     this margin. It matches `column-gap` so the rhythm is square. */
+  margin-bottom: 0.75rem;
 }
 
 /* The task-maturity rail: four segments reading left to right. */
@@ -319,6 +571,10 @@
   flex-direction: column;
   gap: 0.2rem;
   padding: 0.5rem 0.625rem;
+  /* The inset ground (`panel.module.css`'s elevation rule). It was
+     `transparent` + a border, which on the dark palette is an outline with the
+     panel showing through it — the card had an edge and no inside. */
+  background: var(--dsw-alias-bg-layer-2);
   border: 1px solid var(--dsw-alias-border-l1);
   border-radius: 0.375rem;
 }
@@ -374,14 +630,25 @@
   background: color-mix(in srgb, var(--dsw-alias-label-tertiary) 12%, transparent);
 }
 
+/* ONE WASH PER STATE (spec §A3.3). These read the declared
+   `--dsw-rh-state-*-bg` tokens, which exist for exactly this and were used
+   only by `Badge`. They were hand-mixed here at 14%, and elsewhere in this same
+   file at 14%, 10% and 7% — three strengths of one idea, decided four times
+   (and for `error`, two of each).
+   `unknown` above keeps its own mix because there is no declared token for it:
+   it is not a state, it is the ABSENCE of one.
+
+   `--dsw-rh-state-*-bg` is NOT Badge-only, and an earlier draft of this comment
+   said it was: `ui-loop`'s `loop-rail.module.css` pass chips and the
+   dashboard's trigger notice read it too. This FILE was the exception. */
 .definitionMark[data-definition-mark='ok'] {
   color: var(--dsw-alias-state-success-primary);
-  background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 14%, transparent);
+  background: var(--dsw-rh-state-ok-bg);
 }
 
 .definitionMark[data-definition-mark='unmet'] {
   color: var(--dsw-alias-state-error-primary);
-  background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 14%, transparent);
+  background: var(--dsw-rh-state-error-bg);
 }
 
 /* The prospective checklist an EMPTY project sees: the same four criteria,
@@ -411,7 +678,7 @@
   border-radius: 0.25rem;
   font-size: 0.6875rem;
   color: var(--dsw-alias-state-success-primary);
-  background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 14%, transparent);
+  background: var(--dsw-rh-state-ok-bg);
 }
 
 /* The as-authored vs as-it-ran comparison (§11.4). Monospace and unwrapped,
@@ -439,7 +706,12 @@
 
 /* The two sides are distinguished by a SIGN as well as a colour: the gutter
    character survives a monochrome screen and a reader who does not see the
-   hues apart, which a background tint alone does not. */
+   hues apart, which a background tint alone does not.
+
+   THE ONE STATED EXCEPTION to §A3.3's one-wash-per-state. These keep their own
+   weaker mix because a diff paints a whole LINE of monospace text, and a
+   chip-strength wash behind a full line of code is a highlighter rather than a
+   tint. Every other ok/error wash on this surface reads the token. */
 .diffRemoved {
   display: block;
   color: var(--dsw-alias-state-error-primary);
@@ -475,8 +747,16 @@
 }
 
 .modelSourceButton {
-  /* `<button>` does not inherit `<div>` box-sizing in this shell — HANDOVER
-     hard rule 6 — so it is stated here rather than assumed. */
+  /* DECLARED rather than relied on, and this comment used to say two things
+     that are not so. It cited "HANDOVER hard rule 6", and HANDOVER.md contains
+     neither that phrase nor the word `box-sizing` — measured 2026-08-27, zero
+     hits for either. And it had the direction backwards: the UA sheet gives a
+     `<button>` border-box, and it is a `<div>` that goes without. The real,
+     measured incident is `dashboard.module.css`'s `.orphanRow` — a `<div>`
+     clipped beside `<button>` siblings that were fine. The rule this shell
+     actually has is that there is no global `*` reset, so every box states its
+     own; on a `<button>` that is belt-and-braces, and it is what survives the
+     element changing. */
   box-sizing: border-box;
   font: inherit;
   font-size: 0.78rem;
@@ -515,22 +795,78 @@
   color: var(--dsw-alias-label-tertiary);
 }
 
-/* The declared-physics catalogue (§17). */
-.modelDiagram {
+/* THE DECLARED-PHYSICS CATALOGUE (§17), BESIDE ITS DIAGRAM (spec D2).
+
+   The diagram is 778x1966 and the catalogue was a list UNDER it, repeating its
+   vertical order without saying so, in a body 1 088px wide — so 310px of the
+   one axis the diagram is short of went unused while the page paid twice for
+   the same three operators.
+
+   `align-items: start` matters: the catalogue's height is set from measured
+   geometry, and a stretched column would fight it. */
+.modelSplit {
+  display: grid;
+  /* The catalogue takes a READABLE column and the diagram takes the rest,
+     rather than the other way round: the SVG scales (`max-width: 100%`) and a
+     card does not — a 1 400px-wide operator card is a banner, and a diagram at
+     88% is still a diagram. The cap is what stops the second column growing
+     without bound on a wide screen; measured at 2 560px, where `1fr` gave it
+     1 412px. */
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 24rem);
+  gap: 1rem;
+  align-items: start;
   margin-bottom: 0.75rem;
+}
+
+/* Below this the two stack, diagram first, and the catalogue flows normally —
+   `ModelSplit` measures a zero-width list and falls back on its own, so the
+   breakpoint and the fallback agree without either knowing about the other. */
+@media (max-width: 64rem) {
+  .modelSplit {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.modelDiagram {
   overflow-x: auto;
 }
 
 .modelDiagram svg { max-width: 100%; height: auto; }
 
+/* The hovered card's node. A ring rather than a fill: the lit/dim encoding is
+   the diagram's own meaning and a hover must not look like a fourth state. */
+.modelDiagram g[data-model-node-hover] {
+  outline: 2px solid var(--dsw-rh-lit, currentColor);
+  outline-offset: 2px;
+}
+
+.modelCatalogue {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Aligned: every card is absolutely placed at its node's height, so the list
+   needs a containing block and an explicit height (`ModelSplit` sets it from
+   the last card's bottom). */
+.modelCatalogueAligned {
+  position: relative;
+}
+
 .modelNode {
-  padding: 0.5rem 0;
-  border-top: 1px solid var(--dsw-alias-border-l1);
+  padding: 0.5rem 0.625rem;
+  /* The inset ground, which is what makes a card read as a card once the cards
+     are no longer a continuous list with rules between them. */
+  background: var(--dsw-alias-bg-layer-2);
+  border-radius: 0.375rem;
   display: grid;
   gap: 0.3rem;
 }
 
-.modelNode:first-child { border-top: none; }
+/* Only when they FLOW: an absolutely placed card has its own gap. */
+.modelCatalogue:not(.modelCatalogueAligned) .modelNode + .modelNode {
+  margin-top: 0.5rem;
+}
 
 .modelHead { display: flex; align-items: center; gap: 0.4rem; }
 
@@ -578,19 +914,62 @@
   line-height: 1.5;
 }
 
-/* The exit catalogue (§18). */
-.exitRow {
-  padding: 0.4rem 0;
-  border-top: 1px solid var(--dsw-alias-border-l1);
+/* THE EXIT CATALOGUE (§18), LAID OUT AS ONE (spec D3).
+
+   It was eighteen exits x three lines down a 1 088px column: a panel 1 458px
+   tall carrying a few words per line, which is the worst horizontal-to-
+   vertical trade on the surface. A catalogue is a grid. */
+.exitGrid {
   display: grid;
-  gap: 0.15rem;
+  grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));
+  gap: 0.5rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
 }
 
-.exitRow:first-child { border-top: none; }
+.exitCard {
+  display: grid;
+  gap: 0.15rem;
+  align-content: start;
+  padding: 0.5rem 0.625rem;
+  /* The inset ground (`panel.module.css`'s rule), which is also what lets the
+     cards read as cards without a border on each — eighteen boxes outlined in
+     a grid is a spreadsheet. */
+  background: var(--dsw-alias-bg-layer-2);
+  border-radius: 0.375rem;
+}
+
+/* The reserved keys are two facts about a name, so the name gets its own line
+   and the two facts share the next one. */
+.reservedGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(21rem, 1fr));
+  gap: 0.4rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reservedCard {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.4rem 0.625rem;
+  background: var(--dsw-alias-bg-layer-2);
+  border-radius: 0.375rem;
+  font-size: 0.8125rem;
+}
+
+.reservedMeta {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
 
 /* A declared exit is marked by a WORD as well as a tint — the tint alone
    would not survive a monochrome screen. */
-.exitUsed { background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 7%, transparent); }
+.exitUsed { background: var(--dsw-rh-state-ok-bg); }
 
 .exitHead { display: flex; align-items: center; gap: 0.4rem; }
 
@@ -605,4 +984,106 @@
   color: var(--dsw-alias-label-tertiary);
   font-size: 0.6875rem;
   font-family: var(--dsw-font-mono, ui-monospace, monospace);
+}
+
+/* -- The inference plan (TaskPlan.tsx) ------------------------------------- */
+
+.planHeading {
+  margin: 0.75rem 0 0.4rem;
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  color: var(--dsw-alias-label-primary);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.planHeading:first-child { margin-top: 0; }
+
+.planCount {
+  padding: 0.02rem 0.35rem;
+  border-radius: 0.25rem;
+  background: color-mix(in srgb, var(--dsw-alias-label-tertiary) 14%, transparent);
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.planList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.planParam,
+.planStep {
+  display: grid;
+  gap: 0.2rem;
+  align-content: start;
+  padding: 0.5rem 0.625rem;
+  background: var(--dsw-alias-bg-layer-2);
+  border-radius: 0.375rem;
+}
+
+.planStepHead {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+/* The step's position in the chain. `reuse:` makes the steps a sequence rather
+   than a set, so the number is a fact about the run and not decoration. */
+.planIndex {
+  flex: 0 0 auto;
+  min-width: 1.25rem;
+  padding: 0.02rem 0.3rem;
+  border-radius: 0.25rem;
+  background: color-mix(in srgb, var(--dsw-rh-lit, #888) 16%, transparent);
+  color: var(--dsw-alias-label-primary);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.planNote {
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.planNote code {
+  font-family: var(--dsw-font-mono, ui-monospace, monospace);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.planKnobs {
+  margin: 0.2rem 0 0;
+  display: grid;
+  gap: 0.1rem;
+}
+
+.planKnob {
+  display: grid;
+  grid-template-columns: minmax(6rem, 10rem) 1fr;
+  gap: 0.5rem;
+  align-items: baseline;
+  font-size: 0.75rem;
+}
+
+.planKnobName {
+  font-family: var(--dsw-font-mono, ui-monospace, monospace);
+  color: var(--dsw-alias-label-secondary);
+  overflow-wrap: anywhere;
+}
+
+.planKnobValue {
+  margin: 0;
+  font-family: var(--dsw-font-mono, ui-monospace, monospace);
+  color: var(--dsw-alias-label-primary);
+  overflow-wrap: anywhere;
 }
