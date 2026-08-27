@@ -21,6 +21,7 @@ export { EmptyState } from './panel/EmptyState.tsx'
 export type { EmptyStateProps } from './panel/EmptyState.tsx'
 
 export { formatNumber, formatDiagnostic, formatMs } from './format/number.ts'
+export { RunHeading } from './panel/RunHeading.tsx'
 
 export { mcmcLatents, mcmcRows, mcmcWorst, RHAT_WARN_ABOVE } from './format/mcmc.ts'
 export type { McmcWorst } from './format/mcmc.ts'
@@ -31,13 +32,13 @@ export type { RunProvenance } from './format/provenance.ts'
 
 export { selectAnalysisRuns } from './run/run-selectors.ts'
 
-export { runsToRender, executionEmptyReason, gatesToRender, graphToRender } from './run/execution-view.ts'
+export { runsToRender, executionEmptyReason, executionEmptyKind, gatesToRender, graphToRender } from './run/execution-view.ts'
 // The same discipline as `runsToRender`, on the other input: a log fallback is
 // valid only when the log is unambiguous (§19.1). Here because two plugins need
 // it and ui-kit is the layer that may be inlined into both.
 export { soleTask } from './run/sole-task.ts'
 export type { LoopExecutionView, ExecutionViewProblem } from './run/execution-view.ts'
-export type { AnalysisRun, AnalysisRunDiagnostics, AnalysisRunProduct } from './run/run-selectors.ts'
+export type { AnalysisRun, AnalysisRunDiagnostics, AnalysisRunProduct, AnalysisRunReconstruction } from './run/run-selectors.ts'
 
 export {
   binValues,

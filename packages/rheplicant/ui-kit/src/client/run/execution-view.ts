@@ -117,6 +117,27 @@ export function executionEmptyReason(view: LoopExecutionView | undefined): strin
 }
 
 /**
+ * The KIND of absence a panel is showing, from the same fact its message is.
+ *
+ * `executionEmptyReason` above already reads `view.problem` and speaks the
+ * three states; this reads the same field and names them, so a panel cannot
+ * render "not yet" over a sentence that says the results were pruned. One
+ * derivation, two projections — the alternative was every panel spelling
+ * `kind="waiting"` beside a message that sometimes says otherwise, which is
+ * exactly the disagreement `docs/project-model.md` §27.3 is about.
+ *
+ * @param view - the execution the workbench selected, if there is one.
+ * @returns the kind to hand `EmptyState`.
+ */
+export function executionEmptyKind(view: LoopExecutionView | undefined): 'waiting' | 'arriving' | 'unavailable' {
+  if (view?.problem === 'loading') return 'arriving'
+  if (view?.problem === 'unreadable' || view?.problem === 'unavailable') return 'unavailable'
+  // No problem at all: the execution is fine and simply has no run of this
+  // panel's kind. That is the one genuine "nothing has produced this yet".
+  return 'waiting'
+}
+
+/**
  * The graph a panel should render: the selected execution's when the console
  * supplied one, and the session log's otherwise.
  *

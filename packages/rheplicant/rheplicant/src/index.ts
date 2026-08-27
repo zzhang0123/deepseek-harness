@@ -42,6 +42,7 @@ export type {
   ComputeProvider,
   DefinitionReport,
   DocumentInputReference,
+  DeclaredParameter,
   DeclaredRun,
   DocumentModel,
   DocumentProjection,

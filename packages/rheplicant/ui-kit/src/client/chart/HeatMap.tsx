@@ -19,8 +19,65 @@ import styles from './chart.module.css'
 
 export interface HeatMapProps {
   readonly grid: ReadonlyArray<ReadonlyArray<number | null>>
-  readonly xLabel?: string
-  readonly yLabel?: string
+  /**
+   * `| undefined` explicitly, not just `?`. Under `exactOptionalPropertyTypes`
+   * (the dsh checkout's program — this package's real typecheck) `xLabel?:
+   * string` means "omit the key or pass a string", and a caller forwarding its
+   * own optional unit — `xLabel={freq.label}` — is passing `string |
+   * undefined`, which is a different thing. Same reason `EmptyState.hint`
+   * carries the same widening, and measured the same way: both local tsc
+   * programs accepted it and the checkout's did not.
+   */
+  readonly xLabel?: string | undefined
+  readonly yLabel?: string | undefined
+  /**
+   * Real coordinate values for the column indices, when the caller has them —
+   * a frequency axis, a time axis. One entry per COLUMN of `grid`, already
+   * sampled by whatever stride the grid was.
+   *
+   * Absent means the caller does not know them, and the axis then labels by
+   * INDEX exactly as before. That is the honest fallback: an index says "the
+   * fourth column" and is true; a guessed coordinate says "63.6 MHz" and may
+   * not be.
+   */
+  readonly xValues?: readonly number[] | undefined
+  /** Real coordinate values for the row indices. Same rule as `xValues`. */
+  readonly yValues?: readonly number[] | undefined
+  /**
+   * The magnitude the ramp saturates at. Absent means this grid's own largest,
+   * which is right for a grid drawn alone and WRONG for two drawn side by side.
+   *
+   * Load-bearing rather than a convenience: each grid normalising against its
+   * own maximum makes a fit that is 30% low look identical to the data it is
+   * being compared with. A caller drawing a pair passes ONE shared value —
+   * and this doc said "the max of both" for a build, which would hand the
+   * quantity under test control of its own reference: a fit that overshoots
+   * would raise the scale and shrink its own error. `ReconstructionPanel`
+   * anchors to the DATA's peak, and `docs/project-model.md` §30.5 says why.
+   */
+  readonly scaleMax?: number | undefined
+  /**
+   * Draw the ramp legend under the plot. Default `true`.
+   *
+   * `false` is for a caller drawing a PAIR on one `scaleMax`: two identical
+   * scale bars under two adjacent figures is the same legend twice, and one
+   * bar is what "one scale" actually looks like. A figure drawn alone keeps
+   * its own — a plot with no scale is not a reading.
+   */
+  readonly ramp?: boolean
+}
+
+/**
+ * Label an index tick with its coordinate, when there is one.
+ *
+ * Falls back to the index for a tick the value array does not cover, rather
+ * than to `undefined` or an empty label: a gap in the array is a caller bug,
+ * and a visibly wrong-looking integer among coordinates is easier to notice
+ * than a blank.
+ */
+function tickFormat(values: readonly number[] | undefined): ((index: number) => string) | undefined {
+  if (values === undefined || values.length === 0) return undefined
+  return (index: number) => formatNumber(values[index] ?? index)
 }
 
 const MAX_AXIS_TICKS = 6
@@ -47,7 +104,7 @@ function centerScale(count: number, extent: number) {
   return linearScale([-0.5, Math.max(0, count - 1) + 0.5], [0, extent])
 }
 
-export const HeatMap = memo(function HeatMap({ grid, xLabel, yLabel }: HeatMapProps) {
+export const HeatMap = memo(function HeatMap({ grid, xLabel, yLabel, xValues, yValues, scaleMax, ramp = true }: HeatMapProps) {
   const ref = useRef<HTMLDivElement>(null)
   const pointer = useChartPointer(ref, { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT })
   const { plot, margin } = plotSizeOf(DEFAULT_WIDTH, DEFAULT_HEIGHT)
@@ -55,7 +112,7 @@ export const HeatMap = memo(function HeatMap({ grid, xLabel, yLabel }: HeatMapPr
   const rows = grid.length
   const cols = useMemo(() => grid.reduce((m, row) => Math.max(m, row.length), 0), [grid])
 
-  const maxAbs = useMemo(() => {
+  const ownMax = useMemo(() => {
     let m = 0
     for (const row of grid) {
       for (const v of row) {
@@ -64,9 +121,17 @@ export const HeatMap = memo(function HeatMap({ grid, xLabel, yLabel }: HeatMapPr
     }
     return m
   }, [grid])
+  // A shared scale wins, and a zero, negative or non-finite one is refused
+  // rather than honoured: each would flatten every cell to the background and
+  // read as "no data", which is a different fact. `Infinity` is the one a
+  // `> 0` test lets through — `NaN > 0` is already false — and it is reachable
+  // from any future caller that maxes over an unfiltered grid.
+  const maxAbs = scaleMax !== undefined && Number.isFinite(scaleMax) && scaleMax > 0 ? scaleMax : ownMax
 
   const rowTicks = useMemo(() => integerTicks(rows), [rows])
   const colTicks = useMemo(() => integerTicks(cols), [cols])
+  const formatX = useMemo(() => tickFormat(xValues), [xValues])
+  const formatY = useMemo(() => tickFormat(yValues), [yValues])
 
   const cellWidth = cols > 0 ? plot.width / cols : 0
   const cellHeight = rows > 0 ? plot.height / rows : 0
@@ -94,7 +159,8 @@ export const HeatMap = memo(function HeatMap({ grid, xLabel, yLabel }: HeatMapPr
           return (
             <ChartTip x={pointer.clientX ?? 0} y={pointer.clientY ?? 0} visible={pointer.active}>
               <div>
-                ({formatNumber(hoverCell.row)}, {formatNumber(hoverCell.col)})
+                ({formatNumber(yValues?.[hoverCell.row] ?? hoverCell.row)},{' '}
+                {formatNumber(xValues?.[hoverCell.col] ?? hoverCell.col)})
               </div>
               <div>{formatNumber(hoverValue)}</div>
             </ChartTip>
@@ -106,8 +172,8 @@ export const HeatMap = memo(function HeatMap({ grid, xLabel, yLabel }: HeatMapPr
           const rowScale = centerScale(rows, plotHeight)
           return (
             <>
-              <Axis orientation="left" scale={rowScale} ticks={rowTicks} plotWidth={plotWidth} plotHeight={plotHeight} unit={yLabel} />
-              <Axis orientation="bottom" scale={colScale} ticks={colTicks} plotWidth={plotWidth} plotHeight={plotHeight} unit={xLabel} />
+              <Axis orientation="left" scale={rowScale} ticks={rowTicks} plotWidth={plotWidth} plotHeight={plotHeight} unit={yLabel} {...(formatY === undefined ? {} : { format: formatY })} />
+              <Axis orientation="bottom" scale={colScale} ticks={colTicks} plotWidth={plotWidth} plotHeight={plotHeight} unit={xLabel} {...(formatX === undefined ? {} : { format: formatX })} />
               {grid.map((row, r) =>
                 row.map((v, c) => {
                   const isNull = v === null || !Number.isFinite(v)
@@ -136,11 +202,13 @@ export const HeatMap = memo(function HeatMap({ grid, xLabel, yLabel }: HeatMapPr
           )
         }}
       </ChartSurface>
-      <div className={styles.ramp} data-ramp>
-        <span>{formatNumber(0)}</span>
-        <span className={styles.rampBar} />
-        <span>{formatNumber(maxAbs)}</span>
-      </div>
+      {ramp ? (
+        <div className={styles.ramp} data-ramp>
+          <span>{formatNumber(0)}</span>
+          <span className={styles.rampBar} />
+          <span>{formatNumber(maxAbs)}</span>
+        </div>
+      ) : null}
     </div>
   )
 })

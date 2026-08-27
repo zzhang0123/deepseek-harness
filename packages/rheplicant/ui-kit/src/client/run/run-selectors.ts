@@ -33,6 +33,31 @@ export interface AnalysisRunDiagnostics {
   readonly [key: string]: unknown
 }
 
+/**
+ * Structural mirror of the wire `RunReconstruction` — permissive, not
+ * authoritative, the same way `AnalysisRunProduct` is. The authoritative
+ * shape and the reasoning behind every field live in
+ * `@rheplicant/dsh-rheplicant/types`.
+ */
+export interface AnalysisRunReconstruction {
+  readonly meanGrid?: (number | null)[][]
+  readonly medianGrid?: (number | null)[][]
+  /** The data the likelihood was given, thinned by the same strides — the comparison. */
+  readonly observedGrid?: (number | null)[][]
+  /** Which run published that data. Never this entry's own run — see the wire contract. */
+  readonly observedFrom?: string
+  readonly rows?: number
+  readonly cols?: number
+  /** How many draws the reduction used. `n_draw:` keeps the LAST draws, and on a multi-chain product that can be one chain — so it is stated, never assumed. */
+  readonly nDrawUsed?: number
+  readonly downsample?: { readonly rows?: number; readonly cols?: number }
+  readonly axes?: {
+    readonly time?: number[]
+    readonly freq?: number[]
+    readonly units?: { readonly time?: string; readonly freq?: string }
+  }
+}
+
 /** Structural mirror of the wire `RunProduct` — permissive, not authoritative. */
 export interface AnalysisRunProduct {
   readonly kind: string
@@ -55,6 +80,13 @@ export interface AnalysisRun {
   readonly chains?: Record<string, (number | null)[]>
   /** Viz-ready m-mode power spectrum (magnitude), for `mmodes` runs; a `null` cell was not finite. */
   readonly spectrum?: (number | null)[][]
+  /**
+   * Viz-ready reconstructed quantity, for `predict` runs — the forward model
+   * pushed through the posterior draws and reduced ACROSS them, never the
+   * model evaluated once at a reduced parameter. Grammar owned by the wire
+   * `RunEntry.reconstruction` contract; a `null` cell was not finite.
+   */
+  readonly reconstruction?: AnalysisRunReconstruction
   readonly product?: AnalysisRunProduct
   /** Unix epoch ms the run's `rheplicant/run` event was appended — provenance distinguishing two otherwise-identical-looking runs (e.g. a rerun with the same seed producing a byte-identical outcome). */
   readonly time?: number

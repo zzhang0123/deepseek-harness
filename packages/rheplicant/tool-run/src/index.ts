@@ -242,7 +242,7 @@ export function receipt(outcome: RunOutcome): RunOutcome {
   if (outcome.resultsPath === undefined) return outcome
   return {
     ...outcome,
-    runs: outcome.runs.map(({ product: _product, chains: _chains, spectrum: _spectrum, ...rest }) => rest),
+    runs: outcome.runs.map(({ product: _product, chains: _chains, spectrum: _spectrum, reconstruction: _reconstruction, ...rest }) => rest),
   }
 }
 

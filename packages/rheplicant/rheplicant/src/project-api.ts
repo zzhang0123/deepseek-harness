@@ -541,6 +541,7 @@ export function apply(ctx: Context): void {
           walkOrder: projected.walkOrder,
           model: projected.model,
           runs: projected.runs,
+          parameters: projected.parameters,
         } satisfies ProjectDocumentProjectionBody)
       } catch (error) {
         // `rheplicant.gui` is an OPTIONAL extra, so this can be unavailable on

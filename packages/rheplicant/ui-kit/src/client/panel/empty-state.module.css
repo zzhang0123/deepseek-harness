@@ -1,9 +1,29 @@
+/* A panel body with nothing to show still has an INSIDE — so the placeholder
+   takes the inset ground (`panel.module.css`'s elevation rule), rather than
+   being an outline with the panel showing through it. */
 .emptyState {
   text-align: center;
   padding: 1.5rem;
+  /* Dashed is PROVISIONAL — "not yet", whether that is `waiting` or
+     `arriving`. `unavailable` overrides it below. */
   border: 1px dashed var(--dsw-alias-border-l1);
   border-radius: 0.5rem;
+  background: var(--dsw-alias-bg-layer-2);
   color: var(--dsw-alias-label-secondary);
+}
+
+/* A SETTLED fact, not a provisional box: refused, unreadable, pruned, or past
+   a bound. The border stops being dashed, and that is the whole visual
+   difference — one that survives a monochrome screen and carries no story.
+
+   `waiting` and `arriving` deliberately render the SAME. Their words already
+   separate them without ambiguity ("No spectrum runs yet" against "Reading the
+   exits…"), and a drawing that restated them was designed here, measured
+   against §A2's restraint rule and struck — see
+   `docs/superpowers/specs/2026-08-27-dissolution-language.md`. What the `kind`
+   prop buys is this third state and the DOM attribute, not a picture. */
+.emptyState[data-empty-state-kind='unavailable'] {
+  border-style: solid;
 }
 
 .message {

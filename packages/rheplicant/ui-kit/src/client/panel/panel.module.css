@@ -1,4 +1,23 @@
-/* Panel shell + StatRow: restrained, instrument-like — no shadows, no gradients. */
+/* Panel shell + StatRow: restrained, instrument-like — no shadows, no gradients.
+
+   ELEVATION IS A RULE, AND THIS IS WHERE IT IS WRITTEN DOWN.
+   `docs/superpowers/specs/2026-08-27-panel-chrome.md` §A3.1 has the
+   measurement; the rule is three steps and there is no fourth:
+
+     ground  --dsw-alias-bg-base      the page. Nothing but panels sits on it.
+     panel   --dsw-alias-bg-layer-1   a Panel. One step off the ground.
+     inset   --dsw-alias-bg-layer-2   a container INSIDE a panel body — a card,
+                                      a sheet, an empty state.
+
+   `--dsw-alias-bg-overlay` is NOT a fourth step. It is the popover layer —
+   this repo's `ui-theme` does override its value, so "not ours" would be
+   false; what is true is that it is not an elevation step for a panel, and
+   nothing here should reach for it.
+
+   Elevation here is GROUND, not depth — which is what a flat instrument
+   palette has instead of shadows. A chart is deliberately not an inset: it is
+   a drawing, not a container, and giving it a box would add a box the panel
+   does not have. */
 
 .panel {
   display: flex;
@@ -13,12 +32,16 @@
   border-color: var(--dsw-alias-border-l2);
 }
 
+/* The header sits TIGHTER than the body, so the hairline separates two things
+   of different weight rather than two blocks of the same one. (It is not
+   called a rail: this document already spends that word on the task-maturity
+   rail and on the activity rail, and a third sense is how a vocabulary goes.) */
 .header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.75rem 1rem;
+  padding: 0.5rem 1rem;
   border-bottom: 1px solid var(--dsw-alias-border-l1);
 }
 
@@ -29,12 +52,25 @@
   min-width: 0;
 }
 
+/* One step above the body text (0.8125rem), which is what it names. It was the
+   SAME size, and in the Posterior panel that put the panel's own name at
+   13px/600 above a body heading at 16px/700 — the panel quieter than its
+   contents. */
 .title {
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--dsw-alias-label-primary);
 }
 
+/* Metadata about the panel, not a second title. The separation comes from SIZE
+   and WEIGHT (0.875/600 against 0.75/400) and deliberately not from colour.
+
+   A colour step was tried — `-tertiary` — and reverted, measured: light's
+   `--dsw-alias-label-tertiary` is `#81858c`, which is **3.71:1** on the panel's
+   white and **3.54:1** on the inset ground, both under WCAG AA's 4.5 for
+   12px text. Dark is fine at 7.85:1, which is exactly the trap: the change was
+   measured in one scheme and the token is not symmetric. `-secondary`
+   (`#61666b`) is 5.80:1 and 5.54:1. */
 .subtitle {
   font-size: 0.75rem;
   color: var(--dsw-alias-label-secondary);
@@ -48,6 +84,13 @@
 }
 
 .collapseToggle {
+  /* DECLARED rather than relied on. This shell has no global `*` reset —
+     measured 2026-08-26, when `.orphanRow`, a `<div>`, was clipped for want
+     of it (`ui-project`'s `dashboard.module.css`) — so every box states its
+     own. A `<button>` gets border-box from the UA sheet already, which makes
+     this belt-and-braces today and the rule that survives the element
+     changing. */
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -58,12 +101,14 @@
   border-radius: 4px;
   background: transparent;
   color: var(--dsw-alias-label-secondary);
+  /* Sizes the drawn chevron, which is `1em` square (Panel.tsx). */
   font-size: 0.75rem;
   line-height: 1;
   cursor: pointer;
 }
 
-.collapseToggle:hover {
+.collapseToggle:hover,
+.collapseToggle:focus-visible {
   border-color: var(--dsw-alias-border-l2);
   color: var(--dsw-alias-label-primary);
 }
@@ -113,4 +158,20 @@
 .statDot {
   width: 0.375rem;
   height: 0.375rem;
+}
+
+/* -- RunHeading ----------------------------------------------------------- */
+
+/* See RunHeading.tsx: a caption that tells two runs apart, not a second title
+   of the panel it sits inside. */
+.runHeading {
+  margin-bottom: 0.35rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.runHeadingKind {
+  font-weight: 400;
+  color: var(--dsw-alias-label-tertiary);
 }

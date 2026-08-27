@@ -271,7 +271,107 @@ export interface RunEntry {
   readonly chains?: Record<string, (number | null)[]>
   /** Viz-ready m-mode power spectrum (magnitude), for `mmodes` runs; a `null` cell was not finite. */
   readonly spectrum?: (number | null)[][]
+  /**
+   * Viz-ready reconstructed quantity, for `predict` runs — the forward model
+   * pushed through the posterior draws and reduced ACROSS them.
+   *
+   * A derived per-run field rather than a fourth `RunProduct` member, for the
+   * reason `chains` is one: it is projected from what the run already
+   * published, and a union member would claim a place in the philosophy's
+   * product-shape table that this does not have.
+   *
+   * Absent, rather than empty, when there is nothing to draw — including the
+   * legitimate case of a `predict` run that reused a `fisher` product, which
+   * propagated a covariance by the delta method and therefore has draws-free
+   * standard deviations and no central tendency at all.
+   */
+  readonly reconstruction?: RunReconstruction
   readonly error?: ComputeError
+}
+
+/**
+ * One `predict` run's reconstructed grid, at display resolution.
+ *
+ * **The reduction is across DRAWS, and the order is the content of it.** Each
+ * draw is pushed through the forward model and the statistics are taken over
+ * the resulting stack — never the model evaluated once at a reduced parameter.
+ * For a nonlinear model those are different numbers, which is why this
+ * package checks linearity (`check_linearity`, `LinearityRefused`,
+ * `Finding.departure`) rather than assuming it.
+ *
+ * **The predictions are NOISELESS.** The likelihood's own scatter is not added
+ * back, and upstream says so twice because "predictive" usually means the
+ * opposite. A surface calling this a posterior predictive would be claiming
+ * something the numbers do not carry.
+ */
+export interface RunReconstruction {
+  /** Pixel-wise mean across draws, `[row][col]` = `[time][freq]`. A `null` cell was not finite. */
+  readonly meanGrid?: (number | null)[][]
+  /** Pixel-wise median across draws, same shape and the same cell rule. */
+  readonly medianGrid?: (number | null)[][]
+  /**
+   * The data this execution's likelihood was GIVEN, for the comparison a
+   * reader actually wants: does the fit reproduce it.
+   *
+   * It comes from a different run than the reconstruction — `kind: forward`
+   * writes it — and is thinned by the same strides, so the two grids are
+   * cell-for-cell comparable. Absent when no run published one, or when its
+   * shape does not match; a missing comparison is a thinner panel, a wrong one
+   * would be a claim.
+   *
+   * ABSENT when more than one `forward` run published one. A document may
+   * declare several, and nothing in the tree says which one a given `predict`
+   * run was compared against; picking the first attaches one run's data to
+   * every reconstruction in the execution, and the shape guard only catches
+   * that when the two happen to differ. Ambiguity is answered with nothing.
+   *
+   * The word "observed" is upstream's own (`observed/primary` in the forward
+   * run's npz) and is kept for that reason; on a `from: simulation` document
+   * the data is simulated, which is why {@link observedFrom} names the run
+   * rather than leaving a reader to infer it from a heading that belongs to a
+   * different run.
+   */
+  readonly observedGrid?: (number | null)[][]
+  /**
+   * The name of the run that published {@link observedGrid}.
+   *
+   * Present exactly when that grid is. It is NOT the run this entry describes
+   * — the reconstruction is a `predict` run's and the data is a `forward`
+   * run's — so the panel names it, the way every other panel on this surface
+   * names its evidence.
+   */
+  readonly observedFrom?: string
+  /** Rows and columns ON THE WIRE — after `downsample`, not the published shape. */
+  readonly rows: number
+  readonly cols: number
+  /**
+   * How many draws the reduction actually used.
+   *
+   * Worth saying out loud rather than assuming: `n_draw:` on a `predict` run
+   * keeps the LAST draws, and upstream's own comment records that on a
+   * multi-chain `nuts` product an `n_draw:` at or below `num_samples` reads
+   * one chain — "finite, correctly shaped and silent about which chain it came
+   * from". A surface that renders a thinned reconstruction without saying so
+   * inherits that silence.
+   *
+   * Absent when the tree published no raw stack to count.
+   */
+  readonly nDrawUsed?: number
+  /** Server-side thinning applied per axis to fit the wire; `1` means full resolution. */
+  readonly downsample: { readonly rows: number; readonly cols: number }
+  /**
+   * The observation's own axes, sampled by the SAME strides the grid was.
+   *
+   * Absent when they could not be derived from the executed document — an
+   * ingested (`observation.from_file`) run, or a refused build. The panel then
+   * labels by index, because an absent axis is a smaller lie than a guessed
+   * one.
+   */
+  readonly axes?: {
+    readonly time?: number[]
+    readonly freq?: number[]
+    readonly units?: { readonly time?: string; readonly freq?: string }
+  }
 }
 
 /** The lit/dim signal-path rendering for a document's `model:` section. */
@@ -505,6 +605,52 @@ export interface DeclaredRun {
   readonly products: readonly string[]
   /** Prerequisites this exit cannot check until an earlier run finishes. */
   readonly deferredChecks: readonly string[]
+  /**
+   * Everything the document wrote about this run besides `name` and `kind` —
+   * `num_warmup`, `num_samples`, `num_chains`, `target_accept_prob`, `reuse`,
+   * `n_draw`, `blocks`, `seed`, whatever it wrote.
+   *
+   * **Verbatim and unlisted.** How many draws, how many chains and which
+   * earlier run a step reuses are the first questions anyone asks of an
+   * inference setup, and the projection carried none of them. A hand-kept list
+   * of knob names here would be a grammar this repo does not own (§2.1), and
+   * it would go stale the first time upstream adds one — so what ships is
+   * exactly what was written, which is also the only version a reader can
+   * check against their own file.
+   *
+   * OPTIONAL, and for the reason `chains` and `spectrum` are: this client can
+   * be talking to a compute service older than the field. Absent means "this
+   * service does not send them", which is a different fact from "this run
+   * declared none" — and the panel says so rather than printing an empty list
+   * as though the document were bare.
+   */
+  readonly options?: Readonly<Record<string, unknown>>
+}
+
+/**
+ * One latent this document fits, and where it lands.
+ *
+ * The join `runs` and `model` never made: `runs` says which exits run, `model`
+ * says which operators are lit, and until this neither said WHICH PARAMETERS
+ * are being fitted, by what, into what. Read straight off
+ * `inference.parameters:` and not interpreted — `into` is operator paths as
+ * written, `prior` is the family and its operands as written, `init` is the
+ * value node as written.
+ */
+export interface DeclaredParameter {
+  readonly name: string
+  /** Operator paths this latent is written into, e.g. `global_signal.centre`. */
+  readonly into: readonly string[]
+  /** The prior's family name (`normal`, `uniform`, `log_normal`, `python`), when it has one. */
+  readonly family: string | null
+  /** The prior node as written, operands and all. `null` when none was declared. */
+  readonly prior: unknown
+  /** The `init:` value node as written. `null` when none was declared. */
+  readonly init: unknown
+  /** The latent's own declared unit, when it carries one. */
+  readonly unit: string | null
+  /** Which meaning-changing keys are present (`transform`, `fan`, `scope`, …) — named, not read. */
+  readonly modifiers: readonly string[]
 }
 
 /**
@@ -544,6 +690,8 @@ export interface DocumentProjection {
   readonly walkOrder: readonly string[]
   readonly model: DocumentModel
   readonly runs: DocumentRuns
+  /** The latents this document fits. Empty for a document with no `inference:`. */
+  readonly parameters: readonly DeclaredParameter[]
 }
 
 /** One compute backend, registered under one or more transport names. */
