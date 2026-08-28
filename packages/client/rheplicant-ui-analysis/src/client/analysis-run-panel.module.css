@@ -69,3 +69,12 @@
   color: var(--dsw-alias-label-secondary);
   font-size: 0.75rem;
 }
+
+/* The run's wall time. It was an unclassed `<footer>` holding `801 ms` on a
+   line of its own, which names no quantity — a reader has to infer that it is
+   a duration and not, say, a cadence. The word costs three characters. */
+.took {
+  margin-top: 0.25rem;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 0.6875rem;
+}

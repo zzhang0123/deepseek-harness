@@ -368,7 +368,12 @@ export const AnalysisRunPanel = memo(function AnalysisRunPanel(
           </li>
         ))}
       </ul>
-      {tookMs !== undefined ? <footer data-took-ms>{tookMs} ms</footer> : null}
+      {/* Labelled, because `801 ms` alone on a line names no quantity. The
+          number stays inside `data-took-ms` — the web e2e reads its
+          innerText. */}
+      {tookMs !== undefined
+        ? <footer className={styles.took} data-took-ms>took {tookMs} ms</footer>
+        : null}
       {deepen && (
         <OpenInProject
           workspaceId={workspaceId}

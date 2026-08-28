@@ -1,83 +1,216 @@
-/* Document tab: restrained, instrument-like — matches ui-kit's Panel chrome. */
+/* The session's Document tab.
+ *
+ * REWRITTEN 2026-08-28 after a user called it "hard to read, incomprehensible
+ * and ugly", and all three were fair. What it was: two `<h2>`s at 13px above
+ * body copy at 12px, an unframed `<pre>`, and eight vocabularies rendered as
+ * chip clouds each capped at `max-height: 8rem` with its own scrollbar — nine
+ * nested scrollports inside the conversation's own page scroller, none of them
+ * focusable, none of them marked as clipped.
+ *
+ * THE WORST OF IT was not visible in any of that. The Sections list shared
+ * `.vocabList` with the seven chip clouds, `.vocabList li` sets
+ * `white-space: nowrap`, and `white-space` INHERITS — so the four 130-character
+ * explanation sentences (the half of `deferred` a reader actually needs) were
+ * laid out on one unwrappable ~900px line inside a 128px box that scrolled on
+ * both axes. The most important prose on the panel was physically unreachable.
+ * Sections are a name/required/status/reason quadruple; they are a table, and
+ * they are a table now.
+ *
+ * The vocabulary is `ui-docs`' `docs.module.css` throughout — the measure, the
+ * `.h2` trailing hairline, the block frame, the eyebrow register — because two
+ * surfaces in one app should not be two design systems.
+ */
 
+/* --- the page ------------------------------------------------------------ */
+
+/* A MEASURE, and bottom clearance for the composer. The tab flows in the
+   conversation's scroll body beneath a sticky composer seat that paints its own
+   36px gradient over whatever is under it; 1rem of padding put the last row of
+   chips underneath it. */
 .view {
+  max-width: 54rem;
+  margin: 0 auto;
+  padding: 1.5rem 1.5rem 5rem;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  padding: 1rem;
+  gap: 1.25rem;
 }
 
-.heading {
-  margin: 0;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--dsw-alias-label-primary);
-}
-
-/* -- DocumentSource -------------------------------------------------------- */
-
-.source {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.sourceHeader {
+/* `docs.module.css`'s `.h2`: a hairline out to the measure's edge, which makes
+   a section boundary legible while scrolling without a heavy rule. */
+.h2 {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
+  gap: 0.625rem;
+  margin: 0.5rem 0 0;
+  color: var(--dsw-alias-label-primary);
+  font-size: 1.0625rem;
+  font-weight: 650;
+  letter-spacing: -0.005em;
 }
 
-.sourceCaption {
+.h2::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--dsw-alias-border-l1);
+}
+
+.h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
   margin: 0;
-  font-size: 0.75rem;
+  color: var(--dsw-alias-label-primary);
+  font-size: 0.9375rem;
+  font-weight: 650;
+}
+
+/* The count beside a group name, as a value rather than part of the title —
+   it was `Transforms (41)` in one weight, one size and one colour. */
+.count {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+.lede {
+  margin: 0;
   color: var(--dsw-alias-label-secondary);
+  font-size: 0.9375rem;
+  line-height: 1.7;
+}
+
+/* --- the block frame ----------------------------------------------------- */
+
+/* `docs.module.css`'s `.block`. It settles the elevation problem the old sheet
+   had: the `<pre>` painted `bg-layer-2` and the lists painted `bg-layer-1` as
+   direct siblings on the base ground, which is two elevations for two things at
+   the same depth. Inside a block, `bg-layer-2` is a legitimate inset. */
+.block {
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 0.5rem;
+  background: var(--dsw-alias-bg-layer-1);
+  overflow: hidden;
+}
+
+.blockBody {
+  padding: 0.875rem 1rem 1rem;
+}
+
+/* The bar the caption, the format and the Copy action share, so the button is
+   attached to the block it acts on rather than floating at the far end of a
+   `space-between` row. */
+.blockHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+/* --- the document's provenance ------------------------------------------- */
+
+/* The durable event this came from — the IDENTITY of what is on screen, so it
+   leads. The rest of the caption is context and recedes.
+   `data-document-source` stays on the row and its text stays a phrase run:
+   `apps/web/tests/rheplicant-ui-document-load.e2e.ts` reads this element's
+   innerText for `rheplicant/run` and `local transport`, and a key/value grid
+   would split the second of those into two cells. */
+.sourceEvent {
+  color: var(--dsw-alias-label-primary);
+  font-family: var(--dsw-font-mono, ui-monospace, monospace);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.sourceMeta {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 0.75rem;
+}
+
+.sourceDot {
+  color: var(--dsw-alias-border-l2);
+  font-size: 0.75rem;
+}
+
+/* The serialization format, as a chip on the block rather than the fourth
+   item of a middot run — a format label belongs on the code, not in a
+   sentence about where the code came from. */
+.formatTag {
+  margin-inline-start: auto;
+  padding: 0.05rem 0.35rem;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 0.25rem;
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+/* The JSON fallback said out loud. It used to be a parenthetical inside the
+   caption run — "(YAML serializer fell back)" — at the same size, weight and
+   colour as everything beside it, which is how a state becomes invisible. */
+.fallbackNote {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-rh-state-warn-bg, var(--dsw-alias-bg-layer-2));
+  color: var(--dsw-alias-label-secondary);
+  font-size: 0.75rem;
+  line-height: 1.5;
 }
 
 .copyButton {
-  font: inherit;
-  font-size: 0.75rem;
-  padding: 0.25rem 0.625rem;
-  border-radius: 0.375rem;
+  box-sizing: border-box;
+  padding: 0.2rem 0.55rem;
   border: 1px solid var(--dsw-alias-border-l1);
-  background: var(--dsw-alias-bg-layer-1);
-  color: var(--dsw-alias-label-primary);
+  border-radius: 0.25rem;
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  font-size: 0.6875rem;
   cursor: pointer;
 }
 
-.copyButton:hover {
-  border-color: var(--dsw-alias-border-l2);
+/* `:focus-visible` beside `:hover`, which the old rule omitted — this is the
+   only control on the panel and it was unreachable-looking by keyboard. */
+.copyButton:hover,
+.copyButton:focus-visible {
+  border-color: var(--dsw-rh-lit, var(--dsw-alias-border-l2));
+  color: var(--dsw-alias-label-primary);
 }
 
+/* --- the document itself -------------------------------------------------- */
+
+/* Taller than the old 24rem, focusable, and it does not chain its scroll to
+   the page. A scrollport with no focusable descendant is content a keyboard
+   cannot reach at all, which is what this was. */
 .pre {
   margin: 0;
-  padding: 0.75rem 1rem;
-  max-height: 24rem;
+  max-height: 32rem;
   overflow: auto;
+  overscroll-behavior: contain;
+  padding: 0.75rem 1rem;
   background: var(--dsw-alias-bg-layer-2);
-  border: 1px solid var(--dsw-alias-border-l1);
-  border-radius: 0.5rem;
-  /* dsh's `scrollbar-styles` invariant: a sheet that SCROLLS on an ELEVATED
-     surface must rebind the thumb to that elevation. The l1 thumb differs from
-     l2 only in the dark palette and only on this surface, so the omission is
-     invisible in review and in a light screenshot alike — which is why it is a
-     test and not a convention. */
-  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
-  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+  color: var(--dsw-alias-label-primary);
   font-family: var(--dsw-font-mono, ui-monospace, monospace);
   font-size: 0.75rem;
-  line-height: 1.5;
-  white-space: pre;
+  line-height: 1.6;
+  tab-size: 2;
 }
 
-.pre code {
-  font: inherit;
-  background: none;
-  padding: 0;
+.pre:focus-visible {
+  outline: 2px solid var(--dsw-rh-lit, var(--dsw-alias-label-secondary));
+  outline-offset: -2px;
 }
 
-/* -- GrammarReference ------------------------------------------------------ */
+/* --- the grammar reference ----------------------------------------------- */
 
 .grammar {
   display: flex;
@@ -88,60 +221,151 @@
 .group {
   display: flex;
   flex-direction: column;
-  gap: 0.375rem;
+  gap: 0.5rem;
 }
 
-.groupHeading {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--dsw-alias-label-secondary);
-}
-
-.vocabList {
-  margin: 0;
-  padding: 0.5rem 0.75rem;
-  list-style: none;
+/* NO `max-height`, and that is the change. Forty-one short chips wrap to about
+   four lines; the 8rem cap that used to be here showed roughly four ROWS of a
+   list whose whole purpose is completeness, with no fade, no count of what was
+   hidden, and no way to scroll it from a keyboard. */
+.chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.375rem 0.75rem;
-  max-height: 8rem;
-  overflow: auto;
-  background: var(--dsw-alias-bg-layer-1);
-  border: 1px solid var(--dsw-alias-border-l1);
-  border-radius: 0.5rem;
-  font-family: var(--dsw-font-mono, ui-monospace, monospace);
-  font-size: 0.75rem;
-  color: var(--dsw-alias-label-primary);
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.vocabList li {
+/* A bordered chip rather than a space-separated word. Forty-one words in a
+   wrapped paragraph cannot be scanned for one name; forty-one chips can. */
+.chips li {
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 0.25rem;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-secondary);
+  font-family: var(--dsw-font-mono, ui-monospace, monospace);
+  font-size: 0.6875rem;
+  /* Correct HERE, where every item is one short identifier — and the reason
+     the sections table does not share this class. */
   white-space: nowrap;
 }
 
-/* One section's `status` from the generated schema. Every row carries one --
-   see GrammarReference.tsx for why -- so `accepted`, which is most of them,
-   is quieted here rather than dropped there. Selecting on the attribute and
-   not on a class means a status this stylesheet has not been taught about
-   keeps the prominent default, which is the safe direction. */
-.sectionStatus {
-  font-size: 0.6875rem;
-  color: var(--dsw-alias-label-primary);
-  opacity: 0.9;
+/* --- sections, as the table they always were ------------------------------ */
+
+.tableWrap {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
 }
 
-.vocabList li[data-status='accepted'] .sectionStatus {
-  color: var(--dsw-alias-label-secondary);
-  opacity: 0.55;
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
 }
 
-/* The reason a section is not `accepted` — upstream's own sentence, verbatim.
-   A block rather than an inline run: it is prose beside two chips, and reading
-   it as a continuation of the status word is exactly the misreading the status
-   word already suffers from. */
-.sectionReason {
-  display: block;
-  margin-top: 0.15rem;
-  font-size: 0.75rem;
-  line-height: 1.45;
+.table th {
+  padding: 0.4rem 0.75rem;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
   color: var(--dsw-alias-label-tertiary);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: start;
+}
+
+.table td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  vertical-align: baseline;
+}
+
+.table tr:last-child td {
+  border-bottom: none;
+}
+
+/* The identifier column: mono and nowrap, which is what `.vocabList` was right
+   about — for the NAME. */
+.sectionName {
+  color: var(--dsw-alias-label-primary);
+  font-family: var(--dsw-font-mono, ui-monospace, monospace);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* `required` as a value in its own column rather than a bare `*` glued to the
+   name with no legend anywhere on the panel saying what it meant. */
+.required {
+  padding: 0.05rem 0.35rem;
+  border-radius: 0.25rem;
+  background: var(--dsw-rh-state-warn-bg, var(--dsw-alias-bg-layer-2));
+  color: var(--dsw-alias-state-warn-primary);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+/* Three-valued, and `accepted` recedes — but by TOKEN, not by `opacity`. The
+   old rule stacked `opacity: 0.55` on `label-secondary`, compositing to about
+   2.4:1 on white, under AA's 4.5 and under even the 3:1 large-text floor. */
+.status {
+  padding: 0.05rem 0.35rem;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 0.25rem;
+  color: var(--dsw-alias-label-primary);
+  font-size: 0.625rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.status[data-section-status='accepted'] {
+  border-color: transparent;
+  color: var(--dsw-alias-label-secondary);
+}
+
+/* The prose. `label-secondary`, not tertiary: tertiary is #81858c on white =
+   3.71:1 at 12px, under AA. In the inherited face, not mono — the old sheet set
+   the mono family on the LIST container, so natural-language sentences
+   inherited it. */
+.sectionReason {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+/* The subject the reason sentence is missing. Upstream's wording is a
+   subject-less fragment — "is not read by this layer — it is handled by the
+   command line" — and it was rendered in a box visually separate from the name
+   it is about. Restoring the subject typographically costs nothing and is not
+   a rewording: the name is a sibling of `[data-section-reason]`, never inside
+   it, because the package's own spec asserts that element's textContent is the
+   reason EXACTLY. */
+.reasonSubject {
+  color: var(--dsw-alias-label-primary);
+  font-family: var(--dsw-font-mono, ui-monospace, monospace);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* --- the empty state ------------------------------------------------------ */
+
+.emptyBody {
+  padding: 1rem;
+}
+
+/* Visually hidden, but announced. The Copy button used to report its result
+   only by swapping its own label, which a screen reader does not narrate. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }

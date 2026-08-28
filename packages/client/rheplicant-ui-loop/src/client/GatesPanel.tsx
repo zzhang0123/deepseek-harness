@@ -156,7 +156,12 @@ const ALWAYS_ON_CHECKS: readonly { readonly id: string; readonly summary: string
 const AlwaysOnRow = memo(function AlwaysOnRow({ id, summary, detail }: { id: string; summary: string; detail: string }) {
   return (
     <div data-always-on-check={id}>
-      <strong>{id}</strong> <span data-always-on-summary className={styles.alwaysOnSummary}>{summary}</span>
+      {/* THE CODE IS A REFERENCE, NOT THE SUBJECT. It was `<strong>{id}</strong>`,
+          which put the panel's only bold on `C16` and left "ADC saturation —
+          always runs; never gated" in the secondary register. The sentence is
+          what a reader is here for; the code is how they cite it afterwards. */}
+      <code className={styles.alwaysOnId}>{id}</code>{' '}
+      <span data-always-on-summary className={styles.alwaysOnSummary}>{summary}</span>
       <details data-always-on-details className={styles.alwaysOnDetails}>
         <summary>Details</summary>
         <p data-always-on-note className={styles.alwaysOnNote}>{detail}</p>

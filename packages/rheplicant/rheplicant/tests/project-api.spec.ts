@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -77,7 +77,7 @@ function routes(
     },
   }
   apply(ctx as never)
-  return async (path: string, query: string): Promise<Captured> => {
+  const drive = async (path: string, query: string): Promise<Captured> => {
     const handler = table.get(path)
     if (handler === undefined) throw new Error(`no route ${path}`)
     const captured: Captured = { status: 0, headers: {}, body: '' }
@@ -91,6 +91,35 @@ function routes(
     await handler({ url: `${path}?${query}` }, res)
     return captured
   }
+  /**
+   * The same driver for the one route that WRITES.
+   *
+   * A real `IncomingMessage` is an async iterable of Buffers and the handler
+   * reads it as one, so the fake has to be too — a plain object with a `body`
+   * string would let the route pass here and fail against a real server.
+   */
+  drive.post = async (path: string, body: unknown, method = 'POST'): Promise<Captured> => {
+    const handler = table.get(path)
+    if (handler === undefined) throw new Error(`no route ${path}`)
+    const captured: Captured = { status: 0, headers: {}, body: '' }
+    const res = {
+      writeHead: (status: number, headers: Record<string, string>) => {
+        captured.status = status
+        captured.headers = headers
+      },
+      end: (payload: Buffer) => { captured.body = payload.toString('utf8') },
+    }
+    const chunks = [Buffer.from(typeof body === 'string' ? body : JSON.stringify(body), 'utf8')]
+    const req = {
+      url: path,
+      method,
+      // eslint-disable-next-line @typescript-eslint/require-await
+      async *[Symbol.asyncIterator]() { yield* chunks },
+    }
+    await handler(req as never, res)
+    return captured
+  }
+  return drive
 }
 
 beforeEach(() => {
@@ -1009,9 +1038,59 @@ describe('what the trigger registry says', () => {
     const response = await request(`${ROUTE_PREFIX}/triggers`, 'session=S-1')
 
     const [only] = JSON.parse(response.body).triggers
-    expect(only.every).toBe('P1D')
+    expect(only.cadence).toBe('P1D')
+    expect(only.cadenceKind).toBe('every')
     expect(only.name).toBe('nightly')
     expect(only.task).toBe('tasks/fit.yaml')
+  })
+
+  it('carries the session a routine last opened', async () => {
+    registry(JSON.stringify([
+      {
+        name: 'brief', action: 'routine', prompt: 'Check the fits',
+        every: 'PT30M', enabled: true, lastSessionId: 'session-42',
+      },
+    ]))
+    const request = routes({ 'S-1': workspace })
+
+    const response = await request(`${ROUTE_PREFIX}/triggers`, 'session=S-1')
+
+    const [only] = JSON.parse(response.body).triggers
+    expect(only.lastSessionId).toBe('session-42')
+  })
+
+  it('omits it for a routine that has not fired, rather than sending null', async () => {
+    // Absent is the wire's way of saying "there is nothing to open", and the
+    // three reasons it can be absent are not distinguishable to a reader — nor
+    // do they need to be, because the answer to all three is the same.
+    registry(JSON.stringify([
+      { name: 'brief', action: 'routine', prompt: 'Check the fits', every: 'PT30M', enabled: true },
+    ]))
+    const request = routes({ 'S-1': workspace })
+
+    const response = await request(`${ROUTE_PREFIX}/triggers`, 'session=S-1')
+
+    const [only] = JSON.parse(response.body).triggers
+    expect(only).not.toHaveProperty('lastSessionId')
+  })
+
+  it('never sends one for a TASK trigger, which opens no session at all', async () => {
+    // A hand-edited registry can carry the field on a task record; the wire
+    // must not repeat it, because a surface reading it would offer to open a
+    // session that firing never had.
+    registry(JSON.stringify([
+      {
+        name: 'ten', task: 'tasks/fit.yaml', every: 'PT10M', enabled: true,
+        lastSessionId: 'session-not-ours',
+      },
+    ]))
+    const request = routes({ 'S-1': workspace })
+
+    const response = await request(`${ROUTE_PREFIX}/triggers`, 'session=S-1')
+
+    const [only] = JSON.parse(response.body).triggers
+    expect(only.action).toBe('run')
+    expect(only).not.toHaveProperty('lastSessionId')
   })
 
   it('derives the next fire from lastFiredAt plus the cadence', async () => {
@@ -1128,5 +1207,105 @@ describe('what the trigger registry says', () => {
     const response = await request(`${ROUTE_PREFIX}/triggers`, 'session=S-1')
 
     expect(response.headers['cache-control']).toBe('no-store')
+  })
+})
+
+describe('turning one trigger on or off — the one route that writes', () => {
+  /** A registry with one enabled trigger, and the routes over it. */
+  function withTrigger(rows: unknown[] = [{ name: 'brief', action: 'routine', prompt: 'hi', every: 'PT30M', enabled: true }]) {
+    mkdirSync(join(workspace, '.rheplicant-agent'), { recursive: true })
+    writeFileSync(join(workspace, '.rheplicant-agent/triggers.json'), JSON.stringify(rows))
+    return routes({}, [{ path: workspace, sessionIds: [], id: 'ws-1' }])
+  }
+
+  /** What the registry file holds now. */
+  function stored(): { name: string; enabled: boolean }[] {
+    return JSON.parse(readFileSync(join(workspace, '.rheplicant-agent/triggers.json'), 'utf8')) as never
+  }
+
+  it('flips the trigger and answers with the state as it stands', async () => {
+    const ask = withTrigger()
+    const answered = await ask.post(`${ROUTE_PREFIX}/trigger-enabled`,
+      { workspace: 'ws-1', name: 'brief', enabled: false })
+    expect(answered.status).toBe(200)
+    expect(JSON.parse(answered.body)).toEqual({ name: 'brief', enabled: false })
+    expect(stored()[0]!.enabled).toBe(false)
+  })
+
+  it('refuses anything but POST, rather than answering a GET on a write route', async () => {
+    const ask = withTrigger()
+    const answered = await ask.post(`${ROUTE_PREFIX}/trigger-enabled`, {}, 'GET')
+    expect(answered.status).toBe(405)
+    expect(stored()[0]!.enabled).toBe(true)
+  })
+
+  it('refuses a body that is not the three fields', async () => {
+    const ask = withTrigger()
+    expect((await ask.post(`${ROUTE_PREFIX}/trigger-enabled`, { workspace: 'ws-1' })).status).toBe(400)
+    expect((await ask.post(`${ROUTE_PREFIX}/trigger-enabled`, 'not json')).status).toBe(400)
+    expect(stored()[0]!.enabled).toBe(true)
+  })
+
+  it('never lets a workspace PATH be named — only an id the host minted', async () => {
+    // The same rule every read route here follows: a path on the wire would
+    // let a caller address any directory on the machine.
+    const ask = withTrigger()
+    const answered = await ask.post(`${ROUTE_PREFIX}/trigger-enabled`,
+      { workspace, name: 'brief', enabled: false })
+    expect(answered.status).toBe(404)
+    expect(stored()[0]!.enabled).toBe(true)
+  })
+
+  it('says 404 for a trigger that is not there, and writes nothing', async () => {
+    const ask = withTrigger()
+    const answered = await ask.post(`${ROUTE_PREFIX}/trigger-enabled`,
+      { workspace: 'ws-1', name: 'ghost', enabled: false })
+    expect(answered.status).toBe(404)
+    expect(stored()).toHaveLength(1)
+  })
+
+  it('says 409 — not 500 — for an unreadable registry, and leaves the bytes alone', async () => {
+    // Nothing failed here: the file is exactly as the person left it, and the
+    // client renders the reason beside the row rather than as a fault of its own.
+    mkdirSync(join(workspace, '.rheplicant-agent'), { recursive: true })
+    writeFileSync(join(workspace, '.rheplicant-agent/triggers.json'), '{ not json')
+    const ask = routes({}, [{ path: workspace, sessionIds: [], id: 'ws-1' }])
+    const answered = await ask.post(`${ROUTE_PREFIX}/trigger-enabled`,
+      { workspace: 'ws-1', name: 'brief', enabled: false })
+    expect(answered.status).toBe(409)
+    expect(readFileSync(join(workspace, '.rheplicant-agent/triggers.json'), 'utf8')).toBe('{ not json')
+  })
+})
+
+describe('the wall-clock cadence, projected', () => {
+  it('states the KIND rather than leaving a client to infer it from the text', async () => {
+    // `08:00` and `PT10M` are both strings; only the kind says which of them
+    // drifts when the harness was down.
+    mkdirSync(join(workspace, '.rheplicant-agent'), { recursive: true })
+    writeFileSync(join(workspace, '.rheplicant-agent/triggers.json'), JSON.stringify([
+      { name: 'dawn', task: 'tasks/fit.yaml', dailyAt: '08:00', enabled: true },
+      { name: 'ten', task: 'tasks/fit.yaml', every: 'PT10M', enabled: true },
+    ]))
+    const ask = routes({}, [{ path: workspace, sessionIds: [], id: 'ws-1' }])
+    const answered = await ask(`${ROUTE_PREFIX}/triggers`, 'workspace=ws-1')
+    const rows = JSON.parse(answered.body).triggers as { name: string; cadence: string; cadenceKind: string }[]
+    expect(rows.map(r => [r.name, r.cadence, r.cadenceKind])).toEqual([
+      ['dawn', '08:00', 'dailyAt'],
+      ['ten', 'PT10M', 'every'],
+    ])
+  })
+
+  it('gives a wall-clock trigger a next fire that is NOT a period after its last one', async () => {
+    const fired = new Date(2026, 7, 28, 8, 0, 30, 0)
+    mkdirSync(join(workspace, '.rheplicant-agent'), { recursive: true })
+    writeFileSync(join(workspace, '.rheplicant-agent/triggers.json'), JSON.stringify([
+      { name: 'dawn', task: 'tasks/fit.yaml', dailyAt: '08:00', enabled: true, lastFiredAt: fired.toISOString() },
+    ]))
+    const ask = routes({}, [{ path: workspace, sessionIds: [], id: 'ws-1' }])
+    const answered = await ask(`${ROUTE_PREFIX}/triggers`, 'workspace=ws-1')
+    const [row] = JSON.parse(answered.body).triggers as { nextFireAt: string }[]
+    const next = new Date(row!.nextFireAt)
+    expect([next.getHours(), next.getMinutes()]).toEqual([8, 0])
+    expect(next.getDate()).toBe(29)
   })
 })

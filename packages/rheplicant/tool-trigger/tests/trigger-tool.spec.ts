@@ -210,3 +210,79 @@ describe('keeping the registry out of git', () => {
     expect(render(result)).not.toContain('stays out of git')
   })
 })
+
+describe('scheduling a routine instead of a task', () => {
+  it('writes a routine when given a prompt, with no task field at all', async () => {
+    const { call } = tool()
+    await call({ action: 'set', name: 'brief', prompt: 'Check the overnight fits', every: 'PT30M' })
+    expect(stored()).toEqual([
+      { name: 'brief', every: 'PT30M', enabled: true, action: 'routine', prompt: 'Check the overnight fits' },
+    ])
+  })
+
+  it('renders what a routine will SAY, since it has no task to name', async () => {
+    const { call, render } = tool()
+    const result = await call({ action: 'set', name: 'brief', prompt: 'Check the overnight fits', every: 'PT30M' })
+    expect(render(result)).toContain('routine "Check the overnight fits"')
+  })
+
+  it('clips a long prompt in the listing rather than reading it back', async () => {
+    const { call, render } = tool()
+    const result = await call({ action: 'set', name: 'brief', prompt: 'x'.repeat(200), every: 'PT30M' })
+    const line = render(result).split('\n').find(row => row.includes('brief')) ?? ''
+    expect(line.length).toBeLessThan(140)
+    expect(line).toContain('…')
+  })
+
+  it('still says the limitation, which is not about which kind it is', async () => {
+    const { call, render } = tool()
+    const result = await call({ action: 'set', name: 'brief', prompt: 'anything', every: 'PT30M' })
+    expect(render(result)).toContain('Triggers fire only while this harness is running.')
+  })
+
+  it('refuses BOTH a task and a prompt, rather than silently preferring one', async () => {
+    const { call } = tool()
+    await expect(call({ action: 'set', name: 'n', task: 't.yaml', prompt: 'hi', every: 'PT30M' }))
+      .rejects.toThrow(/exactly one/)
+  })
+
+  it('refuses a routine faster than the floor, and says a task trigger has none', async () => {
+    const { call } = tool()
+    await expect(call({ action: 'set', name: 'n', prompt: 'hi', every: 'PT1M' }))
+      .rejects.toThrow(/PT5M/)
+  })
+
+  it('lets a TASK trigger keep a cadence a routine could not have', async () => {
+    const { call } = tool()
+    await call({ action: 'set', name: 'fast', task: 't.yaml', every: 'PT30S' })
+    expect(stored()[0]!.every).toBe('PT30S')
+  })
+
+  it('replaces a task trigger with a routine WHOLE, carrying no stale task across', async () => {
+    // A routine that kept a `task` would render as a task run on every surface
+    // that draws one.
+    const { call } = tool()
+    await call({ action: 'set', name: 'n', task: 't.yaml', every: 'PT30M' })
+    await call({ action: 'set', name: 'n', prompt: 'now a routine', every: 'PT30M' })
+    expect(stored()).toHaveLength(1)
+    expect(stored()[0]).not.toHaveProperty('task')
+  })
+
+  it('keeps the firing history when the kind changes, so it does not fire at once', async () => {
+    const { call } = tool()
+    await call({ action: 'set', name: 'n', task: 't.yaml', every: 'PT30M' })
+    writeFileSync(join(workspace, TRIGGERS_FILE),
+      JSON.stringify([{ ...stored()[0], lastFiredAt: '2026-08-27T00:00:00.000Z' }]))
+    await call({ action: 'set', name: 'n', prompt: 'now a routine', every: 'PT30M' })
+    expect(stored()[0]!.lastFiredAt).toBe('2026-08-27T00:00:00.000Z')
+  })
+
+  it('disables and removes a routine by the same name-keyed route', async () => {
+    const { call } = tool()
+    await call({ action: 'set', name: 'brief', prompt: 'hi', every: 'PT30M' })
+    await call({ action: 'disable', name: 'brief' })
+    expect(stored()[0]!.enabled).toBe(false)
+    await call({ action: 'remove', name: 'brief' })
+    expect(stored()).toEqual([])
+  })
+})

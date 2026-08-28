@@ -71,8 +71,21 @@
   border-top: 1px solid var(--dsw-alias-border-l1);
 }
 
+/* A citation code, in the register a citation gets: mono, quiet, and set in a
+   chip so it reads as a handle rather than as the first word of the sentence
+   beside it. */
+.alwaysOnId {
+  padding: 0.05rem 0.3rem;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 0.25rem;
+  color: var(--dsw-alias-label-tertiary);
+  font-family: var(--dsw-font-mono, ui-monospace, monospace);
+  font-size: 0.6875rem;
+}
+
 .alwaysOnSummary {
-  color: var(--dsw-alias-label-secondary);
+  color: var(--dsw-alias-label-primary);
+  font-size: 0.8125rem;
 }
 
 .alwaysOnDetails {
@@ -93,9 +106,19 @@
 
 /* Why the priced-check cards are absent, when this surface has no conversation
    to read them from. Stated on screen rather than left as an empty space —
-   an unexplained absence reads as "this document declares no checks". */
+   an unexplained absence reads as "this document declares no checks".
+
+   AN ASIDE, NOT THE LEDE. It sits where the cards would be, and that position
+   is right: it explains THAT absence. What was wrong is that a four-line
+   paragraph in flat body text was the first thing the panel said, so the panel
+   opened by explaining what it does not contain. A left rule and a quiet
+   ground make it read as a footnote in the place a footnote belongs. */
 .checksAbsent {
   margin: 0 0 0.5rem;
+  padding: 0.4rem 0.625rem;
+  border-left: 2px solid var(--dsw-alias-border-l1);
+  border-radius: 0 0.25rem 0.25rem 0;
+  background: var(--dsw-alias-bg-layer-2);
   color: var(--dsw-alias-label-tertiary);
   font-size: 0.75rem;
   line-height: 1.5;

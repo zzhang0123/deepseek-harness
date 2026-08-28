@@ -25,7 +25,10 @@
 
 import { Context, Service } from '@deepseek-ai/cordis'
 
-import { openHome, readHome, subscribeHome, toggleHome, type HomeState } from './home-store.ts'
+import {
+  openHome, readHome, showSection, subscribeHome, toggleHome,
+  type HomeState, type Section,
+} from './home-store.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -64,6 +67,33 @@ export class WorkbenchRuntime extends Service {
   }
 
   /**
+   * Go to a named section — the general setter behind `show`/`toggle`.
+   *
+   * **Why a general setter lives on a service named for the workbench.** This
+   * class is already the cross-bundle face of the ONE section register: `read`
+   * returns whatever section is on screen and `subscribe` fires for every
+   * change, neither of them workbench-shaped. Only the WRITERS were, so a page
+   * in another bundle (`ui-docs`) could read the register it has to coordinate
+   * with and not write it.
+   *
+   * A second service over the same variable was the alternative and is worse:
+   * `ctx.rheplicantSelection` is a separate service because it answers a
+   * separate QUESTION (project state, not frame state), where this would be a
+   * second face on one fact — two ways to move the column, and nothing saying
+   * which one a new page should use.
+   *
+   * The NAME is now narrower than the service. Recorded rather than fixed here,
+   * for the reason `surface-model.md` §9.5 gives about retiring "console":
+   * renaming a published service is its own commit, and this one moves no
+   * identifiers.
+   *
+   * @param section - the section to show.
+   */
+  go(section: Section): void {
+    showSection(section)
+  }
+
+  /**
    * What the surface is showing right now.
    * @returns the state, without subscribing.
    */
@@ -80,5 +110,7 @@ export class WorkbenchRuntime extends Service {
     return subscribeHome(listener)
   }
 }
+
+export type { Section } from './home-store.ts'
 
 export default WorkbenchRuntime

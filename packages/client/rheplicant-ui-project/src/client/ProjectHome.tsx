@@ -45,6 +45,7 @@ import type { PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 import { Badge, EmptyState, Panel, type PanelLayoutView, shortExecutionId } from '@rheplicant/dsh-rheplicant-ui-kit/client'
 import { closeHome, selectProject, useHome } from './home-store.ts'
 import { showWorkbenchPage, useWorkbenchPage, type WorkbenchPage } from './workbench-page.ts'
+import { tabListKeyHandler, tabPanelProps, tabProps } from './tabs.ts'
 import {
   countByStatus, formatBytes, groupExecutionsByTask, taskPathForSegment, taskSegmentOf,
 } from './home-selectors.ts'
@@ -81,7 +82,18 @@ import styles from './project-home.module.css'
  * different fixes, and the whole point of the two status axes is that a
  * listing does not merge them.
  */
-const EXECUTION_BADGE = { ok: 'ok', refused: 'refuse', error: 'failed' } as const
+/**
+ * A run's terminal status, onto the badge vocabulary.
+ *
+ * **`refused` takes the WARN wash, not the error one.** The two failure kinds
+ * are documented here as staying distinct — a refused publication is
+ * rheplicant declining a document it judged unsound, a failed one is the run
+ * breaking — and they rendered in the same red, so the distinction survived
+ * only in the word. `refuse` keeps its own red inside the Gates panel, where a
+ * refusing gate IS the hard verdict; this map is local to executions so
+ * changing it here changes nothing there.
+ */
+const EXECUTION_BADGE = { ok: 'ok', refused: 'warn', error: 'failed' } as const
 
 /**
  * Why an unreadable project is not an empty one.
@@ -107,6 +119,17 @@ const WORKBENCH_PAGES: readonly { readonly id: WorkbenchPage; readonly label: st
   { id: 'model', label: 'Model' },
   { id: 'results', label: 'Results' },
 ]
+
+/**
+ * The same four, as the bare names the arrow keys walk (`tabs.ts`), and the
+ * row's own name — a document-wide id prefix, so it carries the plugin.
+ *
+ * Derived rather than written a second time: the row's order and the key
+ * order must be the same list, and two lists that must agree eventually do
+ * not.
+ */
+const PAGE_NAMES: readonly WorkbenchPage[] = WORKBENCH_PAGES.map(entry => entry.id)
+const TAB_GROUP = 'rheplicant-workbench'
 
 /** The workspace rows the shell hands every root-scoped occupant. */
 interface WorkspaceRow {
@@ -386,7 +409,14 @@ export const ProjectHome = memo(function ProjectHome(
 
             Now the selection is the header and the tabs are genuinely peers:
             you can see and change all three from anywhere. */}
-        <header className={styles.head}>
+        {/* NO TITLE HERE, deliberately. An audit asked for one on the grounds
+          that both sibling sections carry an identity — and the Document tab
+          had exactly such a heading removed on 2026-08-28 for the opposite
+          reason: the sidebar's active nav row already names the destination in
+          the accent, so a heading restating it is the same word twice in two
+          weights. What this header carries instead is the breadcrumb, which
+          answers the question a title cannot — WHICH project, task and run. */}
+      <header className={styles.head}>
           <div className={styles.path} data-workbench-path>
             {/* ONE control, showing the AUTHORITATIVE name.
                 The header used to print `current.project` — the name the
@@ -501,20 +531,33 @@ export const ProjectHome = memo(function ProjectHome(
             used `<nav>` + `aria-current="page"` and called them pages, which
             promises something this does not do — no URL changes and Back does
             not undo a switch. */}
-        <div className={styles.pages} role="tablist" aria-label="Workbench view" data-workbench-pages>
-          {WORKBENCH_PAGES.map(entry => (
-            <button
-              key={entry.id}
-              type="button"
-              role="tab"
-              className={styles.pageTab}
-              data-workbench-page={entry.id}
-              aria-selected={page === entry.id}
-              onClick={() => { showWorkbenchPage(entry.id) }}
-            >
-              {entry.label}
-            </button>
-          ))}
+        <div className={styles.pagesRow}>
+          {/* THE TABLIST OWNS TABS AND NOTHING ELSE. The Panels menu used to be
+              a child of this element, which made a `tablist` whose last owned
+              child was a menu button — a shape no assistive technology has an
+              answer for, and one the arrow keys would have had to step over.
+              It keeps its place at the end of the row; the row is now a box
+              around the tablist rather than the tablist itself. */}
+          <div
+            className={styles.pages}
+            role="tablist"
+            aria-label="Workbench view"
+            data-workbench-pages
+            onKeyDown={tabListKeyHandler(TAB_GROUP, PAGE_NAMES, page, showWorkbenchPage)}
+          >
+            {WORKBENCH_PAGES.map(entry => (
+              <button
+                key={entry.id}
+                type="button"
+                className={styles.pageTab}
+                data-workbench-page={entry.id}
+                {...tabProps(TAB_GROUP, page, entry.id)}
+                onClick={() => { showWorkbenchPage(entry.id) }}
+              >
+                {entry.label}
+              </button>
+            ))}
+          </div>
           {/* The menu governs the `task.panel` grid and nothing else, so it
               lives with it. It sat in the header above eight sections it has
               no say over. */}
@@ -533,16 +576,25 @@ export const ProjectHome = memo(function ProjectHome(
 
         {current === undefined
           ? (
-            <div className={styles.body}>
-              <EmptyState
-                kind={loading ? 'arriving' : 'unavailable'}
-                message={loading ? 'Reading the project…' : 'This project is not readable from here'}
-                hint={loading ? undefined : UNREADABLE_HINT}
-              />
+            <div className={styles.body} {...tabPanelProps(TAB_GROUP, page)}>
+              {/* BOUNDED, like the prompts it is a sibling of. `EmptyState`
+                  brings its own frame — solid for `unavailable`, dashed for
+                  `arriving` — so the box was never missing; what was missing
+                  is a measure. As a stretched flex item it ran the full body,
+                  which at 2200px is a one-sentence message centred inside a
+                  1900px box. `.prompt` bounds itself at 32rem for exactly this
+                  reason and says so; this is that. */}
+              <div className={styles.pageState}>
+                <EmptyState
+                  kind={loading ? 'arriving' : 'unavailable'}
+                  message={loading ? 'Reading the project…' : 'This project is not readable from here'}
+                  hint={loading ? undefined : UNREADABLE_HINT}
+                />
+              </div>
             </div>
           )
           : (
-            <div className={styles.body}>
+            <div className={styles.body} {...tabPanelProps(TAB_GROUP, page)}>
               {failure !== undefined && (
                 <p className={styles.warning} data-project-open-failed="">
                   Could not open this project: {failure}
@@ -747,7 +799,19 @@ export const ProjectHome = memo(function ProjectHome(
                 <Panel
                   id="project-executions"
                   title="Executions"
-                  subtitle={`every task in this project · ${counts.ok} ok · ${counts.refused} refused · ${counts.error} error`}
+                  subtitle="every task in this project"
+                  /* The three counts were the tail of a four-fact middot run in
+                     one 12px grey string, where the number a reader is actually
+                     looking for — how many failed — was the least visible thing
+                     in it. As badges they carry their own colour, which is the
+                     whole reason the palette exists. */
+                  actions={(
+                    <>
+                      <Badge state="ok">{`${counts.ok} ok`}</Badge>
+                      {counts.refused > 0 && <Badge state="warn">{`${counts.refused} refused`}</Badge>}
+                      {counts.error > 0 && <Badge state="failed">{`${counts.error} error`}</Badge>}
+                    </>
+                  )}
                 >
                   {byTask.length === 0
                     ? (
@@ -806,9 +870,23 @@ export const ProjectHome = memo(function ProjectHome(
                                       })
                                     }}
                                   >
-                                    <span className={styles.mono}>{execution.executionId}</span>
+                                    {/* SHORT, like every other place this id is
+                                        rendered — the run picker two hundred
+                                        lines up already does exactly this. The
+                                        full 33 characters sat in a flex cell set
+                                        to `overflow-wrap: anywhere`, so a run's
+                                        name broke mid-identifier across two
+                                        lines and the row under it started
+                                        somewhere else.
+
+                                        The path went with it: the id NAMES that
+                                        directory, so the row was printing the
+                                        same fact twice and the second copy was
+                                        the one that could not shrink. */}
+                                    <span className={styles.mono}>
+                                      {shortExecutionId(execution.executionId)}
+                                    </span>
                                   </button>
-                                  <span className={styles.meta}>{execution.path}</span>
                                   <Badge state={EXECUTION_BADGE[execution.status]}>
                                     {execution.status}
                                   </Badge>
@@ -1025,8 +1103,26 @@ export const ProjectHome = memo(function ProjectHome(
                     execution", and on the Setup tab there was no control for
                     that within reach. */}
 
+                {/* On the SAME layout store as the six panels directly
+                    below it. It was the one panel on this tab with no
+                    chevron, sitting immediately above a grid where every
+                    occupant has one — so the affordance read as arbitrary
+                    rather than as a property of panels. The store is keyed
+                    by arbitrary id and this one is stable.
+
+                    It stays out of the Panels menu, and that is not the same
+                    gap: that menu's roster is the `task.panel` occupants
+                    (`known-panels.ts` says so in its first line) and this
+                    panel is not one — it is rendered here. Collapse is a
+                    panel's own control; hide is the grid's. */}
                 {selection.taskPath !== undefined && selectedTask !== undefined && (
-                  <Panel id="project-task-maturity" title="How far this task has got" subtitle="from what is on disk, not this chat">
+                  <Panel
+                    id="project-task-maturity"
+                    title="How far this task has got"
+                    subtitle="from what is on disk, not this chat"
+                    collapsed={collapsedSet.has('project-task-maturity')}
+                    onToggleCollapse={() => { actions.toggleCollapsed('project-task-maturity') }}
+                  >
                     <TaskMaturity
                       task={selectedTask}
                       newest={newestOfTask}

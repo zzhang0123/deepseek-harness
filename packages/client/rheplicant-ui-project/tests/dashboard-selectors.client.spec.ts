@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   allExecutions, allTasks, allTriggers, kindsPresent, matchesKind, neverRun,
-  nextFireLabel, orphanTriggers, projectTotals, triggersForTask, unreadableRegistries,
+  nextFireLabel, orphanTriggers, outcomeParts, projectTotals, routineTriggers,
+  scheduleBoard, sinceLabel, triggersForTask, unreadableRegistries,
   type DashboardExecution, type DashboardTask, type DashboardTrigger,
 } from '../src/client/dashboard-selectors.ts'
 import type { ProjectCard } from '../src/client/use-all-projects.ts'
@@ -25,7 +26,26 @@ function task(over: Partial<DashboardTask> = {}): DashboardTask {
 
 /** One trigger row, with only what a given assertion needs stated. */
 function trigger(over: Partial<ProjectTriggerRow> = {}): ProjectTriggerRow {
-  return { name: 'nightly', task: 'tasks/demo.yaml', every: 'P1D', enabled: true, ...over }
+  return { name: 'nightly', action: 'run', task: 'tasks/demo.yaml', cadence: 'P1D', cadenceKind: 'every', enabled: true, ...over }
+}
+
+/** One ROUTINE row — a prompt on a cadence, naming no task at all. */
+function routine(
+  over: { [K in keyof ProjectTriggerRow]?: ProjectTriggerRow[K] | undefined } = {},
+): ProjectTriggerRow {
+  const base: ProjectTriggerRow = {
+    name: 'brief', action: 'routine', prompt: 'Check the overnight fits',
+    cadence: 'PT30M', cadenceKind: 'every', enabled: true,
+  }
+  // An override of `undefined` REMOVES the field rather than setting it to
+  // `undefined` — which is what a test saying `{ lastFiredAt: undefined }`
+  // means, and what `exactOptionalPropertyTypes` will not let it say directly.
+  const merged = { ...base } as Record<string, unknown>
+  for (const [key, value] of Object.entries(over)) {
+    if (value === undefined) delete merged[key]
+    else merged[key] = value
+  }
+  return merged as unknown as ProjectTriggerRow
 }
 
 /**
@@ -209,9 +229,10 @@ describe('the cross-project task list (the Setups tab)', () => {
 
 describe('what a project has scheduled', () => {
   it('carries the cadence verbatim, and the trigger name as its identity', () => {
-    const [only] = allTriggers([card({ scheduled: [trigger({ name: 'ten', every: 'PT10M' })] })])
+    const [only] = allTriggers([card({ scheduled: [trigger({ name: 'ten', cadence: 'PT10M' })] })])
     expect(only?.name).toBe('ten')
-    expect(only?.every).toBe('PT10M')
+    expect(only?.cadence).toBe('PT10M')
+    expect(only?.cadenceKind).toBe('every')
   })
 
   it('contributes nothing from a project with no registry', () => {
@@ -335,7 +356,7 @@ describe('attaching schedules to rows', () => {
   it('gives one task both of the triggers that name it', () => {
     const triggers = allTriggers([card({
       tasks: [task()],
-      scheduled: [trigger({ name: 'a' }), trigger({ name: 'b', every: 'PT10M' })],
+      scheduled: [trigger({ name: 'a' }), trigger({ name: 'b', cadence: 'PT10M' })],
     })])
     expect(triggersForTask(triggers, task()).map(row => row.name)).toEqual(['a', 'b'])
   })
@@ -393,5 +414,229 @@ describe('when a trigger next fires', () => {
     // absent is the state the wire actually produces.
     expect(nextFireLabel(row(), NOON)).toBe('next fire unknown')
     expect(nextFireLabel(row({ nextFireAt: 'soon' }), NOON)).toBe('next fire unknown')
+  })
+})
+
+describe('routines, which belong to the project rather than to a task', () => {
+  it('gets NO taskPresence, because it names no task to have one about', () => {
+    // `unknown` is a real claim — *cannot tell if this task is here*. Making it
+    // carry "there is no task to look for" would put two facts under one word.
+    const [row] = allTriggers([card({ scheduled: [routine()] })])
+    expect(row?.taskPresence).toBeUndefined()
+  })
+
+  it('is NEVER an orphan, whose heading would be a false statement about it', () => {
+    // `orphanTriggers` means "names a task that is not here". A routine names
+    // nothing, so that is not a weaker claim about it — it is a wrong one.
+    const triggers = allTriggers([card({ scheduled: [routine()] })])
+    expect(orphanTriggers(triggers)).toEqual([])
+  })
+
+  it('never attaches to a task row, even one whose path it could be confused with', () => {
+    const triggers = allTriggers([card({ scheduled: [routine()] })])
+    expect(triggersForTask(triggers, task())).toEqual([])
+  })
+
+  it('is listed on its own, carrying the prompt it will say', () => {
+    const triggers = allTriggers([card({ scheduled: [routine()] })])
+    expect(routineTriggers(triggers).map(row => row.prompt)).toEqual(['Check the overnight fits'])
+  })
+
+  it('leaves task triggers where they were — both kinds from one registry', () => {
+    const triggers = allTriggers([card({ scheduled: [trigger(), routine()] })])
+    expect(routineTriggers(triggers).map(row => row.name)).toEqual(['brief'])
+    expect(triggersForTask(triggers, task()).map(row => row.name)).toEqual(['nightly'])
+  })
+
+  it('still answers when it is next due, by the same clock as everything else', () => {
+    const triggers = allTriggers([card({ scheduled: [routine({ lastFiredAt: undefined })] })])
+    expect(nextFireLabel(triggers[0]!, Date.parse('2026-08-27T06:00:00Z'))).toBeTruthy()
+  })
+})
+
+describe('the board, which orders by WHEN rather than by project', () => {
+  /** A row with only its ordering inputs stated. */
+  function row(name: string, nextFireAt?: string): DashboardTrigger {
+    return {
+      name, action: 'run', task: 't.yaml', cadence: 'P1D', cadenceKind: 'every', enabled: nextFireAt !== undefined,
+      workspaceId: 'ws-1', project: 'alpha', taskPresence: 'present',
+      ...(nextFireAt === undefined ? {} : { nextFireAt }),
+    }
+  }
+
+  it('puts the soonest fire first, across projects', () => {
+    const board = scheduleBoard([
+      row('later', '2026-08-28T12:00:00.000Z'),
+      row('sooner', '2026-08-28T06:00:00.000Z'),
+    ])
+    expect(board.map(entry => entry.name)).toEqual(['sooner', 'later'])
+  })
+
+  it('leaves an OVERDUE instant in the past, so it sorts to the very front', () => {
+    // §27.2: `next fire` is not clamped to now. A harness that was down across
+    // a window leaves an instant behind it, and that is the evidence for the
+    // "only while this harness is running" sentence — moving it forward would
+    // erase exactly what the board is for.
+    const board = scheduleBoard([
+      row('soon', '2026-08-28T06:00:00.000Z'),
+      row('overdue', '2020-01-01T00:00:00.000Z'),
+    ])
+    expect(board[0]?.name).toBe('overdue')
+  })
+
+  it('sinks a disabled row without dropping it', () => {
+    // Hiding it would answer "what is scheduled" with a subset — and the
+    // board's one control is the switch that turns it back on, so an invisible
+    // row would be unreachable.
+    const board = scheduleBoard([row('off'), row('on', '2026-08-28T06:00:00.000Z')])
+    expect(board.map(entry => entry.name)).toEqual(['on', 'off'])
+    expect(board).toHaveLength(2)
+  })
+
+  it('sinks a timestamp it cannot parse, rather than sorting it as zero', () => {
+    // `Date.parse` answers NaN, and NaN in a comparator scrambles the whole
+    // list rather than misplacing one row.
+    const board = scheduleBoard([row('bad', 'tomorrow'), row('good', '2026-08-28T06:00:00.000Z')])
+    expect(board.map(entry => entry.name)).toEqual(['good', 'bad'])
+  })
+
+  it('keeps registry order among ties, so the board does not shuffle under the pointer', () => {
+    const same = '2026-08-28T06:00:00.000Z'
+    const board = scheduleBoard([row('a', same), row('b', same), row('c', same)])
+    expect(board.map(entry => entry.name)).toEqual(['a', 'b', 'c'])
+  })
+
+  it('does not mutate what it was handed', () => {
+    const given = [row('later', '2026-08-28T12:00:00.000Z'), row('sooner', '2026-08-28T06:00:00.000Z')]
+    scheduleBoard(given)
+    expect(given.map(entry => entry.name)).toEqual(['later', 'sooner'])
+  })
+})
+
+describe('a wall-clock trigger on the board', () => {
+  it('keeps its kind through the selectors, so a renderer can tell them apart', () => {
+    const dawn = trigger({ name: 'dawn', cadence: '08:00', cadenceKind: 'dailyAt' })
+    const [only] = allTriggers([card({ scheduled: [dawn] })])
+    expect(only).toMatchObject({ cadence: '08:00', cadenceKind: 'dailyAt' })
+  })
+
+  it('sorts by next fire beside an interval trigger, since WHEN is one question', () => {
+    const soon = { ...trigger({ name: 'soon' }), workspaceId: 'ws-1', project: 'a', taskPresence: 'present', nextFireAt: '2026-08-28T06:00:00.000Z' } as DashboardTrigger
+    const later = { ...trigger({ name: 'later', cadence: '23:00', cadenceKind: 'dailyAt' }), workspaceId: 'ws-1', project: 'a', taskPresence: 'present', nextFireAt: '2026-08-28T21:00:00.000Z' } as DashboardTrigger
+    expect(scheduleBoard([later, soon]).map(row => row.name)).toEqual(['soon', 'later'])
+  })
+})
+
+
+describe('how a project\u2019s executions ended', () => {
+  it('names every outcome that happened, in the order the tree names them', () => {
+    expect(outcomeParts(projectTotals(card({
+      executions: [
+        execution({ executionId: 'E1', status: 'error' }),
+        execution({ executionId: 'E2', status: 'ok' }),
+        execution({ executionId: 'E3', status: 'refused' }),
+        execution({ executionId: 'E4', status: 'ok' }),
+      ],
+    })))).toEqual([
+      { status: 'ok', count: 2 },
+      { status: 'refused', count: 1 },
+      { status: 'error', count: 1 },
+    ])
+  })
+
+  it('drops the outcomes that did not happen rather than printing zeroes', () => {
+    expect(outcomeParts(projectTotals(card({
+      executions: [execution({ status: 'ok' }), execution({ executionId: 'E2', status: 'ok' })],
+    })))).toEqual([{ status: 'ok', count: 2 }])
+  })
+
+  it('sums to the execution count, which is what makes it a breakdown', () => {
+    // Guaranteed rather than hoped: `isExecution` refuses a row whose status
+    // is not one of the three, and refuses the whole answer with it.
+    const project = projectTotals(card({
+      executions: [
+        execution({ executionId: 'E1', status: 'ok' }),
+        execution({ executionId: 'E2', status: 'refused' }),
+        execution({ executionId: 'E3', status: 'error' }),
+      ],
+    }))
+    const summed = outcomeParts(project).reduce((total, part) => total + part.count, 0)
+    expect(summed).toBe(project.executions)
+  })
+
+  it('says nothing for a project that has not run anything', () => {
+    expect(outcomeParts(projectTotals(card({ executions: [] })))).toEqual([])
+  })
+
+  it('says nothing for a project that could not be read, rather than three dashes', () => {
+    expect(outcomeParts(projectTotals({ workspaceId: 'ws-1', title: 'a', overview: undefined } as never)))
+      .toEqual([])
+  })
+})
+
+describe('how long ago an instant was', () => {
+  const NOW = Date.parse('2026-08-26T12:00:00.000Z')
+  /** `NOW` minus a span, as the ISO string a row would carry. */
+  const ago = (ms: number) => new Date(NOW - ms).toISOString()
+
+  it('walks the ladder', () => {
+    expect(sinceLabel(ago(30_000), NOW)).toBe('just now')
+    expect(sinceLabel(ago(8 * 60_000), NOW)).toBe('8 min ago')
+    expect(sinceLabel(ago(3 * 3_600_000), NOW)).toBe('3 h ago')
+    expect(sinceLabel(ago(3 * 86_400_000), NOW)).toBe('3 d ago')
+  })
+
+  // The dispatch thresholds themselves, and one tick either side of each. A
+  // ladder is a dispatcher, and its bugs live exactly here: the version this
+  // replaced chose the bucket from the raw span and then rounded separately,
+  // which printed `60 min ago` for the last second of the hour.
+  it.each([
+    [60_000 - 1, 'just now'],
+    [60_000, '1 min ago'],
+    [90_000, '2 min ago'],
+    [3_600_000 - 1, '1 h ago'],
+    [3_600_000, '1 h ago'],
+    [3_570_000, '1 h ago'],
+    [3_569_999, '59 min ago'],
+    [86_400_000 - 1, '1 d ago'],
+    [86_400_000, '1 d ago'],
+    [86_400_000 - 1_800_000, '1 d ago'],
+    [86_400_000 - 1_800_001, '23 h ago'],
+  ])('says %i ms ago is "%s"', (span, phrase) => {
+    expect(sinceLabel(ago(span), NOW)).toBe(phrase)
+  })
+
+  it('treats a minute of clock skew as now, and more than that as wrong', () => {
+    // A file mtime a few seconds ahead of the reader is ordinary on a shared
+    // or virtualised filesystem. A day ahead is not, and `just now` would
+    // hide it.
+    expect(sinceLabel(ago(-30_000), NOW)).toBe('just now')
+    expect(sinceLabel(ago(-60_000), NOW)).toBe('just now')
+    expect(sinceLabel(ago(-60_001), NOW)).toBe('in the future')
+    expect(sinceLabel(ago(-86_400_000), NOW)).toBe('in the future')
+  })
+
+  it('answers unknown for both ways of not having an instant', () => {
+    expect(sinceLabel(undefined, NOW)).toBe('unknown')
+    expect(sinceLabel('x', NOW)).toBe('unknown')
+    expect(sinceLabel('', NOW)).toBe('unknown')
+  })
+})
+
+describe('the next-fire ladder picks the unit it has a name for', () => {
+  const NOON = Date.parse('2026-08-26T12:00:00.000Z')
+  const row = (over: Partial<DashboardTrigger> = {}): DashboardTrigger => ({
+    workspaceId: 'ws-1', project: 'alpha', name: 'n', task: 'tasks/demo',
+    cadence: 'PT10M', cadenceKind: 'every', enabled: true, ...over,
+  } as DashboardTrigger)
+
+  it('crosses into hours and days at the printed number, not the raw span', () => {
+    expect(nextFireLabel(row({ nextFireAt: new Date(NOON + 3_600_000 - 1).toISOString() }), NOON))
+      .toBe('in 1 h')
+    expect(nextFireLabel(row({ nextFireAt: new Date(NOON + 86_400_000 - 1).toISOString() }), NOON))
+      .toBe('in 1 d')
+    // And still reports the unit below when it genuinely belongs there.
+    expect(nextFireLabel(row({ nextFireAt: new Date(NOON + 3_569_999).toISOString() }), NOON))
+      .toBe('in 59 min')
   })
 })

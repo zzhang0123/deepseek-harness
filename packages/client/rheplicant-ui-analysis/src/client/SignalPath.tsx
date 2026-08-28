@@ -25,21 +25,36 @@
  */
 import { memo } from 'react'
 import type { SignalPathGraph } from '@rheplicant/dsh-rheplicant'
+import styles from './signal-path.module.css'
 
 export const SignalPath = memo(function SignalPath({ graph }: { graph: SignalPathGraph }) {
   return (
-    <figure data-signal-path>
+    <figure data-signal-path className={styles.figure}>
       {graph.svg !== undefined ? (
         <div
           data-signal-path-svg
-          style={{ maxHeight: '26rem', overflow: 'auto', background: 'var(--dsw-alias-bg-base)', borderRadius: 8 }}
+          className={styles.frame}
           dangerouslySetInnerHTML={{ __html: graph.svg }}
         />
       ) : null}
-      <figcaption data-signal-path-lit>
-        lit: {graph.lit.length > 0 ? graph.lit.join(', ') : '(none)'}
-        {' · '}
-        identity: {graph.skipped.length > 0 ? graph.skipped.join(', ') : '(none)'}
+      {/* Both lists stay inside ONE `data-signal-path-lit` element: the web e2e
+          (`apps/web/tests/rheplicant-analysis.e2e.ts`) reads its `innerText`
+          for the lit operator names, so splitting them into two elements would
+          break a passing test to gain nothing. Two ROWS inside it is the whole
+          improvement. */}
+      <figcaption data-signal-path-lit className={styles.caption}>
+        <span className={styles.row}>
+          <span className={styles.label}>lit</span>
+          <span className={styles.lit}>
+            {graph.lit.length > 0 ? graph.lit.join(', ') : '(none)'}
+          </span>
+        </span>
+        <span className={styles.row}>
+          <span className={styles.label}>identity</span>
+          <span className={styles.dim}>
+            {graph.skipped.length > 0 ? graph.skipped.join(', ') : '(none)'}
+          </span>
+        </span>
       </figcaption>
     </figure>
   )

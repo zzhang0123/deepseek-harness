@@ -41,6 +41,8 @@ import { Dashboard } from './Dashboard.tsx'
 import { DashboardTrigger } from './DashboardTrigger.tsx'
 import { HomeTrigger } from './HomeTrigger.tsx'
 import { ProjectHome } from './ProjectHome.tsx'
+import { Schedules } from './Schedules.tsx'
+import { SchedulesTrigger } from './SchedulesTrigger.tsx'
 import { setNavigator } from './navigate.ts'
 import { closeHome } from './home-store.ts'
 import { followSession } from './session-follow.ts'
@@ -111,7 +113,11 @@ export { WorkbenchRuntime } from './workbench-service.ts'
 export type { Navigator } from './navigate.ts'
 export type { StatusCounts, TaskExecutionGroup } from './home-selectors.ts'
 
-export const inject = ['slots', 'sessions', 'workspaces']
+// `connection` is required rather than optional even though only the
+// reveal control needs it: every composition that mounts this plugin mounts
+// the wire it reads a project through, so an optional read would be an
+// unreachable branch pretending to be a supported one.
+export const inject = ['slots', 'sessions', 'workspaces', 'connection']
 
 export function apply(ctx: ClientContext): void {
   // The project's selection, published for the console (and, from P7b, the
@@ -130,10 +136,21 @@ export function apply(ctx: ClientContext): void {
   // project-switch button and `openProject` already mean by it.
   ctx.effect(() => followSession(ctx.sessions.list, closeHome))
   ctx.effect(() => {
+    const connection = ctx.get('connection') as {
+      readonly isLoopback: boolean
+      readonly hostDescription: { getSnapshot: () => { canOpenPath?: boolean } | undefined }
+    } | undefined
     setNavigator({
       connect: workspaceId => ctx.workspaces.connectWorkspace(workspaceId as never)
         .then(sessionId => String(sessionId)),
       open: sessionId => { ctx.sessions.open(sessionId as never) },
+      // Both halves, every time: loopback is a fact about this PAGE and
+      // `canOpenPath` a fact about this HOST, and DSH's own `ProducedFiles`
+      // requires both for the same reason.
+      canReveal: () => connection !== undefined
+        && connection.isLoopback
+        && connection.hostDescription.getSnapshot()?.canOpenPath === true,
+      reveal: path => ctx.workspaces.openPath(path),
     })
     return () => { setNavigator(undefined) }
   })
@@ -193,4 +210,23 @@ export function apply(ctx: ClientContext): void {
     order: 10,
     label: () => 'Workbench',
   }, HomeTrigger))
+  // The third `section` occupant (§27.6). It answers a question neither of the
+  // other two does — *what is going to happen next* — and it orders by the
+  // clock to answer it, where the dashboard orders by project. §28's rubric
+  // keeps both because the questions differ; it would have merged them if they
+  // did not.
+  ctx.slots.inject('section', () => ctx.slots.register({
+    name: 'section',
+    id: 'rheplicant-schedules',
+    label: () => 'Schedules',
+  }, Schedules))
+  // BELOW Workbench, and the order is the reading order of the three: you
+  // arrive at the dashboard, you go to the workbench to work, and you come to
+  // the board to ask what happens while you are not here.
+  ctx.slots.inject('sidebar.nav', () => ctx.slots.register({
+    name: 'sidebar.nav',
+    id: 'rheplicant-schedules-trigger',
+    order: 15,
+    label: () => 'Schedules',
+  }, SchedulesTrigger))
 }

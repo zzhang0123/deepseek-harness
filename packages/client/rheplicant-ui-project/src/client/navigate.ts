@@ -27,6 +27,25 @@ export interface Navigator {
   connect: (workspaceId: string) => Promise<string>
   /** Bring one session to the front. `ctx.sessions.open`. */
   open: (sessionId: string) => void
+  /**
+   * Whether the host can show a path in the OS file manager, re-read on every
+   * call rather than captured.
+   *
+   * A THUNK, for `selection-bridge.ts`'s reason: the answer is
+   * `connection.isLoopback && hostDescription.getSnapshot()?.canOpenPath`, and
+   * the description arrives with the connection — after `apply()` runs, and
+   * again after every reconnect. A boolean captured at install time would say
+   * "no" for the life of the page.
+   *
+   * It is false on a headless or containerised Linux host (no WSL, no
+   * `DISPLAY`, no `WAYLAND_DISPLAY`) and on any page served to a non-loopback
+   * authority — DSH pins `host.openPath` to loopback in its own API gateway,
+   * so a remote page asking would be refused at the wire and the control would
+   * be a lie.
+   */
+  canReveal: () => boolean
+  /** Show a path in the OS file manager. `ctx.workspaces.openPath`. */
+  reveal: (path: string) => Promise<void>
 }
 
 let navigator: Navigator | undefined
@@ -78,4 +97,66 @@ export async function openProject(workspaceId: string): Promise<void> {
   // failed to connect would leave someone looking at the session they were
   // already in, with no sign that anything had gone wrong.
   closeHome()
+}
+
+/**
+ * Open one session by id, and close the home.
+ *
+ * **This is the jump `openProject` could not be.** That one connects a
+ * project's reusable BLANK session and carries nothing — not a schedule's
+ * name, prompt, cadence or state — so a person who arrived there met an agent
+ * that could not answer "change it to nine". This one names a session that
+ * already exists and already knows: a routine's session opens with a framing
+ * (`routine.ts`) whose first message states the routine's name, cadence,
+ * occurrence and prompt. Nothing has to be carried, because it is already
+ * there.
+ *
+ * **It asserts nothing about the session existing.** The id came off a record
+ * written when a firing opened it, and a session can be deleted from the
+ * sidebar afterwards. The host owns that answer; this asks and does not
+ * pretend to know. The home closes either way — a home that stayed open on a
+ * failed jump would leave someone looking at the board with no sign anything
+ * had happened, which is the opposite of `openProject`'s reason for closing
+ * last.
+ *
+ * @param sessionId - the session to bring to the front.
+ */
+export function openSession(sessionId: string): void {
+  const via = navigator
+  if (via === undefined) return
+  via.open(sessionId)
+  closeHome()
+}
+
+/**
+ * Whether a "show in the file manager" control should exist at all.
+ *
+ * Asked at RENDER, never cached — see {@link Navigator.canReveal}. A surface
+ * that cannot open a path renders the directory as text and nothing else,
+ * which is the degradation DSH's own `native-path-opener` documents this
+ * capability flag for.
+ *
+ * @returns true when the host can open a path and this page may ask it to.
+ */
+export function canRevealWorkspace(): boolean {
+  return navigator?.canReveal() === true
+}
+
+/**
+ * Show one directory in the OS file manager.
+ *
+ * **This adds no new way to reach the filesystem.** It calls
+ * `ctx.workspaces.openPath`, whose RPC method DSH already pins to loopback in
+ * its `/api` gateway, and it is handed a path that came from the workspace
+ * REGISTRY rather than from anything a page assembled — the same
+ * id-not-path discipline `project-api.ts` states for its own routes. No host
+ * route is added here and no process is spawned by this repo.
+ *
+ * @param path - the workspace directory, as the registry holds it.
+ * @returns resolution after the host accepted the request; rejects if it did not.
+ */
+export async function revealWorkspace(path: string): Promise<void> {
+  const via = navigator
+  if (via === undefined) return
+  await via.reveal(path)
 }

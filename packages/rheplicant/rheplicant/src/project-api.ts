@@ -42,12 +42,14 @@ import type { ProjectTaskDocumentBody } from './types.ts'
 import type {
   DocumentInputReference, ProjectDefinitionBody, ProjectExecutionRow, ProjectExecutionsBody,
   ProjectDocumentProjectionBody, ProjectInputReference, ProjectOverviewBody, ProjectTaskRow,
-  ProjectTriggerRow, ProjectTriggersBody, Transport,
+  ProjectTriggerRow, ProjectTriggersBody, Transport, TriggerEnabledBody,
 } from './types.ts'
 import { isTransport } from './types.ts'
 import { decodeDocument } from './contents.ts'
 import { RESULTS_ROOT, taskSegment } from './project.ts'
-import { nextFireAt, readTriggers, type TriggerRecord } from './triggers.ts'
+import {
+  cadenceOf, isRoutine, nextFireAt, readTriggers, setTriggerEnabled, type TriggerRecord,
+} from './triggers.ts'
 import type {} from './project-runtime.ts'
 
 /** Stable Cordis plugin name. */
@@ -165,13 +167,24 @@ function withExecutions(
  */
 function triggerRow(trigger: TriggerRecord, now: number): ProjectTriggerRow {
   const due = nextFireAt(trigger, now)
+  const cadence = cadenceOf(trigger)
   return {
     name: trigger.name,
-    task: trigger.task,
-    every: trigger.every,
+    // Explicit on the wire even when the file left it out — see the field note
+    // on `ProjectTriggerRow.action`.
+    action: isRoutine(trigger) ? 'routine' : 'run',
+    ...(isRoutine(trigger) ? { prompt: trigger.prompt } : { task: trigger.task }),
+    cadence: cadence.text,
+    cadenceKind: cadence.kind,
     enabled: trigger.enabled,
     ...(trigger.lastFiredAt === undefined ? {} : { lastFiredAt: trigger.lastFiredAt }),
     ...(due === undefined ? {} : { nextFireAt: new Date(due).toISOString() }),
+    // Read through `isRoutine` rather than off `trigger` directly: the field
+    // is a `RoutineTrigger`'s, and a task record that somehow carries one is
+    // carrying a fact about a session it never opened.
+    ...(isRoutine(trigger) && trigger.lastSessionId !== undefined
+      ? { lastSessionId: trigger.lastSessionId }
+      : {}),
   }
 }
 
@@ -263,6 +276,37 @@ function workspaceById(ctx: Context, url: URL): string | undefined {
 }
 
 /** Parse the request line into a URL, or undefined when it is unusable. */
+/**
+ * One request body as JSON, or undefined when it is not usable.
+ *
+ * Capped, because this route is reachable by anything that can talk to the
+ * loopback port and an unbounded read is an unbounded allocation. The cap is
+ * far above any real toggle — the largest body this accepts is a workspace id,
+ * a trigger name and a boolean.
+ *
+ * @param req - the incoming request.
+ * @returns the parsed object, or undefined for a body that is too large, not
+ *   JSON, or not an object.
+ */
+async function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown> | undefined> {
+  const MAX_BYTES = 8192
+  let size = 0
+  const chunks: Buffer[] = []
+  for await (const chunk of req) {
+    const buffer = chunk as Buffer
+    size += buffer.length
+    if (size > MAX_BYTES) return undefined
+    chunks.push(buffer)
+  }
+  try {
+    const parsed: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'))
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return undefined
+    return parsed as Record<string, unknown>
+  } catch {
+    return undefined
+  }
+}
+
 function requestUrl(req: IncomingMessage): URL | undefined {
   try {
     return new URL(req.url ?? '/', 'http://localhost')
@@ -413,6 +457,66 @@ export function apply(ctx: Context): void {
         // module is for.
         ...(registry.state === 'unreadable' ? { reason: registry.reason } : {}),
       } satisfies ProjectTriggersBody)
+    },
+  }))
+
+  // --- THE ONE WRITE THIS MODULE OFFERS ------------------------------------
+  //
+  // This file's own header calls it "the browser's READ-ONLY window onto the
+  // project", and until 2026-08-28 that was true of every route in it. The
+  // Schedules board changes it, and the change is narrow on purpose: it flips
+  // `enabled` on a trigger that already exists, and nothing else. A trigger's
+  // prompt, task and cadence are still authored by asking the agent, which is
+  // `project-model.md` §9.1's rule — the surface reads a project; it does not
+  // become a second editor for it.
+  //
+  // **Why this one is different from the rest.** Disabling a schedule is the
+  // one scheduling action with a deadline: a routine firing every thirty
+  // minutes against a task you no longer want is spending money now, and
+  // "open a session and ask the agent to stop it" is a slow answer to a fast
+  // problem. It is also perfectly reversible, which is what makes a switch the
+  // right control rather than a sentence.
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'exact',
+    path: `${ROUTE_PREFIX}/trigger-enabled`,
+    handler: async (req, res) => {
+      // Named routes carry no method filter, so the check is here. A GET on a
+      // write route is a mistake worth naming rather than answering.
+      if (req.method !== 'POST') {
+        json(res, 405, { error: 'this route takes POST', code: 'METHOD_NOT_ALLOWED' })
+        return
+      }
+      const body = await readJsonBody(req)
+      if (body === undefined) {
+        json(res, 400, { error: 'expected a small JSON object', code: 'INVALID_BODY' })
+        return
+      }
+      const workspaceId = typeof body.workspace === 'string' ? body.workspace : ''
+      const name = typeof body.name === 'string' ? body.name : ''
+      if (workspaceId === '' || name === '' || typeof body.enabled !== 'boolean') {
+        json(res, 400, { error: 'expected workspace, name and enabled', code: 'INVALID_BODY' })
+        return
+      }
+      const workspace = workspaceById(ctx, new URL(
+        `http://x/?workspace=${encodeURIComponent(workspaceId)}`))
+      if (workspace === undefined) {
+        json(res, 404, { error: 'unknown project', code: 'PROJECT_NOT_FOUND' })
+        return
+      }
+      const outcome = setTriggerEnabled(workspace, name, body.enabled)
+      if (outcome.ok) {
+        json(res, 200, { name, enabled: outcome.trigger.enabled } satisfies TriggerEnabledBody)
+        return
+      }
+      // 409 rather than 500 for an unreadable registry: nothing failed here,
+      // and the file is exactly as the person left it. The client renders the
+      // reason beside the row rather than as a fault of its own.
+      json(res, outcome.code === 'schedule_not_found' ? 404 : 409, {
+        error: outcome.code === 'schedule_not_found'
+          ? 'no trigger by that name in this project'
+          : `the registry cannot be read — ${outcome.reason}`,
+        code: outcome.code,
+      })
     },
   }))
 

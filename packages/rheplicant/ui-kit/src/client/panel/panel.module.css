@@ -117,6 +117,11 @@
   padding: 0.75rem 1rem;
 }
 
+/* A HALO, not a bigger dot. An 8px disc beside a 14px title is easy to skim
+   past, and growing it makes it compete with the title instead of qualifying
+   it. The ring is the tint the same state already uses for backgrounds
+   elsewhere, so the dot reads as a status light at a glance and still gives
+   the title the top of the hierarchy. */
 .dot {
   display: inline-block;
   width: 0.5rem;
@@ -125,21 +130,46 @@
   flex-shrink: 0;
 }
 
-.dotOk { background: var(--dsw-alias-state-success-primary); }
-.dotWarn { background: var(--dsw-alias-state-warn-primary); }
-.dotError { background: var(--dsw-alias-state-error-primary); }
+.dotOk {
+  background: var(--dsw-alias-state-success-primary);
+  box-shadow: 0 0 0 3px var(--dsw-rh-state-ok-bg);
+}
+
+.dotWarn {
+  background: var(--dsw-alias-state-warn-primary);
+  box-shadow: 0 0 0 3px var(--dsw-rh-state-warn-bg);
+}
+
+.dotError {
+  background: var(--dsw-alias-state-error-primary);
+  box-shadow: 0 0 0 3px var(--dsw-rh-state-error-bg);
+}
+
 .dotStale { background: var(--dsw-rh-stale-text); }
+
+/* No halo on idle, and that is the point: a state with nothing to report
+   should not draw the eye the way one with something does. */
 .dotIdle { background: var(--dsw-alias-label-secondary); }
 
 /* -- StatRow -------------------------------------------------------------- */
 
+/* A hairline under each row, because `space-between` in a wide panel leaves a
+   label at the far left and its value at the far right with nothing between
+   them — the eye loses the pairing, which is the whole content of a stat. A
+   rule is the cheapest leader there is; the last row drops it so the list does
+   not end on a line that separates it from nothing. */
 .statRow {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.25rem 0;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
   font-size: 0.75rem;
+}
+
+.statRow:last-child {
+  border-bottom: none;
 }
 
 .statLabel {

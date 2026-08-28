@@ -1065,10 +1065,50 @@ export interface UndecidedFields {
 export interface ProjectTriggerRow {
   /** This trigger's identity within its project. */
   readonly name: string
-  /** The task it names, workspace-relative, as the registry holds it. */
-  readonly task: string
-  /** The cadence, verbatim: an ISO-8601 duration such as `PT10M`. */
-  readonly every: string
+  /**
+   * What it does when it comes due.
+   *
+   * **Always present here, though the registry lets it be absent.** The file
+   * may omit it — every registry written before routines existed does, and
+   * rewriting them would be a migration for a fact the reader can supply. The
+   * WIRE has no files to migrate, so it states the kind outright and no client
+   * has to know the default. A projection is allowed to be more explicit than
+   * the thing it projects; it is not allowed to be less.
+   */
+  readonly action: 'run' | 'routine'
+  /**
+   * The task it names, workspace-relative, as the registry holds it.
+   *
+   * Present only for `run`. A routine has no task — it carries a prompt and
+   * the model reaches `rheplicant_run` itself if the work needs one.
+   */
+  readonly task?: string
+  /**
+   * What a routine says when its session opens, verbatim.
+   *
+   * Present only for `routine`. Verbatim for §27.2's reason: it is what the
+   * person wrote, and it is what `rheplicant_trigger` takes back.
+   */
+  readonly prompt?: string
+  /**
+   * The cadence, VERBATIM: `PT10M` for an interval, `08:00` for a wall clock.
+   *
+   * One field rather than the registry's two optionals, for the reason the
+   * `action` field above gives: the wire has nothing to migrate, so it states
+   * the fact outright and no client has to know that two absent-or-present
+   * fields stand for one required one. §27.2's verbatim rule is unchanged —
+   * this is what the person wrote and what `rheplicant_trigger` takes back.
+   */
+  readonly cadence: string
+  /**
+   * Which kind of cadence that is.
+   *
+   * `every` is an interval measured from the last ATTEMPT, so it drifts when
+   * the harness is down; `dailyAt` is a time on the host's clock, so it does
+   * not. A surface that renders them alike would hide the one difference a
+   * person acts on.
+   */
+  readonly cadenceKind: 'every' | 'dailyAt'
   readonly enabled: boolean
   /** When it last ATTEMPTED to fire, absent until the first attempt. */
   readonly lastFiredAt?: string
@@ -1085,6 +1125,35 @@ export interface ProjectTriggerRow {
    * `unreadable` rather than producing a row with no next fire.
    */
   readonly nextFireAt?: string
+  /**
+   * The session the last firing opened. `routine` only.
+   *
+   * Absent for three different reasons, and a surface must read all three as
+   * "there is nothing to open": the trigger is a task run and opens no session
+   * at all; it is a routine that has not fired yet; or it fired on a
+   * composition that mounts no agent, where a routine cannot run.
+   *
+   * **Present is not a promise.** It names a session that existed when the
+   * firing opened it, and a session can be deleted from the sidebar while this
+   * record still names it. A control built on this asks the host to open it and
+   * lets the host answer; it does not assert that it is there.
+   */
+  readonly lastSessionId?: string
+}
+
+/**
+ * What a trigger toggle answered.
+ *
+ * Deliberately the state as it now STANDS rather than an acknowledgement of
+ * what was asked. The client sends what it wants and renders what came back,
+ * so a toggle that lands on a registry someone else just edited shows the
+ * truth rather than the request.
+ */
+export interface TriggerEnabledBody {
+  /** The trigger's identity within its project. */
+  readonly name: string
+  /** Its state after the write. */
+  readonly enabled: boolean
 }
 
 /**

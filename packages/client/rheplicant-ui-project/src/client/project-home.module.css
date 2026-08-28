@@ -61,18 +61,32 @@
   flex-wrap: wrap;
 }
 
+/* `appearance: none` and the caret drawn here. These are three native
+   `<select>`s carrying the page's entire selection path, and they arrived at
+   the platform's metrics with the platform's chevron inside a surface that
+   tokenises everything else — so the one control a reader uses most looked
+   least like part of the app. */
 .pathPick {
   box-sizing: border-box;
+  appearance: none;
   max-width: 22rem;
-  padding: 0.25rem 0.4rem;
+  padding: 0.25rem 1.4rem 0.25rem 0.4rem;
   border: 1px solid transparent;
   border-radius: 0.375rem;
-  background: transparent;
+  background-color: transparent;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2381858c' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.4rem center;
+  background-size: 0.5rem;
   color: var(--dsw-alias-label-primary);
   font: inherit;
   font-size: 0.9375rem;
   font-weight: 600;
   cursor: pointer;
+}
+
+.pathPick:focus-visible {
+  border-color: var(--dsw-rh-lit, var(--dsw-alias-border-l2));
 }
 
 .pathPick:hover:not(:disabled) {
@@ -83,7 +97,7 @@
 /* A step that cannot be taken yet still SHOWS, so the path is always three
    steps long and a reader can see what is missing rather than what is absent. */
 .pathPick:disabled {
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--dsw-alias-label-secondary);
   cursor: default;
 }
 
@@ -92,7 +106,6 @@
   font-size: 0.9375rem;
 }
 
-.picker,
 .action {
   padding: 0.3rem 0.6rem;
   border: 1px solid var(--dsw-alias-border-l1);
@@ -105,16 +118,58 @@
 }
 
 .action:hover,
-.picker:hover {
+.action:focus-visible {
   border-color: var(--dsw-rh-lit, var(--dsw-alias-border-l1));
 }
 
 .body {
   display: flex;
   flex-direction: column;
-  gap: 0.875rem;
-  padding: 1rem;
+  /* ONE rhythm. `.body` stacked panels 14px apart while `.panels` used 12px
+     with a 12px per-panel margin for the same relationship, so two panels were
+     a different distance apart depending on which container held them. */
+  gap: 1rem;
+  padding: 1.25rem 1.25rem 3rem;
   overflow-y: auto;
+  /* A scroll that reaches the end should not then scroll the page behind it —
+     the two nested scrollers in this sheet already contain themselves. */
+  overscroll-behavior: contain;
+}
+
+/* THE MEASURE. The dashboard has had one since it was written (`.measure`,
+   78rem) and this surface never did, so at 2200px the body is 1920px wide and
+   the panel grid — `columns: 22rem`, which does not spread to fill — uses
+   about half of it and leaves a void beside itself. Every page under these
+   tabs is capped and centred rather than the body itself, because the body is
+   the SCROLLPORT: capping it would move the scrollbar into the middle of the
+   window and leave the ground outside it unpainted.
+
+   `width: 100%` with `margin-inline: auto` rather than `align-items: center`,
+   so an item narrower than the cap still fills it — a panel that shrank to its
+   content would otherwise sit centred in a column of its own. */
+.body > * {
+  width: 100%;
+  max-width: 78rem;
+  margin-inline: auto;
+}
+
+/* A state that is about the whole page rather than about one panel. Bounded
+   like `.prompt`, and for the same reason it records: a centred sentence
+   across 1400px is not a sentence anyone reads. No frame of its own —
+   `EmptyState` carries one, and which one it carries is the fact (`solid` is
+   settled, `dashed` is provisional), so a second frame here would either
+   duplicate that or contradict it. */
+.pageState {
+  max-width: 32rem;
+}
+
+/* This element is the region the selected tab governs, and `tabs.ts` gives it
+   `tabIndex={0}` so a keyboard can reach the scroll it owns — which makes a
+   focus ring the difference between arriving here and being lost here. Inset,
+   because the element's own edge is the frame's edge. */
+.body:focus-visible {
+  outline: 2px solid var(--dsw-rh-lit, var(--dsw-alias-label-secondary));
+  outline-offset: -2px;
 }
 
 /* THE PAGE SWITCH (spec D1).
@@ -123,7 +178,10 @@
    not a second left rail: the frame's own sidebar is one column away, and two
    left rails read as two navigations. The dashboard already chooses
    Setups/Runs this way, so this is an idiom rather than an invention. */
-.pages {
+/* The row: the tablist, and the Panels menu that is not part of it. The rule
+   and the padding live here rather than on the tablist, because the tablist is
+   now only as wide as its tabs. */
+.pagesRow {
   display: flex;
   align-items: center;
   gap: 0.25rem;
@@ -131,22 +189,33 @@
   border-bottom: 1px solid var(--dsw-alias-border-l1);
 }
 
+.pages {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
 /* Same shape as the dashboard's `.tab`, deliberately — one control, one look. */
 .pageTab {
   box-sizing: border-box;
-  padding: 0.25rem 0.6rem;
+  padding: 0.3rem 0.75rem;
   border: none;
-  border-radius: 0.375rem;
+  border-radius: 0.375rem 0.375rem 0 0;
   background: transparent;
-  color: var(--dsw-alias-label-tertiary);
+  /* `-secondary`, not `-tertiary`. This repo's own theme re-values
+     `label-tertiary` to `#81858c`, which is 3.71:1 on the page ground at 13px —
+     under WCAG AA. `panel.module.css` records the same substitution and the
+     same measurement for its subtitle. */
+  color: var(--dsw-alias-label-secondary);
   font: inherit;
   font-size: 0.8125rem;
   font-weight: 600;
   cursor: pointer;
 }
 
-.pageTab:hover {
-  color: var(--dsw-alias-label-secondary);
+.pageTab:hover,
+.pageTab:focus-visible {
+  color: var(--dsw-alias-label-primary);
 }
 
 /* `aria-selected`, matching the `role="tab"` the markup settled on and the
@@ -157,10 +226,13 @@
    to carry. A comment arguing for a choice the code did not make is how it
    survived review.
 
-   The selected tab takes the PANEL ground, so the page below reads as its
-   continuation. */
+   A STRUCTURAL MARK, not the panel ground. Taking `bg-layer-1` on a `bg-base`
+   page is one step of grey — the dashboard shipped exactly that, measured it at
+   1440px in both schemes and replaced it, because the fill also made the
+   selected tab read as a small panel rather than as a selection. This is the
+   same accent underline, so the two tab rows in this app are one control. */
 .pageTab[aria-selected='true'] {
-  background: var(--dsw-alias-bg-layer-1);
+  box-shadow: inset 0 -2px 0 var(--dsw-rh-lit, var(--dsw-alias-brand-primary));
   color: var(--dsw-alias-label-primary);
 }
 
@@ -171,11 +243,18 @@
 }
 
 /* A truncated listing must not read as a complete one. */
+/* THE RULE CARRIES THE COLOUR, not the whole outline. A full amber border
+   around grey text on no ground is a shape nothing else in this app makes, and
+   on dark `state-warn-primary` (#E3B341) is bright enough that the box shouted
+   louder than the listing it was qualifying. Same note idiom the dashboard's
+   unreadable-registry row takes. */
 .warning {
   margin: 0;
   padding: 0.5rem 0.75rem;
-  border: 1px solid var(--dsw-alias-state-warn-primary);
-  border-radius: 0.375rem;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-inline-start: 0.1875rem solid var(--dsw-alias-state-warn-primary);
+  border-radius: 0 0.375rem 0.375rem 0;
+  background: var(--dsw-rh-state-warn-bg, var(--dsw-alias-bg-layer-1));
   color: var(--dsw-alias-label-secondary);
   font-size: 0.8125rem;
 }
@@ -194,9 +273,16 @@
   flex-direction: column;
   align-items: center;
   gap: 0.375rem;
+  /* `EmptyState`'s own metrics — this is a fourth variant of that box and used
+     to drop its inset ground while stepping the type UP, so the least
+     informative thing on the page was also the largest. Bounded, because a
+     centred sentence across 1400px is not a sentence anyone reads. */
+  max-width: 32rem;
+  margin-inline: auto;
   padding: 1.5rem 1rem;
   border: 1px dashed var(--dsw-alias-border-l1);
   border-radius: 0.5rem;
+  background: var(--dsw-alias-bg-layer-2);
   text-align: center;
 }
 
@@ -250,16 +336,39 @@
   border-bottom: none;
 }
 
+/* THE WHOLE ROW, not the text inside it. The only hover feedback these lists
+   had was `.rowPick:hover .mono` recolouring one cell to the accent — an
+   attention colour spent on a pointer position, and nothing at all on the rows
+   that are not pickable. */
+.row:hover {
+  background: var(--dsw-alias-interactive-bg-hover, var(--dsw-alias-bg-layer-2));
+}
+
+/* `min-width: 0` and an ellipsis, not `overflow-wrap: anywhere`. The
+   executions row put the FULL 33-character execution id in here beside an
+   unshrinkable results path, and `anywhere` let it break mid-identifier — so a
+   run's name wrapped across two lines at an arbitrary character and the row
+   below it started somewhere else.
+
+   The fix that made this rule enough is upstream of it: the row now renders
+   `shortExecutionId(...)` and no longer repeats the path the id already names.
+   Removing the cause beat accommodating it — the alternative on the table was
+   three different fixed grid templates for three differently shaped rows. */
 .mono {
   flex: 1 1 auto;
+  min-width: 0;
   color: var(--dsw-alias-label-primary);
   font-family: var(--dsw-font-mono, ui-monospace, monospace);
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .meta {
   flex: 0 0 auto;
-  color: var(--dsw-alias-label-tertiary);
+  /* `-secondary` for the reason `.pageTab` records: tertiary is under AA at
+     this size on this ground. */
+  color: var(--dsw-alias-label-secondary);
   font-variant-numeric: tabular-nums;
 }
 
@@ -272,21 +381,49 @@
    now, and outside `.row` the hover rule that lit it can never fire, so it
    rendered as permanently grey caption text that did not read as clickable.
    Same shape as the header's `.action`, because it is the same kind of thing. */
+/* FILLED. This is the page's only primary action and, per the comment above,
+   the only route from this surface into a conversation — and it wore the exact
+   ghost-outline style of `Refresh`, a control whose whole job is to be
+   ignorable. Restrained still: same size, same radius, no shadow. */
 .openProject {
   align-self: flex-start;
-  padding: 0.3rem 0.6rem;
-  border: 1px solid var(--dsw-alias-border-l1);
+  padding: 0.35rem 0.75rem;
+  border: 1px solid transparent;
   border-radius: 0.375rem;
-  background: transparent;
-  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-brand-primary);
+  color: var(--dsw-alias-bg-base);
   font: inherit;
   font-size: 0.8125rem;
+  font-weight: 600;
   cursor: pointer;
 }
 
 .openProject:hover,
 .openProject:focus-visible {
-  border-color: var(--dsw-rh-lit, var(--dsw-alias-border-l1));
+  filter: brightness(1.08);
+}
+
+/* INLINE CODE, which had no rule on this surface at all. Thirteen sites —
+   `file:`, `results/`, tool names, section keys — rendered in the UA's default
+   monospace at ~0.85em with no ground, inside a sheet that tokenises
+   everything else. `ui-docs`' `.code`, as a descendant rule so no call site
+   has to be touched. */
+.body code {
+  padding: 0.1em 0.34em;
+  border-radius: 0.25rem;
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-primary);
+  font-family: var(--dsw-font-mono, ui-monospace, monospace);
+  font-size: 0.8125em;
+}
+
+/* Except inside a block that is already a code surface. */
+.document code,
+.diff code,
+.mono code {
+  padding: 0;
+  background: transparent;
+  font-size: inherit;
 }
 
 /* An extension is a fact about a filename, not a verdict about a file — so it
@@ -303,21 +440,33 @@
 }
 
 .note {
+  /* Bounded. It is a paragraph of prose in a panel with no measure, so at
+     1440px it ran the full column — `ui-docs` holds its own prose at 54rem. */
+  max-width: 54rem;
   margin: 0.5rem 0 0;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--dsw-alias-label-secondary);
   font-size: 0.75rem;
   line-height: 1.5;
 }
 
+/* A real boundary. 0.75rem between groups was barely more than the 0.6rem
+   between two rows inside one, so the grouping read as a rhythm hiccup. */
 .group + .group {
-  margin-top: 0.75rem;
+  margin-top: 1.25rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--dsw-alias-border-l1);
 }
 
+/* An eyebrow. It was 12px/500 — SMALLER and LIGHTER than the 13px rows it
+   heads, so the label looked like a quieter member of its own list. */
 .groupHead {
-  margin: 0 0 0.25rem;
-  color: var(--dsw-alias-label-secondary);
+  margin: 0 0 0.35rem;
+  color: var(--dsw-alias-label-tertiary);
   font-family: var(--dsw-font-mono, ui-monospace, monospace);
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   font-weight: 500;
 }
 
@@ -453,7 +602,9 @@
   cursor: pointer;
 }
 
-.rowPick:hover .mono,
+/* The accent recolour that used to live here is gone: `.row:hover` now paints
+   the row, which is what a pointer position deserves, and the accent is spent
+   on selection instead. */
 .rowPick:focus-visible .mono {
   color: var(--dsw-rh-lit, var(--dsw-alias-label-primary));
 }
@@ -525,9 +676,12 @@
 
    `break-inside: avoid` is what keeps a panel whole; without it a tall panel
    splits across the column boundary. */
+/* ONE rhythm, matching `.body`'s. Two panels used to sit 14px apart in the
+   stack and 12px apart in this grid — the same relationship at two distances
+   depending only on which container happened to hold them. */
 .panels {
   columns: 22rem;
-  column-gap: 0.75rem;
+  column-gap: 1rem;
 }
 
 /* Addressed by the data attribute rather than by `> *`: the slot host renders
@@ -555,7 +709,7 @@
   -webkit-column-break-inside: avoid;
   /* `columns` has no row-gap: the space between stacked panels in one column is
      this margin. It matches `column-gap` so the rhythm is square. */
-  margin-bottom: 0.75rem;
+  margin-bottom: 1rem;
 }
 
 /* The task-maturity rail: four segments reading left to right. */
@@ -569,14 +723,33 @@
   flex: 1 1 8rem;
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
-  padding: 0.5rem 0.625rem;
+  gap: 0.25rem;
+  padding: 0.625rem 0.75rem;
   /* The inset ground (`panel.module.css`'s elevation rule). It was
      `transparent` + a border, which on the dark palette is an outline with the
      panel showing through it — the card had an edge and no inside. */
   background: var(--dsw-alias-bg-layer-2);
   border: 1px solid var(--dsw-alias-border-l1);
   border-radius: 0.375rem;
+}
+
+/* A STAGE WITH NOTHING IN IT RECEDES. Four identical cards say the four stages
+   are in the same condition, which is exactly what this rail exists to deny —
+   it answers "how far has this got", and an answer where every step looks
+   alike answers nothing. `idle` is "not reached yet", so it loses the filled
+   ground and keeps only its edge. Both attributes, because `TaskDefinition`
+   renders the same classes under `data-definition-state`. */
+.maturityStage[data-maturity-state='idle'],
+.maturityStage[data-definition-state='unknown'],
+.maturityStage[data-definition-state='unmet'] {
+  background: transparent;
+}
+
+.maturityStage[data-maturity-state='idle'] .maturityLabel,
+.maturityStage[data-definition-state='unknown'] .maturityLabel,
+.maturityStage[data-definition-state='unmet'] .maturityLabel {
+  color: var(--dsw-alias-label-secondary);
+  font-weight: 500;
 }
 
 .maturityHead {
@@ -588,7 +761,10 @@
 .maturityLabel {
   color: var(--dsw-alias-label-primary);
   font-size: 0.8125rem;
-  font-weight: 500;
+  /* 600, so a reached stage's name leads its own card. At 500 it sat level
+     with the detail beneath it and the rail read as eight equal fragments
+     rather than four labelled ones. */
+  font-weight: 600;
 }
 
 .maturityDetail {
@@ -600,12 +776,28 @@
   width: 0.5rem;
   height: 0.5rem;
   border-radius: 50%;
+  flex-shrink: 0;
   background: var(--dsw-alias-label-tertiary);
 }
 
-.dotOk { background: var(--dsw-alias-state-success-primary); }
-.dotWarn { background: var(--dsw-alias-state-warn-primary); }
-.dotError { background: var(--dsw-alias-state-error-primary); }
+/* The halo `ui-kit`'s `panel.module.css` gives its own status dots, for the
+   same reason and out of the same tokens — this rail is the one place a
+   reader looks to see how far something got, so its lights should look like
+   lights. Idle keeps none, deliberately. */
+.dotOk {
+  background: var(--dsw-alias-state-success-primary);
+  box-shadow: 0 0 0 3px var(--dsw-rh-state-ok-bg);
+}
+
+.dotWarn {
+  background: var(--dsw-alias-state-warn-primary);
+  box-shadow: 0 0 0 3px var(--dsw-rh-state-warn-bg);
+}
+
+.dotError {
+  background: var(--dsw-alias-state-error-primary);
+  box-shadow: 0 0 0 3px var(--dsw-rh-state-error-bg);
+}
 .dotIdle { background: color-mix(in srgb, var(--dsw-alias-label-tertiary) 55%, transparent); }
 
 /* Shown only when the digests were actually compared and differ. */
@@ -1086,4 +1278,28 @@
   font-family: var(--dsw-font-mono, ui-monospace, monospace);
   color: var(--dsw-alias-label-primary);
   overflow-wrap: anywhere;
+}
+
+/* --- narrow columns -------------------------------------------------------
+   The sheet had ONE media query, for `.modelSplit`. Everything else assumed a
+   wide centre column: the header's three 22rem selects plus two buttons want
+   ~70rem before they stop wrapping, and the body's 1.25rem gutters are a lot
+   of a 40rem column. This is the same breakpoint `ui-docs` uses. */
+@media (max-width: 60rem) {
+  .head,
+  .pages {
+    padding-inline: 0.75rem;
+  }
+
+  .body {
+    padding: 1rem 0.75rem 2.5rem;
+  }
+
+  /* Share the row rather than each claiming 22rem and wrapping the last step
+     onto a line of its own. */
+  .pathPick {
+    flex: 1 1 8rem;
+    min-width: 0;
+    max-width: none;
+  }
 }

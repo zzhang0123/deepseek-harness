@@ -35,13 +35,20 @@
  * @module @rheplicant/dsh-rheplicant/trigger-loop
  */
 
+import { randomUUID } from 'node:crypto'
+
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
+import { installModelSelection } from '@deepseek-ai/dsh-agent'
+import { boundContextSummary, createUserMessage } from '@deepseek-ai/dsh-llm'
+import { SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-workspace'
 
 import { publishTaskRun } from './publish.ts'
+import { runRoutine, type RanRoutine, type RoutineDeps } from './routine.ts'
 import {
-  TRIGGERS_FILE, dueTriggers, readTriggers, writeTriggers, type TriggerRecord, type TriggerRegistry,
+  TRIGGERS_FILE, dueTriggers, isRoutine, readTriggers, writeTriggers,
+  type RoutineTrigger, type TriggerRecord, type TriggerRegistry,
 } from './triggers.ts'
 import { asTransport } from './types.ts'
 import type {} from './index.ts'
@@ -56,6 +63,26 @@ export const name = 'rheplicant-trigger-loop'
  * a trigger belongs to a project, and the registry is the host's own list of
  * them. No `sessions`, deliberately — design §1: the general case was always
  * the session-free one.
+ *
+ * **`agents`, `sessions` and `agentDefaultModel` are NOT here, and a routine
+ * needs all three.** They are resolved at fire time instead, for two reasons
+ * that both had to be learned:
+ *
+ * 1. **This cordis has no optional inject.** `Inject` is either an array of
+ *    names or a name-to-intercept-config map, and both mean REQUIRED. A
+ *    `{ required, optional }` object is not a third form — it is read as two
+ *    services literally named `required` and `optional`, and the entry hangs
+ *    forever. Measured 2026-08-27 in a real boot: *"1 entry did not activate —
+ *    trigger-loop: pending (waiting for services: required, optional)"*. The
+ *    typecheck passes it, so only a boot finds it.
+ * 2. **Requiring them would be wrong even if it were possible.** A headless
+ *    composition has no agents and must still fire its task triggers, which
+ *    need none of the three.
+ *
+ * Resolving at fire time also settles load order for free — the same reason
+ * `ui-loop`'s `selection-bridge.ts` re-calls its lookup rather than caching a
+ * miss: a service that mounts after this one is found on the next read instead
+ * of being absent forever.
  */
 export const inject = ['rheplicant', 'workspaceRegistry']
 
@@ -86,12 +113,67 @@ export interface FiringDeps {
   readonly projects: () => readonly string[]
   /** Run one task in one project and publish it. */
   readonly run: (workspace: string, task: string, signal: AbortSignal) => Promise<FiredRun>
+  /**
+   * Open a session in one project and give it a routine's prompt.
+   *
+   * **Absent is a composition fact, not a convenience.** It is undefined
+   * exactly when this harness has no agent to open a session with, and the
+   * three states discipline applies to it like everything else here: a routine
+   * that comes due in such a composition is REPORTED as unrunnable, never
+   * skipped in silence.
+   */
+  readonly routine?: (workspace: string, trigger: RoutineTrigger, signal: AbortSignal) => Promise<RanRoutine>
   /** Say what happened, for a host log — never for a transcript (design §7). */
   readonly report: (level: 'info' | 'warn', message: string) => void
 }
 
 /**
- * Record that a trigger ATTEMPTED to fire, re-reading the registry first.
+ * Record that a trigger ATTEMPTED to fire.
+ *
+ * **Its false is load-bearing**, unlike {@link stampSession}'s: a firing whose
+ * attempt could not be recorded must not happen, because the next tick would
+ * find the same trigger due and fire it again. See {@link stampTrigger} for
+ * the write discipline both share.
+ *
+ * @param workspace - the project directory.
+ * @param triggerName - the trigger's identity.
+ * @param at - the instant of the attempt, epoch ms.
+ * @returns true when the stamp landed; false when the registry was unreadable
+ *   or no longer holds a trigger by that name.
+ */
+export function stampFired(workspace: string, triggerName: string, at: number): boolean {
+  return stampTrigger(workspace, triggerName, { lastFiredAt: new Date(at).toISOString() })
+}
+
+/**
+ * Record the session a routine's firing just opened.
+ *
+ * **It is not an error for this to fail.** The routine is already open and
+ * doing its work; all that is lost is a control on a card. So the caller does
+ * not treat false as a reason to stop — unlike {@link stampFired}, whose
+ * failure means we could not record having fired at all.
+ *
+ * Only ever called for a routine. `lastSessionId` is a `RoutineTrigger` field
+ * and a task trigger deliberately opens no session, so calling this for one
+ * would put a field on a record that has no reading for it.
+ *
+ * @param workspace - the project directory.
+ * @param triggerName - the trigger's identity.
+ * @param sessionId - the session that is now open.
+ * @returns true when the record landed.
+ */
+export function stampSession(workspace: string, triggerName: string, sessionId: string): boolean {
+  return stampTrigger(workspace, triggerName, { lastSessionId: sessionId })
+}
+
+/** What a firing may write back onto its own record. Nothing else. */
+interface TriggerStamp {
+  readonly lastFiredAt?: string
+  readonly lastSessionId?: string
+}
+
+/**
+ * Apply one stamp to one trigger, re-reading the registry first.
  *
  * Always a fresh read-modify-write, never a patch applied to a snapshot the
  * caller was holding. Two writers touch this file — this loop and the
@@ -106,20 +188,66 @@ export interface FiringDeps {
  *
  * @param workspace - the project directory.
  * @param triggerName - the trigger's identity.
- * @param at - the instant of the attempt, epoch ms.
- * @returns true when the stamp landed; false when the registry was unreadable
+ * @param stamp - the fields to set on that one record.
+ * @returns true when the write landed; false when the registry was unreadable
  *   or no longer holds a trigger by that name.
  */
-export function stampFired(workspace: string, triggerName: string, at: number): boolean {
+function stampTrigger(
+  workspace: string,
+  triggerName: string,
+  stamp: TriggerStamp,
+): boolean {
   const registry = readTriggers(workspace)
   if (registry.state !== 'ok') return false
   const index = registry.triggers.findIndex(trigger => trigger.name === triggerName)
   if (index < 0) return false
-  const stamped = new Date(at).toISOString()
-  writeTriggers(workspace, registry.triggers.map((trigger, at_) =>
-    (at_ === index ? { ...trigger, lastFiredAt: stamped } : trigger)))
+  // The cast is safe BY THE TYPE ABOVE, not by inspection: `TriggerStamp` can
+  // set only two optional strings, neither of which is a discriminant, so the
+  // spread cannot turn one member of the union into a malformed other. A
+  // `Partial<TriggerRecord>` here would not have that property — it could set
+  // `action` and leave the record without the field that action requires.
+  writeTriggers(workspace, registry.triggers.map((trigger, at) =>
+    (at === index ? { ...trigger, ...stamp } as TriggerRecord : trigger)))
   return true
 }
+
+/**
+ * The routine runner, with the recording of where each firing went.
+ *
+ * A named function rather than a closure inside `apply()`, because the one
+ * line it exists for — the `opened` hook — is the whole join between "a
+ * session was created" and "a card can reach it", and a join that only exists
+ * inside a cordis `apply` is a join no test can reach either.
+ *
+ * @param open - how to open a session in one project. `sessionOpener(ctx)` in
+ *   the real composition; anything at all in a test.
+ * @returns the runner the firing loop calls for a due routine.
+ */
+export function routineRunner(open: RoutineDeps['open']): NonNullable<FiringDeps['routine']> {
+  return (workspace, trigger, _signal) =>
+    runRoutine(
+      {
+        open,
+        // Recorded at OPEN, so the card can reach a routine that is still
+        // running and so a harness that dies mid-turn still leaves the
+        // transcript findable. The false return is deliberately not acted on:
+        // the routine is already going, and what was lost is a control on a
+        // card.
+        opened: (sessionId) => { stampSession(workspace, trigger.name, sessionId) },
+      },
+      { workspace, trigger, now: Date.now() },
+    )
+}
+
+/**
+ * The routine runner a composition without an agent does not have.
+ *
+ * `fire` returns before it can be called — the check is three lines above the
+ * only use — so this exists to keep that branch's type honest without a
+ * non-null assertion. If it ever runs, the message is the bug report.
+ */
+const unrunnableRoutine = (): Promise<RanRoutine> =>
+  Promise.reject(new Error('rheplicant trigger loop: a routine reached the runner in a composition that has none'))
 
 /** One error, as a sentence a host log can carry. */
 function reason(error: unknown): string {
@@ -200,7 +328,20 @@ export class TriggerFiring {
    * way.
    */
   private fire(workspace: string, trigger: TriggerRecord, now: number): void {
-    const key = `${workspace} ${trigger.task}`
+    // **The key is the unit of work, and it differs by action deliberately.** A
+    // task run keys by TASK, because two triggers naming one task are two
+    // schedules for one piece of work and running it twice at once is the
+    // hazard either way. A routine has no task; its work IS its own
+    // conversation, so two routines in one project never collide, and the key
+    // is the trigger's own name.
+    //
+    // The separator is a NUL because a path may contain anything else. It was a
+    // RAW NUL BYTE in this source until 2026-08-27 — same value, but it made
+    // the whole file `Binary file matches` to grep. `\0` is the identical
+    // character written so the file stays text.
+    const key = isRoutine(trigger)
+      ? `${workspace}\0routine:${trigger.name}`
+      : `${workspace}\0${trigger.task}`
     if (!stampFired(workspace, trigger.name, now)) {
       // The registry changed under us between the read and here — removed, or
       // corrupted by another writer. Do not fire against a record we can no
@@ -209,17 +350,40 @@ export class TriggerFiring {
         `trigger ${trigger.name}: not fired — its record is no longer in ${TRIGGERS_FILE}`)
       return
     }
+    // Checked AFTER the stamp, so an unrunnable routine says this once per
+    // WINDOW rather than once per tick — a fifteen-second tick would otherwise
+    // bury the one message worth acting on under four copies a minute. The
+    // stamp is right on its own terms too: a composition does not grow an agent
+    // between two ticks, so retrying sooner would find the same answer.
+    const openRoutine = this.deps.routine
+    if (isRoutine(trigger) && openRoutine === undefined) {
+      this.deps.report('warn',
+        `trigger ${trigger.name}: not fired — this composition mounts no agent, so routines cannot run here.`)
+      return
+    }
+    // What the log calls the work, in the skip line and the failure line alike.
+    const subject = isRoutine(trigger) ? 'its session' : trigger.task
     if (this.inFlight.has(key)) {
       this.deps.report('info',
-        `trigger ${trigger.name}: skipped — ${trigger.task} is still running from an earlier fire`)
+        `trigger ${trigger.name}: skipped — ${subject} is still running from an earlier fire`)
       return
     }
     const controller = new AbortController()
     this.inFlight.set(key, controller)
-    void this.deps.run(workspace, trigger.task, controller.signal)
-      .then((fired) => {
-        this.deps.report('info',
-          `trigger ${trigger.name}: ran ${trigger.task} as execution ${fired.executionId}`)
+    // A thunk per action rather than a ternary, so `isRoutine`'s narrowing does
+    // the work a cast would otherwise have to: inside each branch the record IS
+    // the kind that branch handles, and neither branch can reach the other's
+    // field.
+    const work = isRoutine(trigger)
+      ? (signal: AbortSignal): Promise<string> =>
+          (openRoutine ?? unrunnableRoutine)(workspace, trigger, signal)
+            .then(ran => `opened session ${ran.sessionId}`)
+      : (signal: AbortSignal): Promise<string> =>
+          this.deps.run(workspace, trigger.task, signal)
+            .then(fired => `ran ${trigger.task} as execution ${fired.executionId}`)
+    void work(controller.signal)
+      .then((outcome) => {
+        this.deps.report('info', `trigger ${trigger.name}: ${outcome}`)
       })
       .catch((error: unknown) => {
         // **Failure does not disable.** Auto-disabling would silently stop a
@@ -238,7 +402,7 @@ export class TriggerFiring {
         // a refusal is worth recording repeatedly while the document is
         // unchanged.
         this.deps.report('warn',
-          `trigger ${trigger.name}: ${trigger.task} did not run — ${reason(error)}. The schedule continues.`)
+          `trigger ${trigger.name}: ${subject} did not run — ${reason(error)}. The schedule continues.`)
       })
       .finally(() => { this.inFlight.delete(key) })
   }
@@ -267,6 +431,79 @@ export class TriggerFiring {
 }
 
 /**
+ * Build the routine runner out of a real context, or answer undefined.
+ *
+ * **Undefined is the honest answer for a composition without an agent**, and
+ * the loop above turns it into a reported refusal rather than silence. A
+ * headless tree has no `agents` at all; asking it to open a session would fail
+ * inside a run nobody is watching, at whatever hour the schedule chose.
+ *
+ * The sequence is DSH's own, from `@deepseek-ai/dsh-headless`: create on a
+ * fresh id, wait for the new agent to reach idle, open one ordinary turn, wait
+ * again, flush, release. Nothing here is invented, which is the point — a
+ * routine's turn should be an ordinary turn in every respect a person can see.
+ *
+ * **No `origin: 'subagent'`, deliberately.** That marker hides a session from
+ * the sidebar projection, and a routine nobody can find in the sidebar is a
+ * routine that did not deliver. The session belongs to the project's group, in
+ * the list, beside the ones a person opened by hand.
+ *
+ * @param ctx - the plugin context.
+ * @returns how to open a session; it throws if this tree cannot.
+ */
+function sessionOpener(ctx: Context): RoutineDeps['open'] {
+  return async (workspace: string) => {
+    // Resolved HERE rather than in `apply` — see the note on `inject`. A miss
+    // at mount time would be permanent; a miss here is just this firing.
+    const agents = ctx.get('agents')
+    const sessions = ctx.get('sessions')
+    const models = ctx.get('agentDefaultModel')
+    if (agents === undefined || sessions === undefined || models === undefined) {
+      throw new Error(
+        'this composition mounts no agent, so routines cannot run here')
+    }
+    const selection = models.currentSelection()
+    const handle = await agents.create({
+      sessionId: SessionId(`session-${randomUUID()}`),
+      // The project directory, and it is the whole reason a routine must belong
+      // to a project: this is the field that puts the session in that project's
+      // sidebar group rather than under Ungrouped.
+      meta: { cwd: workspace },
+      agentOptions: { provider: selection.provider, model: selection.model },
+      setup: (agentCtx) => {
+        installModelSelection(agentCtx, { current: selection, assembled: undefined })
+      },
+    })
+    const { agent } = handle
+    await agent.whenIdle()
+    return {
+      sessionId: agent.id,
+      say: (text) => {
+        agent.followup(createUserMessage({
+          content: [{ type: 'text', text }],
+          // `plugin` rather than `user`, because no user typed it, and `notice`
+          // — *a one-off account of something that just happened* — because
+          // that is exactly what a schedule coming due is.
+          source: {
+            kind: 'plugin',
+            plugin: 'rheplicant-trigger',
+            form: 'notice',
+            summary: boundContextSummary('a routine opened this session on its schedule'),
+          },
+        }))
+      },
+      // Flush BEFORE the release: `dispose()` unregisters the live session, and
+      // what the person opens from the sidebar afterwards is the persisted log.
+      settle: async () => {
+        await agent.whenIdle()
+        await sessions.flush(agent.session)
+      },
+      close: () => handle.dispose(),
+    }
+  }
+}
+
+/**
  * Mount the firing loop.
  *
  * @param ctx - the plugin context, with `rheplicant` and `workspaceRegistry`.
@@ -278,11 +515,21 @@ export function apply(ctx: Context, config: Config): void {
   // three in the morning inside a run nobody is watching.
   const transport = asTransport(config.transport ?? 'local', 'rheplicant trigger loop')
   const logger = ctx.logger('rheplicant-trigger')
+  const opener = sessionOpener(ctx)
   const firing = new TriggerFiring({
     projects: () => ctx.workspaceRegistry.list().map(workspace => workspace.path),
     run: (workspace, task, signal) =>
       publishTaskRun(ctx.rheplicant, { workspace, task, transport, signal }),
     report: (level, message) => { logger[level](message) },
+    // **The abort signal is not wired through to a routine**, and that is a
+    // stated gap rather than an oversight. `stop()` aborts what a task run is
+    // doing because `publishTaskRun` listens; a turn in progress is owned by
+    // the agent, and the agent is owned by this context, so disposal already
+    // takes it down by the ordinary route. Threading the signal into
+    // `agent.cancel` would add a second way to stop one turn, and the loop
+    // would then own a decision — cancel mid-answer, or let it finish — that
+    // belongs to whoever is disposing the harness.
+    routine: routineRunner(opener),
   })
 
   ctx.effect(() => {

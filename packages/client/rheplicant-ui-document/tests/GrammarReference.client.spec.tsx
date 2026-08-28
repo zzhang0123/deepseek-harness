@@ -25,6 +25,7 @@ import { cleanup, render } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { GrammarReference } from '../src/client/GrammarReference.tsx'
 import { SCHEMA } from '../src/client/schema.ts'
+import { emDashes } from '../src/client/typeset.ts'
 
 afterEach(() => { cleanup() })
 
@@ -63,15 +64,31 @@ describe('GrammarReference sections', () => {
     // `docs/upstream-reports.md` §4: the schema kept only the MEMBERSHIP, so
     // this panel could say `deferred` and could not say "handled by the
     // command line" — the half a reader needs. Upstream carries the sentence
-    // now, and it is rendered verbatim.
+    // now, and it is rendered word for word: `emDashes` sets the dashes and
+    // changes nothing else, which is why the expectation runs the schema's own
+    // string through it rather than hard-coding what it should come out as.
     it('shows it wherever the schema carries one', () => {
       const { container } = render(<GrammarReference />)
       const withReason = SCHEMA.sections.filter(section => section.reason !== null)
       expect(withReason.length, 'the schema carries no reasons at all').toBeGreaterThan(0)
       for (const section of withReason) {
         const line = container.querySelector(`[data-section="${section.name}"] [data-section-reason]`)
-        expect(line?.textContent, section.name).toBe(section.reason)
+        expect(line?.textContent, section.name).toBe(emDashes(section.reason ?? ''))
       }
+    })
+
+    it('sets the ASCII double hyphens upstream writes, and leaves the words alone', () => {
+      // The one thing a reader could mistake for a typo in a generated panel.
+      const { container } = render(<GrammarReference />)
+      const rendered = [...container.querySelectorAll('[data-section-reason]')]
+        .map(line => line.textContent ?? '')
+      expect(rendered.length).toBeGreaterThan(0)
+      for (const line of rendered) expect(line, line).not.toContain(' -- ')
+      // Word for word: strip the dash difference and the two must be equal.
+      const schemaText = SCHEMA.sections
+        .filter(section => section.reason !== null)
+        .map(section => (section.reason ?? '').replaceAll(' -- ', ' \u2014 '))
+      expect(rendered).toEqual(schemaText)
     })
 
     it('renders NOTHING where the schema carries null', () => {
@@ -103,5 +120,69 @@ describe('GrammarReference sections', () => {
       const row = container.querySelector(`[data-section="${section.name}"]`)
       expect(row?.getAttribute('data-required'), section.name).toBe(String(section.required))
     }
+  })
+})
+
+describe('sections are a table and vocabularies are chips — the split that was the bug', () => {
+  // The two shared one class until 2026-08-28. `.vocabList li` set
+  // `white-space: nowrap`, which is right for a one-word identifier and
+  // catastrophic for a 130-character sentence — and `white-space` INHERITS, so
+  // the four reason sentences were laid out on one unwrappable ~900px line
+  // inside an 8rem box. jsdom does no layout, so the defect itself is not
+  // assertable here; the STRUCTURAL decision that prevents it is.
+  it('renders the sections as a real table, not a list', () => {
+    const { container } = render(<GrammarReference />)
+    const sections = container.querySelector('[data-grammar-list="sections"]')
+    expect(sections?.tagName).toBe('TABLE')
+    expect(container.querySelectorAll('[data-section]')).toHaveLength(SCHEMA.sections.length)
+  })
+
+  it('keeps the word vocabularies as lists, where nowrap is correct', () => {
+    const { container } = render(<GrammarReference />)
+    for (const id of ['exits', 'operators', 'transforms']) {
+      expect(container.querySelector(`[data-grammar-list="${id}"]`)?.tagName, id).toBe('UL')
+    }
+  })
+
+  it('keeps the reason OUT of any nowrap chip list', () => {
+    const { container } = render(<GrammarReference />)
+    for (const reason of container.querySelectorAll('[data-section-reason]')) {
+      expect(reason.closest('ul')).toBeNull()
+    }
+  })
+
+  it('gives the reason its subject back, beside the sentence and not inside it', () => {
+    // Upstream's wording is a subject-less fragment — "is not read by this
+    // layer…" — and the spec above pins `[data-section-reason]`'s textContent
+    // to the sentence and nothing else, so the name has to be a sibling.
+    const { container } = render(<GrammarReference />)
+    const withReason = SCHEMA.sections.filter(section => section.reason !== null)
+    for (const section of withReason) {
+      const cell = container.querySelector(`[data-section="${section.name}"] [data-section-reason]`)?.parentElement
+      expect(cell?.textContent, section.name)
+        .toContain(`${section.name} ${emDashes(section.reason ?? '')}`)
+    }
+  })
+})
+
+describe('what the panel says about itself', () => {
+  it('names its own landmark, so it is not an unlabelled region', () => {
+    const { container } = render(<GrammarReference />)
+    const section = container.querySelector('[data-document-grammar]')
+    const heading = section?.querySelector(`#${section.getAttribute('aria-labelledby')}`)
+    expect(heading?.textContent).toBe('Grammar reference')
+  })
+
+  it('says it describes the GRAMMAR and not this session\'s document', () => {
+    // The panel sits directly under the session's own document, and eight
+    // vocabularies with no lede read as facts about that document.
+    const { container } = render(<GrammarReference />)
+    expect(container.textContent).toContain('It describes the grammar, not this session')
+  })
+
+  it('renders each group count as its own element rather than inside the title', () => {
+    const { container } = render(<GrammarReference />)
+    const headings = [...container.querySelectorAll('h3')].map(h => h.textContent ?? '')
+    expect(headings.some(text => /^Exits\d+$/.test(text.replace(/\s+/g, '')))).toBe(true)
   })
 })

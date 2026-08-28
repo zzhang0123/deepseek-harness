@@ -109,14 +109,42 @@ export type {
   ProjectTriggerRow, ProjectTriggersBody,
 }
 
-/** Whether one decoded value is a usable trigger row. */
+/**
+ * Whether one decoded value is a usable trigger row.
+ *
+ * **`action` is required here even though the registry FILE may omit it.** The
+ * file's default exists so registries written before routines existed keep
+ * working without a migration; the wire has no files to migrate, so the host
+ * always states the kind and this build refuses a row that does not. Accepting
+ * an absent `action` would mean guessing, and the guess would render a routine
+ * as a task run.
+ *
+ * An action this build does not know is refused for the reason the `state`
+ * check above gives: every answer here is a claim about what will fire, and a
+ * newer host's third action is not something to render as one of these two.
+ */
 function isTrigger(value: unknown): value is ProjectTriggerRow {
   if (typeof value !== 'object' || value === null) return false
   const row = value as Record<string, unknown>
-  return typeof row.name === 'string'
-    && typeof row.task === 'string'
-    && typeof row.every === 'string'
-    && typeof row.enabled === 'boolean'
+  if (typeof row.name !== 'string'
+    || typeof row.cadence !== 'string'
+    || typeof row.enabled !== 'boolean') return false
+  // The cadence KIND is required for the reason `action` is: the wire states it
+  // outright, and a build that guessed would render a wall clock as an interval
+  // — which are the two things a person tells apart by whether they drift.
+  if (row.cadenceKind !== 'every' && row.cadenceKind !== 'dailyAt') return false
+  // Present-but-wrong is refused; absent is not. `lastSessionId` is absent for
+  // three ordinary reasons — a task trigger, a routine that has not fired, a
+  // composition with no agent — so requiring it would refuse every registry
+  // that has not run yet. A non-string, though, is a host we do not understand,
+  // and the control built on this hands the value straight to `sessions.open`.
+  if (row.lastSessionId !== undefined && typeof row.lastSessionId !== 'string') return false
+  // Each action carries its own field, and neither is optional for its kind:
+  // a `run` with no task and a `routine` with no prompt are both rows this
+  // surface would have to render as a blank.
+  if (row.action === 'run') return typeof row.task === 'string'
+  if (row.action === 'routine') return typeof row.prompt === 'string'
+  return false
 }
 
 /**
@@ -189,6 +217,72 @@ export async function fetchProjectTriggers(
     }
   }
   return { project, state, triggers }
+}
+
+/**
+ * What a toggle did, in the states the board must tell apart.
+ *
+ * `ok` carries the state as it now STANDS, which is not necessarily what was
+ * asked: the host re-reads before writing, so a toggle landing on a registry
+ * someone else just edited answers with the truth.
+ */
+export type ToggleResult =
+  | { readonly ok: true; readonly enabled: boolean }
+  | { readonly ok: false; readonly reason: string }
+
+/**
+ * Turn one trigger on or off.
+ *
+ * **The only write this client makes**, and the board is the only caller. A
+ * trigger's prompt, task and cadence are still authored by asking the agent —
+ * see the route's own note in `project-api.ts` for why this one boolean is the
+ * exception rather than the start of an editor.
+ *
+ * Every failure comes back as a SENTENCE rather than a code, because the board
+ * renders it beside the row that failed and there is nothing useful a person
+ * does with `registry_unreadable` that they do not do with the reason itself.
+ * A network failure is not silently a no-op either: the switch must go back to
+ * where it was, and it can only do that if it is told.
+ *
+ * @param workspaceId - the project the host minted an id for.
+ * @param name - the trigger's identity within that project.
+ * @param enabled - the state to set.
+ * @returns the state as it now stands, or why it did not change.
+ */
+export async function setTriggerEnabled(
+  workspaceId: string,
+  name: string,
+  enabled: boolean,
+): Promise<ToggleResult> {
+  let response: Response
+  try {
+    response = await fetch(`${ROUTE_PREFIX}/trigger-enabled`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({ workspace: workspaceId, name, enabled }),
+    })
+  } catch {
+    return { ok: false, reason: 'the harness did not answer' }
+  }
+  let body: unknown
+  try {
+    body = await response.json()
+  } catch {
+    return { ok: false, reason: 'the harness sent an answer this build cannot read' }
+  }
+  const decoded = typeof body === 'object' && body !== null ? body as Record<string, unknown> : {}
+  if (!response.ok) {
+    return {
+      ok: false,
+      reason: typeof decoded.error === 'string' ? decoded.error : 'the harness did not say why',
+    }
+  }
+  // A 200 whose shape this build does not recognise is not a success it may
+  // assume: the switch would settle into a state nothing confirmed.
+  if (typeof decoded.enabled !== 'boolean') {
+    return { ok: false, reason: 'the harness sent an answer this build cannot read' }
+  }
+  return { ok: true, enabled: decoded.enabled }
 }
 
 /** One task document, as the host returns it. */

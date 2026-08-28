@@ -1,0 +1,802 @@
+/* The documentation section.
+
+   A peer of the conversation in the conversation's own column, exactly like
+   the workbench (`ui-project`'s `project-home.module.css` records why the
+   `section` seat and not `shell.overlay`: the overlay floats above every
+   column, so an occupant there has to RECONSTRUCT where the sidebar ends, and
+   the frame publishes its track widths only as an inline `gridTemplateColumns`
+   it writes on itself). The column is the geometry; nothing here guesses it.
+
+   EVERY `--dsw-rh-*` READ CARRIES A FALLBACK. Those tokens come from this
+   repo's own `ui-theme`, so a composition running dsh's stock light/dark theme
+   has none of them — and an undefined custom property fails at computed-value
+   time, which means an inherited colour or a transparent fill and no error
+   anywhere (`scripts/check-css-tokens.mjs` leads with that measurement). The
+   `var(--dsw-rh-x, <alias>)` form is dsh's own idiom for "prefer the token,
+   ship without it". */
+
+.layer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  /* Above the conversation's own painters and below dsh's popover layer (100),
+     which should still open over a section. The workbench uses the same 10 for
+     the same reason — measured inside `centerCol`, the composer seat is 7. */
+  z-index: 10;
+}
+
+.page {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--dsw-alias-bg-base);
+  overflow: hidden;
+}
+
+/* --- title bar -------------------------------------------------------- */
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem 1.25rem;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-base);
+}
+
+/* The switch mark: the same lit diamond the brand uses for the antenna /
+   cal-load switch, so the documentation is visibly part of the instrument
+   rather than a generic help page. */
+.mark {
+  flex: none;
+  color: var(--dsw-rh-lit, var(--dsw-alias-brand-primary));
+}
+
+.headText {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+  margin-inline-end: auto;
+}
+
+.headTitle {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--dsw-alias-label-primary);
+}
+
+.headSub {
+  font-size: 0.75rem;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.headAction {
+  flex: none;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 0.375rem;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.headAction:hover {
+  border-color: var(--dsw-rh-lit, var(--dsw-alias-border-l2));
+}
+
+/* --- the two columns --------------------------------------------------- */
+
+.body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.rail {
+  flex: none;
+  width: 16.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.875rem 0.625rem 2rem;
+  border-inline-end: 1px solid var(--dsw-alias-border-l1);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.filter {
+  box-sizing: border-box;
+  width: 100%;
+  margin-bottom: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 0.375rem;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 0.8125rem;
+}
+
+.filter::placeholder {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.filter:focus-visible {
+  outline: none;
+  border-color: var(--dsw-rh-lit, var(--dsw-alias-brand-primary));
+}
+
+.part {
+  display: flex;
+  flex-direction: column;
+  gap: 0.0625rem;
+  margin-top: 0.5rem;
+}
+
+.partHead {
+  padding: 0.375rem 0.5rem 0.25rem;
+}
+
+.partTitle {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.375rem 0.5rem;
+  border: 0;
+  /* The active marker is an inset bar rather than a border, so a row does not
+     shift by 2px when it becomes current. */
+  border-radius: 0.375rem;
+  background: transparent;
+  box-shadow: inset 0.125rem 0 0 transparent;
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  font-size: 0.8125rem;
+  text-align: start;
+  cursor: pointer;
+}
+
+.row:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.rowOn {
+  background: var(--dsw-alias-bg-layer-2);
+  box-shadow: inset 0.125rem 0 0 var(--dsw-rh-lit, var(--dsw-alias-brand-primary));
+  color: var(--dsw-alias-label-primary);
+  font-weight: 600;
+}
+
+.rowLayer {
+  flex: none;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--dsw-alias-label-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.rowOn .rowLayer {
+  color: var(--dsw-rh-lit, var(--dsw-alias-brand-primary));
+}
+
+.railEmpty {
+  padding: 0.75rem 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* --- the article ------------------------------------------------------- */
+
+.article {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.articleInner {
+  max-width: 54rem;
+  margin: 0 auto;
+  padding: 1.75rem 2rem 5rem;
+}
+
+.crumb {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.crumbPart {
+  color: var(--dsw-rh-lit, var(--dsw-alias-brand-primary));
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.topicTitle {
+  margin: 0 0 0.5rem;
+  font-size: 1.75rem;
+  line-height: 1.2;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  color: var(--dsw-alias-label-primary);
+}
+
+.lede {
+  margin: 0 0 1.75rem;
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  color: var(--dsw-alias-label-secondary);
+}
+
+/* --- prose primitives -------------------------------------------------- */
+
+.h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  margin: 2.25rem 0 0.875rem;
+  font-size: 1.0625rem;
+  font-weight: 650;
+  letter-spacing: -0.005em;
+  color: var(--dsw-alias-label-primary);
+}
+
+/* A hairline that runs out to the measure's edge: it groups without adding a
+   heavy rule, and it makes the section boundary legible while scrolling. */
+.h2::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--dsw-alias-border-l1);
+}
+
+.h3 {
+  margin: 1.5rem 0 0.5rem;
+  font-size: 0.9375rem;
+  font-weight: 650;
+  color: var(--dsw-alias-label-primary);
+}
+
+.p {
+  margin: 0 0 0.875rem;
+  font-size: 0.9375rem;
+  line-height: 1.7;
+  color: var(--dsw-alias-label-primary);
+}
+
+.pMuted {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.list {
+  margin: 0 0 0.875rem;
+  padding-inline-start: 1.15rem;
+  font-size: 0.9375rem;
+  line-height: 1.7;
+  color: var(--dsw-alias-label-primary);
+}
+
+.list li {
+  margin-bottom: 0.3rem;
+}
+
+.list li::marker {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.code {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.8125em;
+  padding: 0.1em 0.34em;
+  border-radius: 0.25rem;
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-primary);
+}
+
+.term {
+  font-weight: 650;
+  color: var(--dsw-alias-label-primary);
+}
+
+/* --- block: code ------------------------------------------------------- */
+
+.block {
+  margin: 0 0 1.25rem;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 0.5rem;
+  background: var(--dsw-alias-bg-layer-1);
+  overflow: hidden;
+}
+
+.blockHead {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-layer-2);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.pre {
+  margin: 0;
+  padding: 0.75rem 0.875rem;
+  /* Wide content scrolls inside its own box; the article never scrolls
+     sideways. */
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.8125rem;
+  line-height: 1.65;
+  color: var(--dsw-alias-label-primary);
+  tab-size: 2;
+}
+
+/* A file tree reads better without the panel chrome around it. */
+.tree {
+  margin: 0 0 1.25rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 0.5rem;
+  background: var(--dsw-alias-bg-layer-1);
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.8125rem;
+  line-height: 1.75;
+  color: var(--dsw-alias-label-secondary);
+  white-space: pre;
+}
+
+.treeName {
+  color: var(--dsw-alias-label-primary);
+}
+
+.treeNote {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* --- block: table ------------------------------------------------------ */
+
+.tableWrap {
+  margin: 0 0 1.25rem;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 0.5rem;
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+}
+
+.table th {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-secondary);
+  font-weight: 650;
+  text-align: start;
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  color: var(--dsw-alias-label-primary);
+  vertical-align: top;
+}
+
+.table tr:last-child td {
+  border-bottom: 0;
+}
+
+.table tbody tr:hover td {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+/* First column carries the name being defined; the mono face separates an
+   identifier from the prose describing it without a second colour. */
+.tableKey {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  color: var(--dsw-alias-label-primary);
+}
+
+/* --- block: callout ---------------------------------------------------- */
+
+.note {
+  display: flex;
+  gap: 0.75rem;
+  margin: 0 0 1.25rem;
+  padding: 0.75rem 0.875rem;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-inline-start-width: 0.1875rem;
+  border-radius: 0.5rem;
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+.noteRule {
+  border-inline-start-color: var(--dsw-rh-lit, var(--dsw-alias-brand-primary));
+}
+
+.noteQuiet {
+  border-inline-start-color: var(--dsw-alias-state-warn-primary);
+  background: var(--dsw-rh-state-warn-bg, var(--dsw-alias-bg-layer-1));
+}
+
+.noteAside {
+  border-inline-start-color: var(--dsw-alias-border-l2);
+}
+
+.noteMark {
+  flex: none;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  line-height: 1.75;
+  color: var(--dsw-alias-label-tertiary);
+  white-space: nowrap;
+}
+
+.noteRule .noteMark {
+  color: var(--dsw-rh-lit, var(--dsw-alias-brand-primary));
+}
+
+.noteQuiet .noteMark {
+  color: var(--dsw-alias-state-warn-primary);
+}
+
+.noteBody {
+  min-width: 0;
+  font-size: 0.875rem;
+  line-height: 1.65;
+  color: var(--dsw-alias-label-primary);
+}
+
+.noteBody > :last-child {
+  margin-bottom: 0;
+}
+
+/* --- block: cards ------------------------------------------------------ */
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 0.625rem;
+  margin: 0 0 1.25rem;
+}
+
+.card {
+  padding: 0.75rem 0.875rem;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 0.5rem;
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+.cardTag {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dsw-rh-lit, var(--dsw-alias-brand-primary));
+}
+
+.cardTitle {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 650;
+  color: var(--dsw-alias-label-primary);
+}
+
+.cardBody {
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  color: var(--dsw-alias-label-secondary);
+}
+
+/* --- block: steps ------------------------------------------------------ */
+
+.steps {
+  margin: 0 0 1.25rem;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+}
+
+.step {
+  position: relative;
+  padding: 0 0 1rem 2.25rem;
+  counter-increment: step;
+}
+
+/* The connector between markers. Not on the last step, so the sequence has a
+   visible end rather than a line running into nothing. */
+.step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  inset-inline-start: 0.6875rem;
+  top: 1.75rem;
+  bottom: 0.25rem;
+  width: 1px;
+  background: var(--dsw-alias-border-l1);
+}
+
+.step::before {
+  content: counter(step);
+  position: absolute;
+  inset-inline-start: 0;
+  top: 0.0625rem;
+  display: grid;
+  place-items: center;
+  width: 1.375rem;
+  height: 1.375rem;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 50%;
+  background: var(--dsw-alias-bg-layer-1);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--dsw-rh-lit, var(--dsw-alias-brand-primary));
+}
+
+.stepTitle {
+  margin: 0 0 0.25rem;
+  font-size: 0.9375rem;
+  font-weight: 650;
+  line-height: 1.45;
+  color: var(--dsw-alias-label-primary);
+}
+
+.stepBody {
+  font-size: 0.875rem;
+  line-height: 1.65;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.stepBody > :last-child {
+  margin-bottom: 0;
+}
+
+/* --- block: figure ----------------------------------------------------- */
+
+.figure {
+  margin: 0 0 1.5rem;
+  padding: 1.125rem 1rem 0.875rem;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 0.5rem;
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+.figureCanvas {
+  overflow-x: auto;
+}
+
+.figureCanvas svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-width: 30rem;
+}
+
+.figureCaption {
+  margin-top: 0.75rem;
+  padding-top: 0.625rem;
+  border-top: 1px solid var(--dsw-alias-border-l1);
+  font-size: 0.75rem;
+  line-height: 1.6;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* --- block: key/value -------------------------------------------------- */
+
+.facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.375rem 1rem;
+  margin: 0 0 1.25rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 0.5rem;
+  background: var(--dsw-alias-bg-layer-1);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+.factKey {
+  color: var(--dsw-alias-label-tertiary);
+  white-space: nowrap;
+}
+
+.factValue {
+  color: var(--dsw-alias-label-primary);
+}
+
+/* --- inline pills ------------------------------------------------------ */
+
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin: 0 0 1.25rem;
+}
+
+.pill {
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-layer-1);
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.6875rem;
+  color: var(--dsw-alias-label-secondary);
+}
+
+/* --- footer pager ------------------------------------------------------ */
+
+.pager {
+  display: flex;
+  gap: 0.625rem;
+  margin-top: 2.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--dsw-alias-border-l1);
+}
+
+.pagerLink {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 0.5rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.pagerNext {
+  text-align: end;
+  align-items: flex-end;
+}
+
+.pagerLink:hover {
+  border-color: var(--dsw-rh-lit, var(--dsw-alias-border-l2));
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+.pagerDir {
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.pagerTitle {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+/* --- the sidebar row --------------------------------------------------- */
+
+.trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  font-size: 0.875rem;
+  text-align: start;
+  cursor: pointer;
+}
+
+.trigger:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.trigger[aria-pressed='true'] {
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-primary);
+}
+
+.triggerRail {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.triggerLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- narrow column ----------------------------------------------------- */
+
+/* The section lives inside the centre column, so this is a viewport query
+   standing in for a container one: at these widths the column is narrow on any
+   layout, and a 16.5rem rail beside a 30rem article is not a reading surface.
+   The rail becomes a horizontal strip above the article. */
+@media (max-width: 60rem) {
+  .body {
+    flex-direction: column;
+  }
+
+  .rail {
+    width: auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.5rem 0.75rem;
+    border-inline-end: 0;
+    border-bottom: 1px solid var(--dsw-alias-border-l1);
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .filter {
+    width: 11rem;
+    flex: none;
+    margin-bottom: 0;
+  }
+
+  .part {
+    flex-direction: row;
+    align-items: center;
+    margin-top: 0;
+  }
+
+  .partHead {
+    padding: 0 0.375rem;
+  }
+
+  .row {
+    white-space: nowrap;
+    width: auto;
+  }
+
+  .articleInner {
+    padding: 1.25rem 1.125rem 4rem;
+  }
+}

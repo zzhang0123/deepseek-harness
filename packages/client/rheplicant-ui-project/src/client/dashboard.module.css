@@ -1,6 +1,25 @@
 /* The dashboard (docs/project-model.md §25): a `section` occupant, so the
    centre column is the geometry and this file sets none of its own — the same
-   reason project-home.module.css stopped reserving a gutter. */
+   reason project-home.module.css stopped reserving a gutter.
+
+   REWORKED 2026-08-28. A first pass had fixed local typography — a measure,
+   stat-style counts, a bordered selected tab, task-leads-not-project — and the
+   surface still read as the worst of three sibling boards. The reason was
+   structural rather than typographic, and an audit named it: every table row
+   was its OWN grid container, so no column lined up with the one above it;
+   neither table had headers; the header bar sat on a different measure from the
+   body, so the page had two left edges; and the file contained no heading
+   vocabulary, no `:focus-visible` rule at all, and exactly one use of the
+   accent colour. `schedules.module.css` had already ported `ui-docs`'
+   vocabulary and said so in its header. This is that treatment, here.
+
+   ON THE RAGGED COLUMNS: the fix is deterministic tracks, not subgrid. Each
+   row's template had two `auto` tracks, and `auto` is measured per grid — so
+   every row sized its own columns from its own content. Subgrid would fix it
+   and appears nowhere in this repo yet; a template with no `auto` in it fixes
+   it with nothing to verify. The tracks live on the container as `--tracks` and
+   the header row and every body row read the same variable, so the two cannot
+   drift apart the way five hand-repeated column lists already had. */
 .layer {
   position: absolute;
   inset: 0;
@@ -20,13 +39,22 @@
   overflow: hidden;
 }
 
+/* --- the header ---------------------------------------------------------- */
+
 .head {
+  padding: 0.875rem 1.5rem;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+}
+
+/* The measure the body uses, so the title starts where the first row does. */
+.headInner {
+  width: 100%;
+  max-width: 78rem;
+  margin-inline: auto;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.875rem 1rem;
-  border-bottom: 1px solid var(--dsw-alias-border-l1);
 }
 
 .title {
@@ -39,7 +67,7 @@
 .eyebrow {
   color: var(--dsw-alias-label-tertiary);
   font-size: 0.6875rem;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
@@ -50,42 +78,71 @@
 }
 
 .action {
-  padding: 0.3rem 0.6rem;
+  box-sizing: border-box;
+  padding: 0.35rem 0.7rem;
   border: 1px solid var(--dsw-alias-border-l1);
   border-radius: 0.375rem;
-  background: transparent;
+  background: var(--dsw-alias-bg-layer-1);
   color: var(--dsw-alias-label-secondary);
-  font: inherit;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   cursor: pointer;
 }
 
-.action:hover {
+/* Focus paired with hover, everywhere. This file had ZERO `:focus-visible`
+   rules across six interactive elements. */
+.action:hover,
+.action:focus-visible {
+  border-color: var(--dsw-rh-lit, var(--dsw-alias-border-l2));
   color: var(--dsw-alias-label-primary);
-  border-color: var(--dsw-alias-border-l2);
 }
+
+.action:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* --- the body ------------------------------------------------------------ */
 
 .body {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
+  padding: 1.5rem 1.5rem 4rem;
 }
 
-/* Elevation follows `ui-kit`'s `panel.module.css` rule — ground / panel /
-   inset — so a card here and a panel on the workbench sit at the same step off
-   the same ground. The tables below were the exception: the listing box drew a
-   border on the GROUND while the cards beside it drew one on layer-1, and a
-   hovered row then rose to the layer the container should already have been at.
-   --- project cards ---------------------------------------------------- */
+/* A measure, not the window. At 1440px an unconstrained row spreads five short
+   values across thirteen hundred pixels and reads as five unrelated things;
+   `ui-docs` constrains its prose to 54rem for the same reason. Wider than that
+   here because these are tables rather than sentences, but bounded.
+
+   NO `gap`. One rhythm for every boundary — cards to tabs, tabs to notices,
+   notice to caveat — grouped nothing; the spacing is stated per element now. */
+.measure {
+  width: 100%;
+  max-width: 78rem;
+  margin-inline: auto;
+}
+
+/* `docs.module.css`'s `.partTitle`: the eyebrow that names a group. */
+.partTitle {
+  margin: 0 0 0.5rem;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+/* --- project cards ------------------------------------------------------- */
+
+/* 19rem to match `schedules.module.css`, whose comment already argues the
+   auto-fill choice these two share. At 15rem the three stat blocks below the
+   title had ~13rem to sit in and wrapped. */
 .cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));
   gap: 0.75rem;
-  margin: 0;
+  margin: 0 0 2rem;
   padding: 0;
   list-style: none;
 }
@@ -94,69 +151,174 @@
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
-  padding: 0.75rem 0.875rem;
+  padding: 0.875rem 1rem;
   border: 1px solid var(--dsw-alias-border-l1);
   border-radius: 0.5rem;
   background: var(--dsw-alias-bg-layer-1);
 }
 
+/* The title and the reveal control on one line, the title taking the slack so
+   the icon sits hard against the card's edge whatever the project is called. */
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* THE TITLE IS THE SUBJECT, so it is the biggest thing on the card. It was
+   0.9375rem under stat numbers at 1.125rem — the card shouted its counts and
+   whispered what they were counts OF. */
 .cardOpen {
-  align-self: flex-start;
+  min-width: 0;
   padding: 0;
   border: none;
   background: transparent;
   color: var(--dsw-alias-label-primary);
   font: inherit;
-  font-size: 0.875rem;
-  font-weight: 600;
+  font-size: 1rem;
+  font-weight: 650;
+  letter-spacing: -0.005em;
   text-align: start;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   cursor: pointer;
 }
 
-.cardOpen:hover {
-  color: var(--dsw-rh-lit);
+.cardOpen:hover,
+.cardOpen:focus-visible {
+  color: var(--dsw-rh-lit, var(--dsw-alias-brand-primary));
+}
+
+/* A quiet square, not a call to action: opening a folder is a side errand, and
+   the card's own job is still to say what the project HAS. It appears only
+   where the host can actually open a path, so an always-visible affordance
+   here would be a promise the composition cannot always keep. */
+.cardReveal {
+  box-sizing: border-box;
+  flex: none;
+  margin-inline-start: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+}
+
+.cardReveal:hover,
+.cardReveal:focus-visible {
+  border-color: var(--dsw-rh-lit, var(--dsw-alias-border-l2));
+  color: var(--dsw-alias-label-primary);
 }
 
 /* A project whose overview never arrived. Deliberately not styled as an error:
-   it is unknown, and unknown is not failure. */
+   it is unknown, and unknown is not failure. Shares `.counts`' height so a card
+   does not jump when its data lands. */
 .unread {
+  display: flex;
+  align-items: center;
+  min-height: 2.9rem;
+  margin-top: 0.15rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--dsw-alias-border-l1);
   color: var(--dsw-alias-label-tertiary);
   font-size: 0.75rem;
 }
 
+/* Three stats, stacked value-over-label rather than run together on one
+   baseline. A fixed three-up grid, not a wrapping flex: at 19rem they fit, and
+   `align-items: start` stops the truncation Badge — an inline-flex blockified
+   into a stretched flex item — from growing to the full row height. */
 .counts {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.75rem;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: 0.5rem;
+  min-height: 2.9rem;
+  margin-top: 0.15rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--dsw-alias-border-l1);
 }
 
 .count {
   display: flex;
-  align-items: baseline;
-  gap: 0.25rem;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
 }
 
 .countValue {
   color: var(--dsw-alias-label-primary);
   font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.1;
   font-variant-numeric: tabular-nums;
 }
 
 .countLabel {
   color: var(--dsw-alias-label-tertiary);
-  font-size: 0.6875rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* --- the two tables ---------------------------------------------------- */
+/* How the executions ended, on its own line under the three quantities. The
+   COLOUR carries the state and there is no pill: three badges on a card this
+   size is more chrome than the fact deserves, and the words are the tree's own
+   either way — so the distinction survives where the colour does not. */
+.outcomes {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.15rem;
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.outcome[data-outcome='ok'] { color: var(--dsw-alias-state-success-primary); }
+.outcome[data-outcome='refused'] { color: var(--dsw-alias-state-warn-primary); }
+.outcome[data-outcome='error'] { color: var(--dsw-alias-state-error-primary); }
+
+/* The separator belongs to neither side, so it takes neither side's colour. */
+.outcome + .outcome::before {
+  content: '·';
+  margin-inline-end: 0.35rem;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* Out of the stats row and into the card head's own line: a warning about the
+   listing is not a fourth statistic. */
+.partial {
+  grid-column: 1 / -1;
+}
+
+/* --- the two tables ------------------------------------------------------ */
+
+/* Sticky, and it needs the ground colour or the rows show through. The tabs,
+   the filter and the row of column headings used to scroll away, so a long run
+   list left the reader with five unlabelled columns and no way back. */
 .tableHead {
+  position: sticky;
+  top: -1.5rem;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding-block-start: 0.25rem;
+  margin: 0 0 0.625rem;
+  padding-block: 0.5rem;
+  background: var(--dsw-alias-bg-base);
 }
 
-/* Setups beside Runs: desired state beside observed state, one scope. */
 .tabs {
   display: flex;
   gap: 0.25rem;
@@ -164,68 +326,91 @@
 }
 
 .tab {
-  padding: 0.25rem 0.6rem;
+  padding: 0.3rem 0.75rem;
   border: none;
-  border-radius: 0.375rem;
+  border-radius: 0.375rem 0.375rem 0 0;
   background: transparent;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--dsw-alias-label-secondary);
   font: inherit;
   font-size: 0.8125rem;
   font-weight: 600;
   cursor: pointer;
 }
 
-.tab:hover {
-  color: var(--dsw-alias-label-secondary);
-}
-
-.tab[aria-selected='true'] {
-  background: var(--dsw-alias-bg-layer-1);
+.tab:hover,
+.tab:focus-visible {
   color: var(--dsw-alias-label-primary);
 }
 
-/* The setups row: no analysis column, and an execution COUNT where a run row
-   carries a status — a definition has no outcome. The fourth column is the
-   SCHEDULE, and it is empty rather than "manual" for a task nothing triggers. */
-.taskOpen {
-  display: grid;
-  grid-template-columns: minmax(6rem, 1fr) minmax(10rem, 2fr) auto minmax(0, 1.5fr) auto;
-  align-items: center;
-  gap: 0.75rem;
-  width: 100%;
-  padding: 0.45rem 0.75rem;
-  border: none;
-  background: transparent;
-  color: var(--dsw-alias-label-secondary);
-  font: inherit;
-  font-size: 0.75rem;
-  text-align: start;
-  cursor: pointer;
+/* A STRUCTURAL MARK, not a miniature copy of the table box. The selected tab
+   used to take `border-l2` + `bg-layer-1` — the same fill and nearly the same
+   border as `.rows` directly beneath it — so it read as a small panel rather
+   than as a selection. This is the one place the accent earns its keep. */
+.tab[aria-selected='true'] {
+  box-shadow: inset 0 -2px 0 var(--dsw-rh-lit, var(--dsw-alias-brand-primary));
+  color: var(--dsw-alias-label-primary);
 }
 
-.taskOpen:hover {
-  background: var(--dsw-alias-bg-layer-2);
+/* The region one tab governs. It carries no look of its own — the tables and
+   notices inside it already sit on their own grounds, and a second frame around
+   them would be the "miniature panel" the selected tab above stopped being.
+   What it does carry is a focus ring: `tabs.ts` makes it focusable so its
+   scroll is reachable from the keyboard, and a focusable thing that shows
+   nothing when focused is where a keyboard reader gets lost. Same ring the
+   document panel's `<pre>` takes, inset so it does not overlap the tab row. */
+.tabPanel:focus-visible {
+  outline: 2px solid var(--dsw-rh-lit, var(--dsw-alias-label-secondary));
+  outline-offset: -2px;
+  border-radius: 0.5rem;
+}
+
+/* How big the table is, and what the filter is hiding. */
+.tableCount {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
 }
 
 .filter {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.4rem;
 }
 
 .filterLabel {
   color: var(--dsw-alias-label-tertiary);
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
+/* `appearance: none` and the chevron drawn here, so the control matches the
+   two buttons beside it instead of arriving at platform metrics with a
+   platform radius. */
 .filterSelect {
-  padding: 0.2rem 0.35rem;
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 0.3rem;
-  background: var(--dsw-alias-bg-layer-1);
+  box-sizing: border-box;
+  appearance: none;
+  padding: 0.3rem 1.6rem 0.3rem 0.6rem;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 0.375rem;
+  background-color: var(--dsw-alias-bg-layer-1);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2381858c' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.55rem center;
+  background-size: 0.55rem;
   color: var(--dsw-alias-label-primary);
   font: inherit;
   font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.filterSelect:hover,
+.filterSelect:focus-visible {
+  border-color: var(--dsw-rh-lit, var(--dsw-alias-border-l2));
 }
 
 .rows {
@@ -238,59 +423,176 @@
   overflow: hidden;
 }
 
+/* THE COLUMNS BELONG TO THE TABLE, not to each row. No `auto` track anywhere:
+   `auto` is measured per grid, which is exactly why five rows produced five
+   different column layouts. */
+.rows[data-table='setups'] {
+  --tracks: minmax(0, 2.4fr) 4.5rem minmax(0, 1.8fr) 5.5rem minmax(0, 1fr) 7rem;
+}
+
+.rows[data-table='runs'] {
+  --tracks: minmax(0, 1.6fr) minmax(0, 2fr) 9.5rem 5.5rem minmax(0, 1fr) 4.5rem;
+}
+
 .row + .row {
   border-top: 1px solid var(--dsw-alias-border-l1);
 }
 
+.headRow {
+  display: grid;
+  grid-template-columns: var(--tracks);
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.4rem 0.875rem;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* One rule for both row buttons, because they are one thing wearing two
+   templates. 13px, not 12: the table is the surface's primary content and it
+   was the smallest text on the page. */
+.taskOpen,
 .rowOpen {
   display: grid;
-  grid-template-columns: minmax(6rem, 1fr) minmax(8rem, 1.5fr) minmax(6rem, 1fr) auto auto;
+  grid-template-columns: var(--tracks);
   align-items: center;
   gap: 0.75rem;
   width: 100%;
-  padding: 0.45rem 0.75rem;
+  padding: 0.5rem 0.875rem;
   border: none;
   background: transparent;
   color: var(--dsw-alias-label-secondary);
   font: inherit;
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
   text-align: start;
   cursor: pointer;
 }
 
+/* An INTERACTION, not an elevation step. Both rows painted `bg-layer-2` on
+   hover inside a container already at `bg-layer-1`, which reads as the row
+   rising rather than as the pointer being on it. */
+.taskOpen:hover,
 .rowOpen:hover {
-  background: var(--dsw-alias-bg-layer-2);
+  background: var(--dsw-alias-interactive-bg-hover, var(--dsw-alias-bg-layer-2));
 }
 
-.rowProject {
+/* INSET, because `.rows` clips its overflow to keep the radius and an outset
+   ring would be cut off on the first and last rows. */
+.taskOpen:focus-visible,
+.rowOpen:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--dsw-rh-lit, var(--dsw-alias-label-secondary));
+}
+
+/* The task leads: it is what the row is about. */
+.rowTask {
   color: var(--dsw-alias-label-primary);
+  font-family: var(--dsw-font-mono, ui-monospace, monospace);
+  font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.rowTask {
-  font-family: var(--dsw-font-mono, ui-monospace, monospace);
+/* The project is context and sits LAST — in a one-project harness it is the
+   same grey word on every row, and it used to open all of them. */
+/* ROW TEXT IS `-secondary`, NOT `-tertiary`, and the six rules below say so
+   together because they are one decision. This repo's theme re-values
+   `label-tertiary` to `#81858c`: measured on these two tables it is 3.71:1 on
+   a row and 3.54:1 on the header strip, both under WCAG AA's 4.5 for text this
+   size — and 10px at weight 700 is not "large text", so the header does not
+   get the 3:1 exemption. `-secondary` measures 6.37:1 and 6.09:1 on the same
+   two grounds.
+
+   The hierarchy survives the change: the task name is `-primary` at 16.29:1,
+   so a metadata cell is still visibly quieter than the thing the row is about.
+   The separation was never carrying its weight in colour alone — it is size
+   and, for the header, letter-spacing and case. `panel.module.css` records the
+   same measurement and the same substitution for a panel subtitle, and
+   `project-home.module.css` for the workbench's tabs; this is the third place
+   the same trap was set, and it is set in dark-first work because dark is fine
+   at 7.85:1. */
+
+/* The instant its table is sorted by. Quiet, like `.rowProject`: it explains
+   the order rather than being what a reader came for. */
+.rowSince {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowProject {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 0.75rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .rowKinds {
-  color: var(--dsw-alias-label-tertiary);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* One analysis kind. They were `join(' · ')` in an ellipsising cell, which
+   truncates mid-word. */
+.kindChip {
+  padding: 0.05rem 0.35rem;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-secondary);
+  font-family: var(--dsw-font-mono, ui-monospace, monospace);
+  font-size: 0.625rem;
+  white-space: nowrap;
+}
+
+.rowNone {
+  color: var(--dsw-alias-label-secondary);
+}
+
+/* Numeric: end-aligned and tabular, so sizes compare down the column. It
+   shared `.rowId` with an execution hash, which is neither. */
+.rowSize,
+.numeric {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 0.75rem;
+}
+
+.rowId {
+  font-family: var(--dsw-font-mono, ui-monospace, monospace);
+  font-size: 0.75rem;
+  color: var(--dsw-alias-label-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.rowId {
-  font-family: var(--dsw-font-mono, ui-monospace, monospace);
-  color: var(--dsw-alias-label-tertiary);
-}
+/* --- empty and notice states --------------------------------------------- */
 
+/* A container, like the sibling board's. Four different situations used to
+   render as a naked centred sentence on the page ground. */
 .empty {
   margin: 0;
-  padding: 1rem;
+  padding: 2rem 1rem;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 0.5rem;
+  background: var(--dsw-alias-bg-layer-1);
   color: var(--dsw-alias-label-tertiary);
   font-size: 0.8125rem;
   text-align: center;
@@ -301,9 +603,10 @@
 
 /* Said once above the rows, not on each of them: design §6's first
    non-negotiable is that this is STATED, and a sentence repeated twenty times
-   is a sentence nobody reads. */
+   is a sentence nobody reads. Bound to the table it qualifies rather than
+   floating at the parent's generic rhythm. */
 .caveat {
-  margin: 0;
+  margin: -0.25rem 0 0.5rem;
   color: var(--dsw-alias-label-tertiary);
   font-size: 0.75rem;
 }
@@ -311,7 +614,7 @@
 /* A registry that exists and could not be read — a different fact from a
    project with no schedules, and it must not render as one. */
 .notices {
-  margin: 0;
+  margin: 0 0 0.75rem;
   padding: 0;
   list-style: none;
   display: flex;
@@ -319,24 +622,20 @@
   gap: 0.35rem;
 }
 
+/* The warn colour on the RULE rather than the whole tile, which is docs' note
+   idiom — a filled tile competes with the table beneath it for the same
+   attention the table usually deserves. */
 .notice {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   padding: 0.4rem 0.6rem;
   border: 1px solid var(--dsw-alias-border-l1);
-  border-radius: 0.375rem;
-  background: var(--dsw-rh-state-warn-bg);
+  border-inline-start: 0.1875rem solid var(--dsw-alias-state-warn-primary);
+  border-radius: 0 0.375rem 0.375rem 0;
+  background: var(--dsw-rh-state-warn-bg, var(--dsw-alias-bg-layer-1));
   color: var(--dsw-alias-label-secondary);
   font-size: 0.75rem;
-}
-
-.caption {
-  margin: 0;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 0.6875rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 /* The schedule cell. A task with no trigger leaves it EMPTY on purpose. */
@@ -348,60 +647,49 @@
   min-width: 0;
 }
 
+/* `center`, not `baseline`: a padded bordered chip baseline-aligned against
+   plain text sits visibly low. */
 .trigger {
   display: inline-flex;
-  align-items: baseline;
-  gap: 0.3rem;
+  align-items: center;
+  gap: 0.35rem;
   min-width: 0;
 }
 
 .triggerName {
   color: var(--dsw-alias-label-secondary);
+  font-size: 0.75rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* The cadence VERBATIM — `PT10M`, not "every ten minutes". Monospaced because
-   it is a value the person can hand straight back to `rheplicant_trigger`. */
+/* The same chip the Schedules board draws, so one cadence looks like one thing
+   on both surfaces. */
 .cadence {
-  padding: 0.05rem 0.3rem;
-  border: 1px solid var(--dsw-alias-border-l2);
+  flex: none;
+  padding: 0.1rem 0.35rem;
+  border: 1px solid var(--dsw-alias-border-l1);
   border-radius: 0.25rem;
-  background: var(--dsw-alias-bg-layer-2);
-  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-secondary);
   font-family: var(--dsw-font-mono, ui-monospace, monospace);
   font-size: 0.6875rem;
-  white-space: nowrap;
 }
 
 .fire {
   color: var(--dsw-alias-label-tertiary);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   white-space: nowrap;
 }
 
-/* A trigger with no task row above to sit on. Not a button: there is no
-   document to open — that is the whole point of the row.
-   `box-sizing` is NOT inherited from the sibling rows: those are <button>s,
-   which the UA sheet already gives border-box, and a <div> here does not get
-   it — measured 2026-08-26 in a real boot, where `width: 100%` plus the
-   padding pushed the badge past `.rows`'s `overflow: hidden` and clipped the
-   one sentence this row exists to say. */
-.orphanRow {
-  box-sizing: border-box;
-  display: grid;
-  grid-template-columns: minmax(6rem, 1fr) minmax(8rem, 1.5fr) minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0.75rem;
-  width: 100%;
-  padding: 0.45rem 0.75rem;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 0.75rem;
+/* A switched-off trigger read EXACTLY like a live one — same weight, same
+   chip, same grey — with the word "disabled" as the only difference. */
+.trigger[data-trigger-enabled='false'] {
+  opacity: 0.55;
 }
 
-/* Every grid child may shrink; without this a nowrap cell keeps its intrinsic
-   width and pushes the row past its container. */
-.orphanRow > * {
-  min-width: 0;
+.trigger[data-trigger-enabled='false'] .cadence {
+  border-style: dashed;
+  background: transparent;
 }

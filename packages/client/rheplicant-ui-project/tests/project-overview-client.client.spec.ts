@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   fetchExecutionArtifact, fetchProjectOverview, fetchProjectTriggers, fetchTaskDefinition,
+  setTriggerEnabled,
 } from '../src/client/project-overview-client.ts'
 
 /** A complete, well-formed body, which each test then damages one way. */
@@ -217,8 +218,8 @@ describe('reading one project\'s trigger registry', () => {
       project: 'rhino-2026',
       state: 'ok',
       triggers: [{
-        name: 'nightly', task: 'tasks/fit.yaml', every: 'P1D', enabled: true,
-        nextFireAt: '2026-08-27T00:00:00.000Z',
+        name: 'nightly', action: 'run', task: 'tasks/fit.yaml', cadence: 'P1D', cadenceKind: 'every',
+        enabled: true, nextFireAt: '2026-08-27T00:00:00.000Z',
       }],
       ...over,
     }
@@ -235,7 +236,7 @@ describe('reading one project\'s trigger registry', () => {
     answer(200, triggers())
     const found = await fetchProjectTriggers('ws-1')
     expect(found?.state).toBe('ok')
-    expect(found?.triggers[0]).toMatchObject({ name: 'nightly', every: 'P1D' })
+    expect(found?.triggers[0]).toMatchObject({ name: 'nightly', cadence: 'P1D', cadenceKind: 'every' })
   })
 
   it('keeps `absent` and `unreadable` apart, with the reason', async () => {
@@ -259,13 +260,86 @@ describe('reading one project\'s trigger registry', () => {
     // schedule silently doing less than the person asked for.
     answer(200, triggers({
       triggers: [
-        { name: 'nightly', task: 'tasks/fit.yaml', every: 'P1D', enabled: true },
+        { name: 'nightly', action: 'run', task: 'tasks/fit.yaml', cadence: 'P1D', cadenceKind: 'every', enabled: true },
         { name: 'broken' },
       ],
     }))
     const found = await fetchProjectTriggers('ws-1')
     expect(found?.state).toBe('unreadable')
     expect(found?.triggers).toEqual([])
+  })
+
+  it('reads a ROUTINE row, which carries a prompt where a run carries a task', async () => {
+    answer(200, triggers({
+      triggers: [{ name: 'brief', action: 'routine', prompt: 'Check the fits', cadence: 'PT30M', cadenceKind: 'every', enabled: true }],
+    }))
+    const found = await fetchProjectTriggers('ws-1')
+    expect(found?.state).toBe('ok')
+    expect(found?.triggers[0]).toMatchObject({ action: 'routine', prompt: 'Check the fits' })
+  })
+
+  it('reads the session a routine last opened, when the host sends one', async () => {
+    answer(200, triggers({
+      triggers: [{
+        name: 'brief', action: 'routine', prompt: 'Check the fits',
+        cadence: 'PT30M', cadenceKind: 'every', enabled: true, lastSessionId: 'session-42',
+      }],
+    }))
+    const found = await fetchProjectTriggers('ws-1')
+    expect(found?.state).toBe('ok')
+    expect(found?.triggers[0]).toMatchObject({ lastSessionId: 'session-42' })
+  })
+
+  it('accepts a row without one — absent is the ordinary case, not a defect', async () => {
+    // A task trigger opens no session; a routine that has not fired has none
+    // yet; a composition with no agent never will. Requiring the field would
+    // refuse every registry that has not run.
+    answer(200, triggers({
+      triggers: [{ name: 'brief', action: 'routine', prompt: 'x', cadence: 'PT30M', cadenceKind: 'every', enabled: true }],
+    }))
+    expect((await fetchProjectTriggers('ws-1'))?.state).toBe('ok')
+  })
+
+  it('REFUSES a row whose session id is not a string', async () => {
+    // The value is handed straight to the host's `sessions.open`, so a number
+    // here is a host this build does not understand — and one bad row makes the
+    // whole answer unreadable rather than a shorter list.
+    answer(200, triggers({
+      triggers: [{
+        name: 'brief', action: 'routine', prompt: 'x',
+        cadence: 'PT30M', cadenceKind: 'every', enabled: true, lastSessionId: 7,
+      }],
+    }))
+    const found = await fetchProjectTriggers('ws-1')
+    expect(found?.state).toBe('unreadable')
+    expect(found?.triggers).toEqual([])
+  })
+
+  it('REFUSES a row with no action, rather than guessing which kind it is', async () => {
+    // The registry FILE may omit `action` — that default exists so registries
+    // written before routines keep working without a migration. The wire has no
+    // files to migrate, so the host always states it, and guessing here would
+    // render a routine as a task run. Measured in a real boot 2026-08-27: this
+    // is the shape that made the dashboard say "the host sent a trigger this
+    // build cannot read", which was the check working.
+    answer(200, triggers({
+      triggers: [{ name: 'nightly', task: 'tasks/fit.yaml', cadence: 'P1D', cadenceKind: 'every', enabled: true }],
+    }))
+    expect(await fetchProjectTriggers('ws-1')).toMatchObject({ state: 'unreadable' })
+  })
+
+  it('refuses an action this build does not know, for the same reason as a state', async () => {
+    answer(200, triggers({
+      triggers: [{ name: 'x', action: 'deploy', task: 't.yaml', cadence: 'P1D', cadenceKind: 'every', enabled: true }],
+    }))
+    expect(await fetchProjectTriggers('ws-1')).toMatchObject({ state: 'unreadable' })
+  })
+
+  it('refuses a routine with no prompt and a run with no task', async () => {
+    answer(200, triggers({ triggers: [{ name: 'x', action: 'routine', cadence: 'PT30M', cadenceKind: 'every', enabled: true }] }))
+    expect(await fetchProjectTriggers('ws-1')).toMatchObject({ state: 'unreadable' })
+    answer(200, triggers({ triggers: [{ name: 'x', action: 'run', cadence: 'P1D', cadenceKind: 'every', enabled: true }] }))
+    expect(await fetchProjectTriggers('ws-1')).toMatchObject({ state: 'unreadable' })
   })
 
   it('answers undefined for a state this build does not know', async () => {
@@ -283,5 +357,82 @@ describe('reading one project\'s trigger registry', () => {
   it('answers undefined rather than throwing when the fetch itself fails', async () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('offline'))))
     expect(await fetchProjectTriggers('ws-1')).toBeUndefined()
+  })
+})
+
+describe('turning one trigger on or off — the only write this client makes', () => {
+  it('POSTs the project, the name and the state', async () => {
+    answer(200, { name: 'brief', enabled: false })
+    await setTriggerEnabled('ws-1', 'brief', false)
+    const [url, init] = (globalThis.fetch as unknown as {
+      mock: { calls: [string, { method: string; body: string }][] }
+    }).mock.calls[0]!
+    expect(url).toBe('/rheplicant/project/trigger-enabled')
+    expect(init.method).toBe('POST')
+    expect(JSON.parse(init.body)).toEqual({ workspace: 'ws-1', name: 'brief', enabled: false })
+  })
+
+  it('answers with the state as it now STANDS, not with what was asked', async () => {
+    // The host re-reads before writing, so a toggle landing on a registry
+    // someone else just edited comes back with the truth.
+    answer(200, { name: 'brief', enabled: true })
+    expect(await setTriggerEnabled('ws-1', 'brief', false)).toEqual({ ok: true, enabled: true })
+  })
+
+  it('carries the host\'s sentence through on a refusal, rather than a code', async () => {
+    // The board renders this beside the row that failed, and there is nothing
+    // useful a person does with `registry_unreadable` that they do not do with
+    // the reason itself.
+    answer(409, { error: 'the registry cannot be read — the file is not valid JSON', code: 'registry_unreadable' })
+    expect(await setTriggerEnabled('ws-1', 'brief', false)).toEqual({
+      ok: false, reason: 'the registry cannot be read — the file is not valid JSON',
+    })
+  })
+
+  it('supplies a sentence when the host sent none, so the switch is never bare', async () => {
+    answer(404, {})
+    expect(await setTriggerEnabled('ws-1', 'ghost', false)).toMatchObject({ ok: false })
+  })
+
+  it('reports a network failure rather than silently doing nothing', async () => {
+    // A swallowed failure leaves the switch showing a state nothing confirmed.
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('offline'))))
+    expect(await setTriggerEnabled('ws-1', 'brief', false)).toMatchObject({ ok: false })
+  })
+
+  it('refuses a 200 whose shape it does not recognise', async () => {
+    // Assuming success would settle the switch into a state nothing confirmed —
+    // the same rule the registry decoder applies to an unknown `state`.
+    answer(200, { name: 'brief' })
+    expect(await setTriggerEnabled('ws-1', 'brief', false)).toMatchObject({ ok: false })
+  })
+})
+
+describe('the wall-clock cadence on the wire', () => {
+  it('reads a dailyAt row and keeps its kind', async () => {
+    answer(200, {
+      project: 'p', state: 'ok',
+      triggers: [{ name: 'dawn', action: 'run', task: 't.yaml', cadence: '08:00', cadenceKind: 'dailyAt', enabled: true }],
+    })
+    const found = await fetchProjectTriggers('ws-1')
+    expect(found?.triggers[0]).toMatchObject({ cadence: '08:00', cadenceKind: 'dailyAt' })
+  })
+
+  it('REFUSES a row with no cadenceKind, rather than guessing which it is', async () => {
+    // The two kinds differ in whether they DRIFT, which is the property a
+    // person picks between. Guessing would render a wall clock as an interval.
+    answer(200, {
+      project: 'p', state: 'ok',
+      triggers: [{ name: 'dawn', action: 'run', task: 't.yaml', cadence: '08:00', enabled: true }],
+    })
+    expect(await fetchProjectTriggers('ws-1')).toMatchObject({ state: 'unreadable' })
+  })
+
+  it('refuses a cadenceKind this build does not know', async () => {
+    answer(200, {
+      project: 'p', state: 'ok',
+      triggers: [{ name: 'x', action: 'run', task: 't.yaml', cadence: '* * * * *', cadenceKind: 'cron', enabled: true }],
+    })
+    expect(await fetchProjectTriggers('ws-1')).toMatchObject({ state: 'unreadable' })
   })
 })

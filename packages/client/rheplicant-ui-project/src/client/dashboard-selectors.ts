@@ -57,6 +57,44 @@ export function projectTotals(card: ProjectCard): ProjectTotals {
   }
 }
 
+/** One outcome and how many executions ended that way. */
+export interface OutcomePart {
+  readonly status: 'ok' | 'refused' | 'error'
+  readonly count: number
+}
+
+/**
+ * How a project's executions ended, as the parts worth showing.
+ *
+ * `projectTotals` has computed `ok`/`refused`/`error` since it was written and
+ * the card rendered none of them — three facts derived on every render and
+ * dropped, while the surface showed a count of runs that says nothing about
+ * whether any of them worked.
+ *
+ * **The three are exhaustive**, so the parts always sum to `executions`. Not
+ * an assumption: `project-overview-client`'s `isExecution` refuses a row whose
+ * status is not one of the three, and refuses the whole answer rather than
+ * dropping the row — so a fourth status arriving from a newer host makes the
+ * project unreadable, which is the state this returns nothing for.
+ *
+ * **Zero parts are dropped, and the whole is empty for a project with no
+ * executions or none we could read.** `0 refused` is noise on a card; `—` is
+ * already what an unreadable project shows, and repeating it here as three
+ * more dashes would be three more places to read the same absence.
+ *
+ * @param totals - one card's counts.
+ * @returns the non-zero outcomes, in the order the tree names them.
+ */
+export function outcomeParts(totals: ProjectTotals): OutcomePart[] {
+  if (totals.executions === undefined || totals.executions === 0) return []
+  const parts: OutcomePart[] = [
+    { status: 'ok', count: totals.ok ?? 0 },
+    { status: 'refused', count: totals.refused ?? 0 },
+    { status: 'error', count: totals.error ?? 0 },
+  ]
+  return parts.filter(part => part.count > 0)
+}
+
 /** One execution, carrying the project it belongs to. */
 export interface DashboardExecution extends ProjectExecutionRow {
   readonly workspaceId: string
@@ -183,7 +221,16 @@ export type TaskPresence = 'present' | 'missing' | 'unknown'
 export interface DashboardTrigger extends ProjectTriggerRow {
   readonly workspaceId: string
   readonly project: string
-  readonly taskPresence: TaskPresence
+  /**
+   * What became of the task this names — ABSENT for a routine, which names none.
+   *
+   * Not a fourth value in {@link TaskPresence}, and not `unknown` either.
+   * `unknown` is a real claim — *cannot tell if this task is here* — and making
+   * it carry "there is no task to look for" would put two different facts under
+   * one word, which is the collapse this surface exists to avoid. A routine has
+   * no task, so it has no answer, so the field is not there.
+   */
+  readonly taskPresence?: TaskPresence
 }
 
 /**
@@ -228,7 +275,7 @@ export function allTriggers(cards: readonly ProjectCard[]): DashboardTrigger[] {
         ...trigger,
         workspaceId: card.workspaceId,
         project,
-        taskPresence: presenceOf(card, trigger.task),
+        ...(trigger.task === undefined ? {} : { taskPresence: presenceOf(card, trigger.task) }),
       })
     }
   }
@@ -274,7 +321,30 @@ export function triggersForTask(
 ): DashboardTrigger[] {
   const wanted = samePathAs(task.path)
   return triggers.filter(trigger =>
-    trigger.workspaceId === task.workspaceId && samePathAs(trigger.task) === wanted)
+    trigger.workspaceId === task.workspaceId
+    && trigger.task !== undefined
+    && samePathAs(trigger.task) === wanted)
+}
+
+/**
+ * Every routine on the dashboard, in registry order.
+ *
+ * **They render at the PROJECT, never under a task, and never as orphans.**
+ * A routine names no task, so there is no row for it to sit on — but
+ * {@link orphanTriggers} means *names a task that is not here*, and printing
+ * that beside a routine would be a false statement rather than a missing one.
+ * The three states are about a reference that may not resolve; a routine has no
+ * reference at all.
+ *
+ * Flat across projects, like {@link orphanTriggers}: this surface lists every
+ * project at once and each row names its own, so grouping here would be a
+ * second arrangement of the same facts.
+ *
+ * @param triggers - every trigger on the dashboard.
+ * @returns the routines, in registry order.
+ */
+export function routineTriggers(triggers: readonly DashboardTrigger[]): DashboardTrigger[] {
+  return triggers.filter(trigger => trigger.action === 'routine')
 }
 
 /**
@@ -287,7 +357,47 @@ export function triggersForTask(
  * path (design §3): keyed by path, such a trigger would be unrepresentable.
  */
 export function orphanTriggers(triggers: readonly DashboardTrigger[]): DashboardTrigger[] {
-  return triggers.filter(trigger => trigger.taskPresence !== 'present')
+  // A routine is never an orphan: `taskPresence` is absent because it names no
+  // task, and the `!== 'present'` test alone would sweep every routine into a
+  // list whose heading says the opposite.
+  return triggers.filter(trigger =>
+    trigger.taskPresence !== undefined && trigger.taskPresence !== 'present')
+}
+
+/**
+ * Every trigger, ordered by WHEN — which is the question the board exists for.
+ *
+ * The Setups tab orders by project and task, because it answers *what does this
+ * project have set up*. This orders by the clock, because it answers *what is
+ * going to happen next*, and those are different enough questions that both
+ * surfaces survive §28's rubric.
+ *
+ * **Disabled rows go last, in registry order, and are not dropped.** A disabled
+ * trigger has no next fire, so it has no place on a timeline — but it is still
+ * something the person set up, and hiding it would make the board answer "what
+ * is scheduled" with a subset. It also has to be reachable, since the board's
+ * one control is the switch that turns it back on.
+ *
+ * An overdue instant sorts naturally to the front because it is in the past;
+ * nothing clamps it (§27.2), so a harness that was down across a window shows
+ * exactly that.
+ *
+ * @param triggers - every trigger on the dashboard.
+ * @returns the same rows, ordered by next fire and then by registry order.
+ */
+export function scheduleBoard(triggers: readonly DashboardTrigger[]): DashboardTrigger[] {
+  return triggers.map((trigger, at) => ({ trigger, at })).sort((left, right) => {
+    const a = left.trigger.nextFireAt === undefined ? undefined : Date.parse(left.trigger.nextFireAt)
+    const b = right.trigger.nextFireAt === undefined ? undefined : Date.parse(right.trigger.nextFireAt)
+    const aKnown = a !== undefined && !Number.isNaN(a)
+    const bKnown = b !== undefined && !Number.isNaN(b)
+    if (aKnown && bKnown && a !== b) return a - b
+    // A row with no answer sinks, whatever the reason — disabled, or a
+    // timestamp this build could not parse. Ties keep registry order, so the
+    // board is stable across renders rather than re-sorting under the pointer.
+    if (aKnown !== bKnown) return aKnown ? -1 : 1
+    return left.at - right.at
+  }).map(entry => entry.trigger)
 }
 
 /**
@@ -314,7 +424,49 @@ export function nextFireLabel(trigger: DashboardTrigger, now: number): string {
   const wait = at - now
   if (wait <= 0) return 'due now'
   if (wait < 60_000) return 'in under a minute'
-  if (wait < 3_600_000) return `in ${Math.round(wait / 60_000)} min`
-  if (wait < 86_400_000) return `in ${Math.round(wait / 3_600_000)} h`
+  // The bucket is chosen by the number that will be PRINTED, not by the raw
+  // span. Comparing the span and then rounding it separately says "in 60 min"
+  // for the last second of the hour and "in 24 h" for the last second of the
+  // day — a unit the ladder has a name for, printed in the one below it.
+  const minutes = Math.round(wait / 60_000)
+  if (minutes < 60) return `in ${minutes} min`
+  const hours = Math.round(wait / 3_600_000)
+  if (hours < 24) return `in ${hours} h`
   return `in ${Math.round(wait / 86_400_000)} d`
+}
+
+/**
+ * How long ago an instant was, for the column a table sorts by.
+ *
+ * Both dashboard tables order on a timestamp neither displayed — `allTasks` on
+ * `modifiedAt`, `allExecutions` on `startedAt` — so the rows arrived in an
+ * order nothing on screen explained. This is that column.
+ *
+ * Relative, with the exact instant on `title`: "4 min ago" is the question a
+ * person reading a listing is asking, and the ISO instant is the one they need
+ * once they have picked a row. The ladder is {@link nextFireLabel}'s, pointing
+ * the other way, down to choosing the bucket by the printed number.
+ *
+ * **Three answers, not two.** A timestamp we do not have and one we cannot
+ * parse are both `unknown` — the surface can act on neither, and the rows they
+ * belong to already sort last for the same reason. What is NOT collapsed is a
+ * timestamp ahead of the reader's clock: within a minute that is ordinary skew
+ * and reads as `just now`, and beyond it something is wrong with a clock and
+ * saying `just now` would hide it.
+ *
+ * @param at - the ISO instant, or undefined when nothing recorded one.
+ * @param now - the reader's clock.
+ * @returns a phrase for the cell.
+ */
+export function sinceLabel(at: string | undefined, now: number): string {
+  const instant = at === undefined ? Number.NaN : Date.parse(at)
+  if (Number.isNaN(instant)) return 'unknown'
+  const ago = now - instant
+  if (ago < -60_000) return 'in the future'
+  if (ago < 60_000) return 'just now'
+  const minutes = Math.round(ago / 60_000)
+  if (minutes < 60) return `${minutes} min ago`
+  const hours = Math.round(ago / 3_600_000)
+  if (hours < 24) return `${hours} h ago`
+  return `${Math.round(ago / 86_400_000)} d ago`
 }

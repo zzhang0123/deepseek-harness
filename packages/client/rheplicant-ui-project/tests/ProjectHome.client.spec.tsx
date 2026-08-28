@@ -457,6 +457,8 @@ describe('the workbench: a task in view, with no session anywhere', () => {
     setNavigator({
       connect: (w) => { jumps.push(`connect:${w}`); return Promise.resolve('S') },
       open: (s) => { jumps.push(`open:${s}`) },
+      canReveal: () => false,
+      reveal: () => Promise.resolve(),
     })
     serve({ 'ws-1': overview('rhino') }, { 'rhino-fit.yaml': 'x' })
     openHome('ws-1')
@@ -612,6 +614,8 @@ describe('opening a conversation to work in', () => {
     setNavigator({
       connect: (workspaceId) => { calls.push(`connect:${workspaceId}`); return Promise.resolve(`S-${workspaceId}`) },
       open: (sessionId) => { calls.push(`open:${sessionId}`) },
+      canReveal: () => false,
+      reveal: () => Promise.resolve(),
     })
     return calls
   }
@@ -670,6 +674,8 @@ describe('opening a conversation to work in', () => {
     setNavigator({
       connect: () => Promise.reject(new Error('the host is offline')),
       open: () => { throw new Error('must not open') },
+      canReveal: () => false,
+      reveal: () => Promise.resolve(),
     })
     serve({ 'ws-1': overview('rhino') }, {})
     openHome('ws-1')
@@ -793,6 +799,8 @@ describe('a project with no tasks at all', () => {
     setNavigator({
       connect: (id: string) => { opened.push(id); return Promise.resolve('S-new') },
       open: () => {},
+      canReveal: () => false,
+      reveal: () => Promise.resolve(),
     })
     serve({ 'ws-1': overview('rhino', { tasks: [], executions: [] }) })
     openHome('ws-1')
@@ -1332,5 +1340,175 @@ describe('the panel layout the workbench owns (§20.4)', () => {
     })
     expect(container.querySelector('[data-panels-menu-item="gates"][data-panel-without-exit]'))
       .toBeNull()
+  })
+})
+
+describe('the page switch as a widget rather than four styled buttons', () => {
+  /** Open on a readable project and hand back the tab row. */
+  async function row(): Promise<{ container: HTMLElement; tablist: HTMLElement }> {
+    serve({ 'ws-1': overview('rhino') })
+    openHome('ws-1')
+    const { container } = mount()
+    await waitFor(() => { expect(container.querySelector('[data-workbench-pages]')).not.toBeNull() })
+    return { container, tablist: container.querySelector<HTMLElement>('[data-workbench-pages]')! }
+  }
+
+  it('owns tabs and nothing else, on the tab that has a menu beside it', async () => {
+    // The Panels menu used to be the tablist's last child — a `tablist` whose
+    // owned children include a menu button is a shape no assistive technology
+    // has an answer for, and one the arrow keys would have had to step over.
+    const { container, tablist } = await row()
+    act(() => { showWorkbenchPage('results') })
+    await waitFor(() => {
+      expect(container.querySelector('[data-panels-menu]')).not.toBeNull()
+    })
+    expect([...tablist.children].every(child => child.getAttribute('role') === 'tab')).toBe(true)
+    // Still on the row, just not inside the tablist.
+    expect(tablist.parentElement?.querySelector('[data-panels-menu]')).not.toBeNull()
+  })
+
+  it('puts exactly one of the four in the tab sequence', async () => {
+    const { tablist } = await row()
+    const tabbable = [...tablist.querySelectorAll('[role="tab"]')]
+      .filter(tab => tab.getAttribute('tabindex') === '0')
+    expect(tabbable).toHaveLength(1)
+    expect(tabbable[0]?.getAttribute('data-workbench-page')).toBe('overview')
+  })
+
+  it('names the region it governs, and that region names it back', async () => {
+    const { container, tablist } = await row()
+    const selected = tablist.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')!
+    const panel = container.querySelector(`#${selected.getAttribute('aria-controls')!}`)
+    expect(panel?.getAttribute('role')).toBe('tabpanel')
+    expect(panel?.getAttribute('aria-labelledby')).toBe(selected.id)
+    // The scrollport for a page that runs to several thousand pixels, so it
+    // has to be reachable without a mouse.
+    expect(panel?.getAttribute('tabindex')).toBe('0')
+  })
+
+  it('keeps the region named while the project cannot be read', async () => {
+    // An unreadable project still fills the region the tab governs — with the
+    // reason. A tab pointing at nothing there would make the one state that
+    // most needs announcing the one state with no announcement.
+    serve({ 'ws-1': null })
+    openHome('ws-1')
+    const { container } = mount()
+    await waitFor(() => {
+      expect(container.querySelector('[role="tabpanel"]')).not.toBeNull()
+    })
+    const selected = container.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')!
+    expect(container.querySelector('[role="tabpanel"]')?.id)
+      .toBe(selected.getAttribute('aria-controls'))
+  })
+
+  it('walks the four with the arrow keys, and takes the focus along', async () => {
+    const { container, tablist } = await row()
+    const selected = () => container
+      .querySelector('[role="tab"][aria-selected="true"]')?.getAttribute('data-workbench-page')
+
+    fireEvent.keyDown(tablist, { key: 'ArrowRight' })
+    await waitFor(() => { expect(selected()).toBe('setup') })
+    expect(document.activeElement?.getAttribute('data-workbench-page')).toBe('setup')
+
+    fireEvent.keyDown(tablist, { key: 'End' })
+    await waitFor(() => { expect(selected()).toBe('results') })
+
+    // Wrapping, which is what makes the first tab one key from the last.
+    fireEvent.keyDown(tablist, { key: 'ArrowRight' })
+    await waitFor(() => { expect(selected()).toBe('overview') })
+  })
+
+  it('leaves the vertical arrows to the page they would scroll', async () => {
+    const { container, tablist } = await row()
+    const event = new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true })
+    tablist.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(false)
+    expect(container.querySelector('[role="tab"][aria-selected="true"]')
+      ?.getAttribute('data-workbench-page')).toBe('overview')
+  })
+})
+
+describe('the panel that sits above the grid', () => {
+  beforeEach(() => { act(() => { showWorkbenchPage('results') }) })
+
+  /** The Results tab on a project with a task and a run selected. */
+  async function onResults() {
+    serve({ 'ws-1': overview('rhino') }, { 'rhino-fit.yaml': 'model: {}\n' })
+    openHome('ws-1')
+    selectInProject('ws-1', { taskPath: 'rhino-fit.yaml', executionId: 'rhino-E1' })
+    const rendered = mount()
+    await waitFor(() => {
+      expect(rendered.container.querySelector('[data-panel="project-task-maturity"]')).toBeTruthy()
+    })
+    return rendered
+  }
+
+  it('collapses, like every panel in the grid beneath it', async () => {
+    // It was the one panel on this tab without a chevron, immediately above a
+    // grid where every occupant has one.
+    const { container } = await onResults()
+    const panel = container.querySelector('[data-panel="project-task-maturity"]')!
+    const toggle = panel.querySelector<HTMLElement>('[data-panel-collapse-toggle]')
+    expect(toggle).not.toBeNull()
+    expect(toggle?.getAttribute('aria-expanded')).toBe('true')
+    expect(panel.querySelector('[data-panel-body]')).not.toBeNull()
+
+    fireEvent.click(toggle!)
+    await waitFor(() => {
+      expect(container.querySelector('[data-panel="project-task-maturity"]')
+        ?.getAttribute('data-panel-collapsed')).toBe('true')
+    })
+    // Collapsed means the body is not rendered, not merely hidden.
+    expect(container.querySelector('[data-panel="project-task-maturity"] [data-panel-body]'))
+      .toBeNull()
+  })
+
+  it('remembers the collapse in the same store the grid uses', async () => {
+    // The proof that it is on ONE store rather than a second one that happens
+    // to look the same: `reset` is the Panels menu's control over the grid,
+    // and it reaches this panel too.
+    const { container } = await onResults()
+    fireEvent.click(container.querySelector<HTMLElement>(
+      '[data-panel="project-task-maturity"] [data-panel-collapse-toggle]')!)
+    await waitFor(() => {
+      expect(layoutState.collapsed).toContain('project-task-maturity')
+    })
+    act(() => { layoutActions.reset() })
+    await waitFor(() => {
+      expect(container.querySelector('[data-panel="project-task-maturity"]')
+        ?.getAttribute('data-panel-collapsed')).toBeNull()
+    })
+  })
+})
+
+describe('the state that is about the whole page', () => {
+  it('is bounded, rather than a sentence centred in a nineteen-hundred-pixel box', async () => {
+    // `EmptyState` brings its own frame; what it had no way to bring is a
+    // measure, and as a stretched flex item it ran the full body.
+    serve({ 'ws-1': null })
+    openHome('ws-1')
+    const { container } = mount()
+    const state = await waitFor(() => {
+      const found = container.querySelector('[data-empty-state]')
+      expect(found).not.toBeNull()
+      return found!
+    })
+    // The wrapper carries the measure, and the state sits inside it rather
+    // than being a direct child of the scrollport.
+    const wrapper = state.parentElement!
+    expect(wrapper.className).toContain('pageState')
+    expect(wrapper.parentElement?.getAttribute('role')).toBe('tabpanel')
+  })
+
+  it('still says WHICH state it is, in the frame that carries that', async () => {
+    // Solid for a settled fact, dashed for a provisional one — the wrapper
+    // adds no frame of its own precisely so this keeps working.
+    serve({ 'ws-1': null })
+    openHome('ws-1')
+    const { container } = mount()
+    await waitFor(() => {
+      expect(container.querySelector('[data-empty-state]')?.getAttribute('data-empty-state-kind'))
+        .toBe('unavailable')
+    })
   })
 })

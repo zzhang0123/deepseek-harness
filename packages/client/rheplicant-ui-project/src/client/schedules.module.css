@@ -1,0 +1,391 @@
+/* The Schedules board (docs/project-model.md §27.6): a `section` occupant, so
+   the centre column is the geometry and this file sets none of its own — the
+   same reason dashboard.module.css and project-home.module.css set none.
+
+   THE VOCABULARY IS `ui-docs`'. `.card` / `.tag` / `.cardTitle` / `.cardBody`
+   carry the sizes, weights and spacing of `docs.module.css`'s versions rather
+   than new ones, and the group headings use its `.h2` trailing-hairline idiom.
+   Two surfaces in one app should not be two design systems, and the docs page
+   is the one that was got right first. */
+.layer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  /* The same stacking as the dashboard: above the conversation's own painters,
+     below dsh's popover layer at 100. Two peer sections cannot both paint
+     anyway (`home-store`'s one section name), so this matches rather than
+     competes. */
+  z-index: 10;
+}
+
+.page {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--dsw-alias-bg-base);
+  overflow: hidden;
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+}
+
+.title {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  margin-inline-end: auto;
+}
+
+.eyebrow {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.name {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  color: var(--dsw-alias-label-primary);
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+/* How many are actually live, beside the total — the total alone answers "how
+   many did I set up", and the question this surface is for is the other one. */
+.liveCount {
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: var(--dsw-rh-state-ok-bg);
+  color: var(--dsw-alias-state-success-primary);
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+.action {
+  box-sizing: border-box;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 0.375rem;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.action:hover {
+  color: var(--dsw-alias-label-primary);
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 1.25rem 1rem 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* --- the two sentences ---------------------------------------------------
+   `boundary` names what is NOT here and is printed always; `caveat` qualifies
+   a group and rides that group. Separate classes because they appear under
+   different conditions, not because they look different. */
+.boundary,
+.caveat {
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 0.75rem;
+}
+
+.caveat {
+  margin: -0.25rem 0 0.25rem;
+}
+
+.notices {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 0.375rem;
+  background: var(--dsw-rh-state-warn-bg);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 0.75rem;
+}
+
+/* --- groups --------------------------------------------------------------
+   Running and Paused, each with a heading, because position alone only implies
+   what a word can say outright. */
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* `docs.module.css`'s `.h2`: a hairline out to the measure's edge, which
+   groups without adding a heavy rule. */
+.groupHead {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  margin: 1rem 0 0;
+  color: var(--dsw-alias-label-primary);
+  font-size: 1.0625rem;
+  font-weight: 650;
+  letter-spacing: -0.005em;
+}
+
+.groupHead::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--dsw-alias-border-l1);
+}
+
+/* --- the cards -----------------------------------------------------------
+   `auto-fill` rather than `auto-fit`: with two schedules on a 1440px screen,
+   `auto-fit` stretches them into two half-width slabs, which says the surface
+   is emptier than it is. `auto-fill` keeps a card the size a card should be
+   and leaves the rest of the row alone. */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.875rem 1rem 0.75rem;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 0.5rem;
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+/* A card that will not fire recedes rather than disappearing: it is still
+   something the person set up, and the switch that revives it lives on it. */
+.card[data-schedule-enabled='false'] {
+  background: var(--dsw-alias-bg-base);
+}
+
+.card[data-schedule-enabled='false'] .cardTitle {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 1.25rem;
+}
+
+/* `docs.module.css`'s `.cardTag`, in the accent — the one fact that changes
+   what a firing COSTS. */
+.tag {
+  margin-inline-end: auto;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dsw-rh-lit, var(--dsw-alias-brand-primary));
+}
+
+/* A routine spends a model call every time it fires; a task run spends compute
+   the person already owns. Different enough to be a different colour. */
+.tag[data-schedule-kind='run'] {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 650;
+  color: var(--dsw-alias-label-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Two lines, not one: a routine prompt is a sentence, and its first eight words
+   are not what it says. The whole of it is on the element's title. */
+.cardBody {
+  margin: 0;
+  min-height: 2.6rem;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+/* A task path is an identifier, so it gets the mono face and one line — there
+   is no sentence here to lose. Same box height as the prose body, so cards in
+   one row line up whichever kind they are. */
+.cardBodyPath {
+  margin: 0;
+  min-height: 2.6rem;
+  display: flex;
+  align-items: center;
+  color: var(--dsw-alias-label-secondary);
+  font-family: var(--dsw-font-mono, ui-monospace, monospace);
+  font-size: 0.75rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--dsw-alias-border-l1);
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 0.6875rem;
+}
+
+.cadence {
+  flex: none;
+  padding: 0.1rem 0.35rem;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 0.25rem;
+  background: var(--dsw-alias-bg-base);
+  font-family: var(--dsw-font-mono, ui-monospace, monospace);
+  font-size: 0.6875rem;
+}
+
+.fire {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.project {
+  margin-inline-start: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flag {
+  margin-top: 0.4rem;
+}
+
+/* --- the switch ----------------------------------------------------------
+   A `role="switch"` button rather than a checkbox: the state it reports is the
+   state the HOST confirmed, and a native checkbox's own checked-ness would be a
+   second source of truth for it. Bigger than the row version it replaces — it
+   is the only control on this surface and it sits where the eye lands. */
+.switch {
+  box-sizing: border-box;
+  flex: none;
+  width: 2.25rem;
+  height: 1.25rem;
+  padding: 0.125rem;
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-layer-2);
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.switch:hover {
+  border-color: var(--dsw-alias-border-l3);
+}
+
+.switch[aria-checked='true'] {
+  background: var(--dsw-alias-state-success-primary);
+  border-color: var(--dsw-alias-state-success-primary);
+  justify-content: flex-end;
+}
+
+.knob {
+  display: block;
+  width: 0.875rem;
+  height: 0.875rem;
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-base);
+}
+
+.switch[aria-checked='false'] .knob {
+  background: var(--dsw-alias-label-tertiary);
+}
+
+.cardError {
+  margin: 0.4rem 0 0;
+  color: var(--dsw-alias-state-warn-primary);
+  font-size: 0.6875rem;
+  line-height: 1.5;
+}
+
+.empty {
+  margin: 0;
+  padding: 2rem 1rem;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 0.5rem;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 0.8125rem;
+  text-align: center;
+}
+
+/* The one ACTION on a card that is otherwise a statement plus a switch. Its
+   own line under the metadata rather than a fourth item in it: that row is
+   three facts, and a control standing in it reads as a fourth fact until it
+   is clicked. */
+.cardFoot {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--dsw-alias-border-l1);
+}
+
+/* Text, not a filled button. The switch above is the card's primary control
+   and the only one that changes what the harness will do; a second solid
+   button beside it would compete with it for exactly the wrong one to press. */
+.cardAction {
+  padding: 0.15rem 0;
+  border: none;
+  background: transparent;
+  /* `-secondary`, not `-tertiary`: this repo's theme re-values
+     `label-tertiary` to 3.71:1 on a light ground at this size, under WCAG AA.
+     Same substitution and same measurement as `dashboard.module.css`'s table
+     rows and `panel.module.css`'s subtitle. */
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cardAction:hover,
+.cardAction:focus-visible {
+  color: var(--dsw-rh-lit, var(--dsw-alias-brand-primary));
+}

@@ -138,6 +138,17 @@ export function serializeDocument(document: ComputeDocument): SerializedDocument
   try {
     return { text: toYaml(document), format: 'yaml' }
   } catch {
-    return { text: `${JSON.stringify(document, null, 2)}\n`, format: 'json' }
+    // The FALLBACK's fallback. This module's header promises that no document
+    // can break the panel, and until 2026-08-28 the promise had a hole in it:
+    // `JSON.stringify` throws on a cycle and on a BigInt, so a document that
+    // defeated the emitter took the whole tab down instead of being shown
+    // badly. Nothing off the wire can be cyclic — it arrived as JSON — so this
+    // is unreachable in practice and stays anyway, because "unreachable" is
+    // exactly what the first fallback was assumed to be.
+    try {
+      return { text: `${JSON.stringify(document, null, 2)}\n`, format: 'json' }
+    } catch {
+      return { text: String(document), format: 'json' }
+    }
   }
 }

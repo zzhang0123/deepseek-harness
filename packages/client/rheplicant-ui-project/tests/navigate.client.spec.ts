@@ -24,14 +24,19 @@ afterEach(() => { setNavigator(undefined); resetHome(); resetSelections() })
 /** A navigator that records the order every capability was called in. */
 function recording(over: Partial<Navigator> = {}) {
   const order: string[] = []
-  const navigator: Navigator = {
-    connect: (workspaceId) => {
+  // `Object.assign` rather than a spread into an annotated literal: under
+  // `exactOptionalPropertyTypes` a `Partial<Navigator>` spread widens every
+  // member to `| undefined`, which `Navigator` — whose members are all
+  // required — then refuses.
+  const navigator: Navigator = Object.assign({
+    connect: (workspaceId: string) => {
       order.push(`connect:${workspaceId}`)
       return Promise.resolve('S-for-' + workspaceId)
     },
-    open: (sessionId) => { order.push(`open:${sessionId}`) },
-    ...over,
-  }
+    open: (sessionId: string) => { order.push(`open:${sessionId}`) },
+    canReveal: () => { order.push('canReveal'); return false },
+    reveal: (path: string) => { order.push(`reveal:${path}`); return Promise.resolve() },
+  }, over)
   setNavigator(navigator)
   return order
 }
@@ -85,6 +90,8 @@ describe('when connecting fails', () => {
     setNavigator({
       connect: () => Promise.reject(new Error('offline')),
       open: vi.fn(),
+      canReveal: () => false,
+      reveal: () => Promise.resolve(),
     })
     openHome('ws-1')
     await expect(openProject('ws-1')).rejects.toThrow('offline')
@@ -93,7 +100,12 @@ describe('when connecting fails', () => {
 
   it('never opens a session it could not connect', async () => {
     const open = vi.fn()
-    setNavigator({ connect: () => Promise.reject(new Error('offline')), open })
+    setNavigator({
+      connect: () => Promise.reject(new Error('offline')),
+      open,
+      canReveal: () => false,
+      reveal: () => Promise.resolve(),
+    })
     await expect(openProject('ws-1')).rejects.toThrow('offline')
     expect(open).not.toHaveBeenCalled()
   })

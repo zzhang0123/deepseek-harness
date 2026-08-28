@@ -44,8 +44,16 @@ import { useSyncExternalStore } from 'react'
  *
  * `conversation` is the transcript — the absence of a section, and the only
  * member that names no page. Every other member names a `section` occupant.
+ *
+ * **`docs` is registered by ANOTHER package** (`ui-docs`), and is a member here
+ * for the reason this module's own header gives: one variable holds one name,
+ * so two sections cannot both paint the column. A page that carried its own
+ * open flag would be the "second flag that has to be kept false", and the
+ * failure mode is two pages stacked in one column with neither knowing about
+ * the other. The union is the coordination, so it is the union that grows —
+ * see `workbench-service.ts` for the channel the other bundle reaches it by.
  */
-export type Section = 'conversation' | 'workbench' | 'dashboard'
+export type Section = 'conversation' | 'workbench' | 'dashboard' | 'docs' | 'schedules'
 
 /** Which section is on screen, and the project in view. */
 export interface HomeState {
@@ -57,7 +65,7 @@ export interface HomeState {
 const CLOSED: HomeState = { section: 'conversation', workspaceId: undefined }
 
 /** The stored names, so a value written by an older build is not trusted. */
-const SECTIONS: readonly Section[] = ['conversation', 'workbench', 'dashboard']
+const SECTIONS: readonly Section[] = ['conversation', 'workbench', 'dashboard', 'docs', 'schedules']
 
 /**
  * Where the section flag is remembered.
