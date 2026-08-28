@@ -112,3 +112,5 @@ export function stdioRequest<T>(
     child.stdin!.end()
   })
 }
+
+export { resolveEndpoint } from './endpoint.ts'

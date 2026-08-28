@@ -1,16 +1,17 @@
 /**
- * Local transport provider for the rheplicant compute seam (`transport: local`).
- * Spawns the Python compute service and speaks newline-delimited JSON-RPC on its
- * stdio via the shared {@link stdioRequest} transport, one spawn per request. P3
- * replaces this with a managed daemon so JAX compilation is amortized; the
- * request/response shape does not change.
- * @module @rheplicant/dsh-rheplicant-local
+ * SSH transport provider for the rheplicant compute seam (`transport: ssh`).
+ * Spawns `ssh <host> <command…>` and speaks newline-delimited JSON-RPC over the
+ * SSH channel via the shared {@link stdioRequest} transport. The remote machine
+ * must have the compute service installed; the request/response shape is
+ * identical to `transport: local`.
+ * @module @rheplicant/dsh-rheplicant-ssh
  */
 
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { stdioRequest } from '@rheplicant/dsh-rheplicant-transport'
+import { resolveEndpoint, stdioRequest } from '@rheplicant/dsh-rheplicant-transport'
 import type {} from '@rheplicant/dsh-rheplicant'
+import { ComputeError } from '@rheplicant/dsh-rheplicant'
 import type {
   DocumentProjection,
   DefinitionReport,
@@ -27,22 +28,25 @@ import type {
 } from '@rheplicant/dsh-rheplicant'
 
 /** Cordis plugin name used by loader diagnostics. */
-export const name = 'rheplicant-local'
+export const name = 'rheplicant-ssh'
 
 /** The compute seam this provider registers into. */
 export const inject = ['rheplicant']
 
-/** Plugin config: how to spawn the Python service, and the per-request budget. */
+/** Plugin config: the remote host and how to start the remote service. */
 export interface Config {
-  /** The interpreter to spawn. Defaults to `python`. */
+  /** SSH host to run the compute service on. */
+  host?: string
+  /** Remote interpreter. Defaults to `python`. */
   command?: string
-  /** Arguments naming the compute service entry point. */
+  /** Remote arguments naming the compute service entry point. */
   args?: string[]
   /** Per-request wall-clock budget in milliseconds. */
   timeoutMs?: number
 }
 
 export const Config: z<Config> = z.object({
+  host: z.string(),
   command: z.string().default('python'),
   args: z.array(z.string()).default(['-m', 'rheplicant_compute.server']),
   timeoutMs: z.number().default(300_000),
@@ -51,13 +55,30 @@ export const Config: z<Config> = z.object({
 /** Config after schemastery fills every default; fields are non-optional. */
 type ResolvedConfig = Required<Config>
 
-/** Register the local provider under `transport: local`. */
+/** Register the ssh provider under `transport: ssh`. */
 export function apply(ctx: Context, config: Config): void {
-  ctx.rheplicant.registerProvider(['local'], new LocalComputeProvider(config as ResolvedConfig))
+  // Settings first, composition as the default — see `resolveEndpoint`. The
+  // `ui-compute` card edits these at runtime, and a composed value that
+  // silently outranked it would make that card do nothing.
+  const endpoints = ctx.rheplicant.getEndpoints().ssh
+  const host = resolveEndpoint(endpoints?.host, config.host)
+  if (host === undefined) {
+    throw new ComputeError(
+      'rheplicant ssh host is not configured — set `host` in the plugin config or `ssh.host` in the compute settings',
+      'TRANSPORT',
+    )
+  }
+  const command = resolveEndpoint(endpoints?.command, config.command) ?? 'python'
+  ctx.rheplicant.registerProvider(['ssh'], new SshComputeProvider({
+    host,
+    command,
+    args: config.args ?? ['-m', 'rheplicant_compute.server'],
+    timeoutMs: config.timeoutMs ?? 300_000,
+  } as ResolvedConfig))
 }
 
-/** One JSON-RPC request over a freshly spawned Python child process. */
-class LocalComputeProvider implements ComputeProvider {
+/** One JSON-RPC request over `ssh <host> <command…>`. */
+class SshComputeProvider implements ComputeProvider {
   constructor(private readonly config: ResolvedConfig) {}
 
   // `input` is spread verbatim into the JSON-RPC params: an absent half is
@@ -103,15 +124,18 @@ class LocalComputeProvider implements ComputeProvider {
   }
 
   private request<T>(method: string, params: unknown, opts: ComputeOpts): Promise<T> {
+    return stdioRequest<T>(
+      'ssh',
+      [this.config.host, this.config.command, ...this.config.args],
+      method,
+      params,
       // Spread, not `signal: opts.signal`. `StdioRequestOptions.signal` is
       // `AbortSignal` and optional, so under dsh's own
       // `exactOptionalPropertyTypes` PASSING the key with an undefined value
       // is an error while omitting it is fine. Latent in `local` since it was
       // written — its src never entered a program that checks this, because
       // it has no spec importing it (see HANDOVER trap 2 on weaker configs).
-    return stdioRequest<T>(this.config.command, this.config.args, method, params, {
-      timeoutMs: this.config.timeoutMs,
-      ...(opts.signal === undefined ? {} : { signal: opts.signal }),
-    })
+      { timeoutMs: this.config.timeoutMs, ...(opts.signal === undefined ? {} : { signal: opts.signal }) },
+    )
   }
 }

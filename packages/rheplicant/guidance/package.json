@@ -1,0 +1,30 @@
+{
+  "name": "@rheplicant/dsh-rheplicant-guidance",
+  "description": "The document-authoring rules, as a tool-guidance prompt section rather than a persona",
+  "version": "0.0.0",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./rules": {
+      "types": "./lib/rules.d.ts",
+      "default": "./lib/rules.js"
+    },
+    "./invariant": {
+      "types": "./lib/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@deepseek-ai/dsh-system-prompt": "workspace:^"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:^"
+  }
+}

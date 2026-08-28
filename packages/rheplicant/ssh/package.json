@@ -1,0 +1,31 @@
+{
+  "name": "@rheplicant/dsh-rheplicant-ssh",
+  "description": "SSH transport provider for the rheplicant compute seam: spawns the remote Python service over an SSH channel",
+  "version": "0.0.0",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./invariant": {
+      "types": "./lib/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@deepseek-ai/schemastery": "workspace:^",
+    "@rheplicant/dsh-rheplicant": "workspace:^",
+    "@rheplicant/dsh-rheplicant-transport": "workspace:^"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:^"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:^"
+  }
+}

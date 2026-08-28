@@ -6273,6 +6273,31 @@ importers:
         specifier: workspace:^
         version: link:../../core/system-prompt
 
+  packages/rheplicant/guidance:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-system-prompt':
+        specifier: workspace:^
+        version: link:../../core/system-prompt
+
+  packages/rheplicant/http:
+    dependencies:
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
+      '@rheplicant/dsh-rheplicant':
+        specifier: workspace:^
+        version: link:../rheplicant
+      '@rheplicant/dsh-rheplicant-transport':
+        specifier: workspace:^
+        version: link:../transport
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+
   packages/rheplicant/local:
     dependencies:
       '@deepseek-ai/schemastery':
@@ -6309,6 +6334,22 @@ importers:
       '@deepseek-ai/schemastery':
         specifier: link:../../../vendor/schemastery
         version: link:../../../vendor/schemastery
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+
+  packages/rheplicant/ssh:
+    dependencies:
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
+      '@rheplicant/dsh-rheplicant':
+        specifier: workspace:^
+        version: link:../rheplicant
+      '@rheplicant/dsh-rheplicant-transport':
+        specifier: workspace:^
+        version: link:../transport
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:^
