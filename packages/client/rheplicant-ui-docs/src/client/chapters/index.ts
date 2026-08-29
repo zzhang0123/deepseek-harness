@@ -98,8 +98,8 @@ export const CHAPTERS: Readonly<Record<string, Chapter>> = {
     Body: OnDisk,
   },
   'operating': {
-    lede: 'Four steps to a running console on port 3099, and the one variable that must never '
-      + 'default.',
+    lede: 'Four steps to a running console on port 3099 — or one, from the container — and the '
+      + 'one variable that must never default.',
     Body: Operating,
   },
   'analysis': {

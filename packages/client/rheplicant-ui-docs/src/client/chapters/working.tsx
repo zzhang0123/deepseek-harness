@@ -76,6 +76,31 @@ export function Operating(): ReactNode {
         memory does not, and the result is the wrong home rather than an error. The wrapper removes
         the choice.
       </Note>
+
+      <H2>Or from the container</H2>
+      <P>
+        The image carries both runtimes — Node for the harness and console, a Python venv holding
+        the engine and JAX — so it needs neither installed. CI builds it and checks that it serves;
+        it is not published anywhere, so building it needs this repository and a harness checkout.
+      </P>
+      <Code caption="the only supported way to reach it">
+{`docker run --rm --network host rheplicant-agent
+# then http://localhost:3099`}
+      </Code>
+
+      <Note kind="rule">
+        <T>Not <C>-p 3099:3099</C>.</T> The harness refuses <C>--host 0.0.0.0</C> outright —
+        “intentionally not supported yet for safety: it would expose remote code execution to the
+        network” — and publishing a container port <em>is</em> that exposure. So the server keeps
+        binding loopback and the container shares the host’s instead. The bind’s nature is
+        unchanged; only which loopback. There is no supported way to reach this console from another
+        machine, by design.
+      </Note>
+      <P muted>
+        <C>--network host</C> is native on Linux and an opt-in on Docker Desktop elsewhere. The
+        image’s <C>EXPOSE 3099</C> documents the port rather than promising that publishing it
+        works.
+      </P>
     </>
   )
 }

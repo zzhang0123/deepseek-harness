@@ -146,7 +146,7 @@ export const PARTS: readonly Part[] = [
       {
         id: 'operating',
         title: 'Running the harness',
-        blurb: 'Its own home, its own port, its own packages.',
+        blurb: 'Its own home, its own port, its own packages — from source or from the container.',
       },
       {
         id: 'analysis',
