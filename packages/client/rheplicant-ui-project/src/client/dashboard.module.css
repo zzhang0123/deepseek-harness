@@ -65,7 +65,7 @@
 }
 
 .eyebrow {
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--dsw-alias-label-secondary);
   font-size: 0.6875rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -126,7 +126,7 @@
 /* `docs.module.css`'s `.partTitle`: the eyebrow that names a group. */
 .partTitle {
   margin: 0 0 0.5rem;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--dsw-alias-label-secondary);
   font-size: 0.6875rem;
   font-weight: 700;
   letter-spacing: 0.09em;
@@ -207,6 +207,10 @@
   border: 1px solid transparent;
   border-radius: 0.25rem;
   background: transparent;
+  /* `-tertiary` SURVIVES here, and the sweep of 2026-08-29 left it deliberately.
+     This control renders an icon and no text, so the threshold is WCAG 1.4.11
+     non-text contrast at 3:1, not 1.4.3's 4.5:1 — and 3.71:1 clears it. The nine
+     text uses in this sheet did not, and moved. */
   color: var(--dsw-alias-label-tertiary);
   cursor: pointer;
 }
@@ -227,7 +231,7 @@
   margin-top: 0.15rem;
   padding-top: 0.6rem;
   border-top: 1px solid var(--dsw-alias-border-l1);
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--dsw-alias-label-secondary);
   font-size: 0.75rem;
 }
 
@@ -262,7 +266,7 @@
 }
 
 .countLabel {
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--dsw-alias-label-secondary);
   font-size: 0.625rem;
   font-weight: 600;
   letter-spacing: 0.06em;
@@ -289,7 +293,13 @@
 .outcome[data-outcome='refused'] { color: var(--dsw-alias-state-warn-primary); }
 .outcome[data-outcome='error'] { color: var(--dsw-alias-state-error-primary); }
 
-/* The separator belongs to neither side, so it takes neither side's colour. */
+/* The separator belongs to neither side, so it takes neither side's colour.
+   `-tertiary` SURVIVES here too, and for a different reason than `.cardReveal`
+   above: this is a decorative `·` that carries no information — delete it and
+   the three outcome counts still read — so 1.4.3 does not apply to it. Raising
+   it to `-secondary` would also be actively worse, because the punctuation would
+   then sit at the same weight as the semantic ok/refused/error colours it exists
+   to hold apart. */
 .outcome + .outcome::before {
   content: '·';
   margin-inline-end: 0.35rem;
@@ -367,7 +377,7 @@
 /* How big the table is, and what the filter is hiding. */
 .tableCount {
   flex: none;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--dsw-alias-label-secondary);
   font-size: 0.625rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -382,7 +392,7 @@
 }
 
 .filterLabel {
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--dsw-alias-label-secondary);
   font-size: 0.6875rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -503,7 +513,13 @@
 /* The project is context and sits LAST — in a one-project harness it is the
    same grey word on every row, and it used to open all of them. */
 /* ROW TEXT IS `-secondary`, NOT `-tertiary`, and the six rules below say so
-   together because they are one decision. This repo's theme re-values
+   together because they are one decision. The same decision was taken again on
+   2026-08-29 for the nine remaining text uses in this sheet — `.eyebrow`,
+   `.partTitle`, `.unread`, `.countLabel`, `.tableCount`, `.filterLabel`,
+   `.empty`, `.caveat`, `.fire` — which HANDOVER had left as "fourteen more, not
+   audited" (there were eleven, and two of them are exempt: see `.cardReveal` and
+   the `.outcome` separator, each of which records its own reason in place).
+   This repo's theme re-values
    `label-tertiary` to `#81858c`: measured on these two tables it is 3.71:1 on
    a row and 3.54:1 on the header strip, both under WCAG AA's 4.5 for text this
    size — and 10px at weight 700 is not "large text", so the header does not
@@ -593,7 +609,7 @@
   border: 1px solid var(--dsw-alias-border-l1);
   border-radius: 0.5rem;
   background: var(--dsw-alias-bg-layer-1);
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--dsw-alias-label-secondary);
   font-size: 0.8125rem;
   text-align: center;
 }
@@ -607,7 +623,7 @@
    floating at the parent's generic rhythm. */
 .caveat {
   margin: -0.25rem 0 0.5rem;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--dsw-alias-label-secondary);
   font-size: 0.75rem;
 }
 
@@ -678,7 +694,7 @@
 }
 
 .fire {
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--dsw-alias-label-secondary);
   font-size: 0.75rem;
   white-space: nowrap;
 }
